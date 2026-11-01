@@ -2,6 +2,7 @@
 // full .musicproj) and the naming rules shared with EUTERIA (Python).
 
 import { openZip } from "./zip.js";
+import { alignOriginal } from "./align.js";
 
 export const STEM_NAMES = ["vocals", "drums", "bass", "guitar", "piano", "other"];
 export const TRACK_TITLES = {
@@ -134,6 +135,11 @@ export async function openProject(file, context, onProgress = () => {}) {
   }
   onProgress(present.length, present.length, null);
 
+  // The full mix must line up with the stems whatever the browser's decoder did.
+  const t3 = performance.now();
+  const alignment = alignOriginal(tracks, context.sampleRate);
+  alignment.measureMs = performance.now() - t3;
+
   const practice = manifest.practice || {};
   const order = Array.isArray(practice.stem_order) && [...practice.stem_order].sort().join() === [...STEM_NAMES].sort().join()
     ? practice.stem_order
@@ -151,6 +157,7 @@ export async function openProject(file, context, onProgress = () => {}) {
     title: manifest.title || songName(manifest),
     songName: songName(manifest),
     tracks,
+    alignment,
     sampleRate: context.sampleRate,
     duration: length / context.sampleRate,
   };

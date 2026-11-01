@@ -20,13 +20,12 @@ export function loadEngine(context) {
 
 export class Engine {
   // Creates the engine node; resolves once its WebAssembly is ready.
-  static async create(context, { preset = "default" } = {}) {
+  static async create(context) {
     await loadEngine(context);
     const node = new AudioWorkletNode(context, "euteria-engine", {
       numberOfInputs: 0,
       numberOfOutputs: 1,
       outputChannelCount: [2],
-      processorOptions: { preset },
     });
     const engine = new Engine(context, node);
     engine.info = await engine.ready;
@@ -40,7 +39,6 @@ export class Engine {
     this.playing = false;
     this.onposition = null;
     this.onended = null;
-    this.onlatency = null;
     this.requests = new Map();
     this.nextId = 1;
     this.ready = new Promise((resolve, reject) => {
@@ -57,10 +55,6 @@ export class Engine {
         break;
       case "error":
         this.rejectReady(new Error(m.message));
-        break;
-      case "latency":
-        this.info = m;
-        if (this.onlatency) this.onlatency(m);
         break;
       case "pos":
         this.position = m.heard;
@@ -141,10 +135,6 @@ export class Engine {
 
   setLoop(on, start, end) {
     this.send({ type: "loop", on, start, end });
-  }
-
-  setPreset(preset) {
-    this.send({ type: "preset", preset });
   }
 
   // Resolves once every message sent before it has been handled.

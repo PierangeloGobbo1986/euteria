@@ -15,6 +15,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -140,3 +141,20 @@ textarea {
 #report { margin-bottom: 10px; }
 
 footer { color: var(--dim); font-size: 12px; padding-top: 4px; padding-bottom: 32px; }
+
+.exports { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.export-item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.export-item input { grid-row: span 2; width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
+.export-item .name { font-weight: 600; overflow-wrap: anywhere; }
+.export-item .meta { color: var(--dim); font-size: 12px; }
+#export-actions { margin-top: 10px; }

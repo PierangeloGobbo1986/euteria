@@ -28,8 +28,9 @@
       <label class="button primary" for="file">Open project file</label>
       <input id="file" type="file" hidden>
       <button id="sync" type="button">Sync test</button>
+      <button id="sync-old" type="button">Sync test, old format</button>
     </div>
-    <p class="hint">A .euteria file from EUTERIA (Python) 4.2, "Export for Webapp version". A full .musicproj works too, but it is much bigger. "Sync test" opens a small built-in project and checks that every track starts on the same sample.</p>
+    <p class="hint">A .euteria file from EUTERIA (Python), "Export for Webapp version". A full .musicproj works too, but it is much bigger. The sync tests open a small built-in project whose tracks all click at exactly 1.000 s and check where each click lands: "Sync test" uses the format of EUTERIA 4.3 (every track at 48 kHz), "old format" the one of 4.2 (Original Track at 44.1 kHz). The Original Track is lined up with the stems automatically.</p>
     <p id="load-status" class="status"></p>
     <div id="tracks" class="tracks"></div>
   </section>
@@ -63,25 +64,19 @@
       </div>
       <p id="loop-out" class="hint"></p>
     </div>
-    <div class="control">
-      <label for="preset">Quality</label>
-      <select id="preset">
-        <option value="default">Default</option>
-        <option value="cheaper">Lighter (less CPU)</option>
-      </select>
-    </div>
     <p id="audio-status" class="hint"></p>
   </section>
 
   <section class="card">
     <h2>3 · Export MP3</h2>
-    <p class="hint">Exports the stems that are switched on, as they sound now (volumes, tempo, key), with the EUTERIA name: Song_BassDrumsVocals.mp3.</p>
-    <div class="row">
-      <button id="export" type="button" disabled>Export MP3</button>
-      <button id="share" type="button" hidden>Share…</button>
-      <a id="download" class="button" hidden>Download</a>
-    </div>
+    <p class="hint">Exports the stems that are switched on, as they sound now (volumes, tempo, key), with the EUTERIA name: Song_BassDrumsVocals.mp3. Every export is added to the list below: tick the ones you want, then download them as separate files (or share them, on a phone).</p>
+    <button id="export" type="button" disabled>Export MP3</button>
     <p id="export-status" class="status"></p>
+    <div id="exports" class="exports"></div>
+    <div id="export-actions" class="row" hidden>
+      <button id="download" type="button" class="primary">Download selected</button>
+      <button id="share" type="button" hidden>Share selected…</button>
+    </div>
   </section>
 
   <section class="card">
@@ -101,7 +96,7 @@
 
   <section class="card">
     <h2>5 · Engine speed</h2>
-    <p class="hint">Runs the engine as fast as it can on 20 seconds of the loaded song with all tracks on, at the current tempo and key, with both quality settings. Real-time playback needs at least 1×; 3× or more leaves a comfortable margin.</p>
+    <p class="hint">Runs the engine as fast as it can on 20 seconds of the loaded song with all tracks on, at the current tempo and key. Real-time playback needs at least 1×; 3× or more leaves a comfortable margin. It also reports the slowest moments, a single audio block and a stretch of about 23 ms, against the time playback gives them: crackles come from those moments, not from the average. Close to 100% or above means a risk of crackles.</p>
     <button id="speed" type="button" disabled>Run speed test</button>
     <p id="speed-status" class="status"></p>
   </section>
@@ -114,7 +109,7 @@
     </label>
     <div class="row" style="margin-top:10px">
       <button id="copy" class="primary" type="button">Copy report</button>
-      <button id="share-report" type="button">Share report</button>
+      <button id="share-report" type="button" hidden>Share report</button>
     </div>
     <p id="copy-status" class="status"></p>
   </section>

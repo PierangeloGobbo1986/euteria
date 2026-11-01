@@ -23,8 +23,7 @@
         if (this.core) this.handle(event.data);
         else this.queue.push(event.data);
       };
-      const preset = (options && options.processorOptions && options.processorOptions.preset) || "default";
-      globalThis.EuteriaEngineCore.create(sampleRate, preset).then(
+      globalThis.EuteriaEngineCore.create(sampleRate).then(
         (core) => {
           this.core = core;
           this.port.postMessage({ type: "ready", ...this.latencies() });
@@ -42,9 +41,7 @@
         sampleRate,
         inputLatency: c.inputLatency,
         outputLatency: c.outputLatency,
-        bufferLength: c.bufferLength,
         delay: c.delay,
-        preset: c.preset,
       };
     }
 
@@ -87,10 +84,6 @@
           break;
         case "loop":
           core.setLoop(m.on, m.start, m.end);
-          break;
-        case "preset":
-          core.configure(m.preset);
-          this.port.postMessage({ type: "latency", ...this.latencies() });
           break;
         case "ping":
           this.port.postMessage({ type: "reply", id: m.id });
