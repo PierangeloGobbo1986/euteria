@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1214">
+<title>EUTERIA Lab</title>
+<link rel="stylesheet" href="lab.css">
+<script type="module" src="lab.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">EUTERIA <span>Lab</span></div>
+  <p class="lead">Phase 0: tests on real devices. Open a song, play with tempo and key, export an MP3, then copy the report at the bottom and send it back.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>This device</h2>
+    <div id="mode" class="mode">Checking…</div>
+    <dl id="device" class="facts"></dl>
+    <p id="crash" class="warn" hidden></p>
+  </section>
+
+  <section class="card">
+    <h2>1 · Open a song</h2>
+    <div class="row">
+      <label class="button primary" for="file">Open project file</label>
+      <input id="file" type="file" hidden>
+      <button id="sync" type="button">Sync test</button>
+    </div>
+    <p class="hint">A .euteria file from EUTERIA (Python) 4.2, "Export for Webapp version". A full .musicproj works too, but it is much bigger. "Sync test" opens a small built-in project and checks that every track starts on the same sample.</p>
+    <p id="load-status" class="status"></p>
+    <div id="tracks" class="tracks"></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Play</h2>
+    <div class="transport">
+      <button id="play" class="big" type="button" disabled aria-label="Play">▶</button>
+      <button id="stop" type="button" disabled aria-label="Stop">■</button>
+      <span id="time" class="time">0:00.0 / 0:00</span>
+    </div>
+    <input id="seek" type="range" min="0" max="1000" value="0" disabled aria-label="Position">
+    <div class="control">
+      <label for="tempo">Tempo <output id="tempo-out">100%</output></label>
+      <input id="tempo" type="range" min="50" max="200" value="100" step="1">
+    </div>
+    <div class="control">
+      <label>Key</label>
+      <div class="stepper">
+        <button id="key-down" type="button" aria-label="Key down">−</button>
+        <output id="key-out">0 st</output>
+        <button id="key-up" type="button" aria-label="Key up">+</button>
+      </div>
+    </div>
+    <div class="control">
+      <label>Loop</label>
+      <div class="row">
+        <button id="loop" type="button">Loop off</button>
+        <button id="loop-start" type="button">Start here</button>
+        <button id="loop-end" type="button">End here</button>
+      </div>
+      <p id="loop-out" class="hint"></p>
+    </div>
+    <div class="control">
+      <label for="preset">Quality</label>
+      <select id="preset">
+        <option value="default">Default</option>
+        <option value="cheaper">Lighter (less CPU)</option>
+      </select>
+    </div>
+    <p id="audio-status" class="hint"></p>
+  </section>
+
+  <section class="card">
+    <h2>3 · Export MP3</h2>
+    <p class="hint">Exports the stems that are switched on, as they sound now (volumes, tempo, key), with the EUTERIA name: Song_BassDrumsVocals.mp3.</p>
+    <div class="row">
+      <button id="export" type="button" disabled>Export MP3</button>
+      <button id="share" type="button" hidden>Share…</button>
+      <a id="download" class="button" hidden>Download</a>
+    </div>
+    <p id="export-status" class="status"></p>
+  </section>
+
+  <section class="card">
+    <h2>4 · Stress test</h2>
+    <p class="hint">Generates a synthetic song with seven tracks of the chosen length and loads it, to see how much audio this device can hold. If the page reloads by itself, the test went past the limit; the report says so.</p>
+    <div class="row">
+      <select id="stress-min" aria-label="Minutes">
+        <option value="1">1 minute</option>
+        <option value="3" selected>3 minutes</option>
+        <option value="5">5 minutes</option>
+        <option value="8">8 minutes</option>
+      </select>
+      <button id="stress" type="button">Generate</button>
+    </div>
+    <p id="stress-status" class="status"></p>
+  </section>
+
+  <section class="card">
+    <h2>5 · Engine speed</h2>
+    <p class="hint">Runs the engine as fast as it can on 20 seconds of the loaded song with all tracks on, at the current tempo and key, with both quality settings. Real-time playback needs at least 1×; 3× or more leaves a comfortable margin.</p>
+    <button id="speed" type="button" disabled>Run speed test</button>
+    <p id="speed-status" class="status"></p>
+  </section>
+
+  <section class="card">
+    <h2>Report</h2>
+    <textarea id="report" readonly rows="14" aria-label="Report"></textarea>
+    <label class="note">Notes: what you heard (crackles, gaps, tracks out of sync, how tempo and key sound)
+      <textarea id="notes" rows="3" placeholder="e.g. smooth at 80%, a small crackle at 150% with all tracks on"></textarea>
+    </label>
+    <div class="row" style="margin-top:10px">
+      <button id="copy" class="primary" type="button">Copy report</button>
+      <button id="share-report" type="button">Share report</button>
+    </div>
+    <p id="copy-status" class="status"></p>
+  </section>
+</main>
+
+<footer>&copy; 2026 Pierangelo Gobbo. All rights reserved.</footer>
+</body>
+</html>
