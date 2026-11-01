@@ -102,6 +102,43 @@
   </section>
 
   <section class="card">
+    <h2>6 · Separation (computer)</h2>
+    <p class="hint">Separates a song into the six stems inside the browser, with the model of EUTERIA (Python), BS-RoFormer SW, running on the graphics card. Chrome or Edge on a computer. The model is downloaded once from Hugging Face and kept by the browser.</p>
+    <p id="sep-unavailable" class="warn" hidden>This needs Chrome or Edge on a computer with WebGPU.</p>
+    <div class="control">
+      <label for="sep-model">Model</label>
+      <select id="sep-model">
+        <option value="fp16">Half precision (fp16), 336 MB</option>
+        <option value="fp32">Full precision (fp32), 669 MB</option>
+      </select>
+    </div>
+    <div class="control">
+      <label for="sep-rate">Rate</label>
+      <select id="sep-rate">
+        <option value="44100">44.1 kHz, the rate the model was trained at</option>
+        <option value="48000">48 kHz, as EUTERIA (Python) runs it</option>
+      </select>
+    </div>
+    <div class="control">
+      <label for="sep-runtime">Runtime</label>
+      <select id="sep-runtime">
+        <option value="1.24">ONNX Runtime 1.24 (tested with this model)</option>
+        <option value="1.31">ONNX Runtime 1.31 (newer)</option>
+      </select>
+    </div>
+    <p id="sep-model-status" class="hint"></p>
+    <div class="row" style="margin-top:10px">
+      <button id="sep-run" type="button" class="primary" disabled>Separate the open song</button>
+      <label id="sep-file-label" class="button" for="sep-file">Separate an audio file…</label>
+      <input id="sep-file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg" hidden>
+      <button id="sep-stop" type="button" hidden>Stop</button>
+      <button id="sep-delete" type="button" disabled>Delete model</button>
+    </div>
+    <p class="hint">"Separate the open song" uses the Original Track of the song opened in card 1. If that song already has stems from EUTERIA (Python), the new ones join the track list next to them ("Vocals · web" and so on) and the report says how close each pair is.</p>
+    <p id="sep-status" class="status"></p>
+  </section>
+
+  <section class="card">
     <h2>Report</h2>
     <textarea id="report" readonly rows="14" aria-label="Report"></textarea>
     <label class="note">Notes: what you heard (crackles, gaps, tracks out of sync, how tempo and key sound)

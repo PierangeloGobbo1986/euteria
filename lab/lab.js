@@ -1,9 +1,12 @@
 // EUTERIA Lab: Phase 0 tests on real devices.
 
 import { Engine } from "../src/engine.js";
-import { openProject, STEM_NAMES, sliderToGain, gainToSlider, stemsExportFileName } from "../src/project.js";
+import { openProject, checkAlignment, toInt16, STEM_NAMES, TRACK_TITLES, sliderToGain, gainToSlider, stemsExportFileName } from "../src/project.js";
+import { openZip } from "../src/zip.js";
 import { generateSong } from "../src/synth.js";
 import { deviceReport } from "../src/device.js";
+import { Separator, config as sepConfig, MODEL_STEMS, decodeAt, compareStem } from "../src/separation.js";
+import { resampleChannels } from "../src/resample.js";
 
 const $ = (id) => document.getElementById(id);
 const SYNC_CLICK_SECONDS = 1.0;
@@ -17,6 +20,7 @@ const state = {
   context: null,
   engine: null,
   song: null, // {title, songName, duration, sampleRate}
+  source: null, // {file, member, info} of the song opened from a file, to read its Original Track again
   tracks: [], // per track: key, title, bus, length, gain, on, align, decodeMs, fileBytes, pcmBytes
   alignment: null,
   position: 0,
@@ -27,7 +31,7 @@ const state = {
   busy: false,
   exports: [], // {id, file, url, name, seconds, selected, tempo, key}
   crash: null,
-  results: { opened: [], sync: [], stress: [], speed: [], exports: [], downloads: [], shares: [], errors: [], wakeLock: null },
+  results: { opened: [], sync: [], stress: [], speed: [], exports: [], downloads: [], shares: [], separations: [], errors: [], wakeLock: null },
 };
 
 // ----- small helpers ----------------------------------------------------------
@@ -190,7 +194,7 @@ function loadIntoEngine(song) {
 function alignmentText(a) {
   if (!a || !a.checked) return "";
   if (a.applied) return `Original Track shifted by ${a.offset > 0 ? "+" : ""}${a.offset} samples (${a.ms.toFixed(1)} ms) to line up with the stems.`;
-  if (a.confidence < 0.3) return "Original Track not compared with the stems (they do not resemble it enough).";
+  if (a.confidence < 0.8) return "Original Track not compared with the stems (they do not resemble it enough).";
   return `Original Track already in line with the stems (${a.offset} samples).`;
 }
 
@@ -210,6 +214,10 @@ async function openFile(file, label) {
     if (label && label.startsWith("sync")) sync = measureSync(song, label);
     const pcm = song.tracks.reduce((s, t) => s + t.channels.reduce((a, c) => a + c.byteLength, 0), 0);
     loadIntoEngine(song);
+    const originalMember = song.manifest && song.manifest.audio ? song.manifest.audio.original_member : null;
+    state.source = originalMember
+      ? { file, member: originalMember, info: ((song.manifest.audio.tracks || {})[originalMember]) || null }
+      : null;
     await state.engine.sync();
     unmark();
     const a = song.alignment;
@@ -321,6 +329,7 @@ function renderTracks() {
       paint();
     });
     const bits = [];
+    if (t.web) bits.push("separated in this browser");
     if (t.fileBytes != null) bits.push(fmtMB(t.fileBytes));
     if (t.decodeMs != null) bits.push(`decoded in ${Math.round(t.decodeMs)} ms`);
     if (t.align) {
@@ -609,6 +618,7 @@ async function stressTest() {
     const genMs = performance.now() - t0;
     const pcm = song.tracks.reduce((s, t) => s + t.channels.reduce((a, c) => a + c.byteLength, 0), 0);
     loadIntoEngine(song);
+    state.source = null;
     await state.engine.sync();
     unmark();
     state.results.stress.push({ minutes, mb: pcm / 1e6, genS: genMs / 1000 });
@@ -676,6 +686,263 @@ async function speedTest() {
   }
 }
 
+// ----- separation (computer) ---------------------------------------------------------
+
+const sep = { separator: null, running: false, models: {}, forced: false, keepRaw: false, raw: null, seconds: 0 };
+
+const sepAvailable = () => sep.forced || !!(state.device && state.device.mode === "full");
+
+function sepChoice() {
+  return {
+    model: sepConfig.models[$("sep-model").value],
+    runtime: sepConfig.runtimes[$("sep-runtime").value],
+    rate: +$("sep-rate").value,
+  };
+}
+
+function separator() {
+  if (!sep.separator) {
+    sep.separator = new Separator();
+    sep.separator.onprogress = sepProgress;
+  }
+  return sep.separator;
+}
+
+async function refreshModelStatus() {
+  if (!sepAvailable()) return;
+  const { model } = sepChoice();
+  try {
+    const s = await separator().status(model);
+    sep.models[model.key] = s;
+    $("sep-model-status").textContent = s.cached
+      ? `This model is in the browser (${fmtMB(s.bytes)}).`
+      : `This model is downloaded the first time (about ${model.approxMB} MB).`;
+  } catch (error) {
+    $("sep-model-status").textContent = `The browser storage is not available: ${error.message}`;
+  }
+  updateSepUi();
+}
+
+function updateSepUi() {
+  const available = sepAvailable();
+  const idle = !state.busy && !sep.running;
+  $("sep-unavailable").hidden = available || !state.device;
+  $("sep-run").disabled = !available || !idle || !state.source;
+  $("sep-file-label").classList.toggle("disabled", !available || !idle);
+  for (const id of ["sep-model", "sep-rate", "sep-runtime"]) $(id).disabled = !available || !idle;
+  const model = sepConfig.models[$("sep-model").value];
+  const cached = sep.models[model.key] && sep.models[model.key].cached;
+  $("sep-delete").disabled = !available || !idle || !cached;
+  $("sep-stop").hidden = !sep.running;
+}
+
+function sepProgress(m) {
+  if (m.phase === "download") {
+    const left = m.total && m.done ? ((m.total - m.done) * m.ms) / m.done / 1000 : 0;
+    setStatus("sep-status", `Downloading the model: ${fmtMB(m.done)}${m.total ? ` of ${fmtMB(m.total)}` : ""}${left ? ` · about ${fmtTime(left)} left` : ""}`);
+  } else if (m.phase === "verify") {
+    setStatus("sep-status", "Checking the downloaded model…");
+  } else if (m.phase === "separate") {
+    const speed = ((m.done / m.total) * sep.seconds) / (m.ms / 1000);
+    const left = ((m.total - m.done) * m.ms) / m.done / 1000;
+    setStatus("sep-status", `Separating: chunk ${m.done} of ${m.total} · ${speed.toFixed(1)}× real time · about ${fmtTime(left)} left`);
+  }
+}
+
+// A plain audio file becomes a song with the Original Track only.
+async function openAudioFile(file, context) {
+  setStatus("sep-status", `Opening ${file.name}…`);
+  const buffer = await context.decodeAudioData(await file.arrayBuffer());
+  const channels = toInt16(buffer, 0, buffer.length);
+  const title = file.name.replace(/\.[^.]+$/, "") || "Song";
+  loadIntoEngine({
+    title,
+    songName: title,
+    tracks: [{ key: "original", title: TRACK_TITLES.original, bus: "pitched", channels, length: buffer.length, gain: 1, on: true }],
+    sampleRate: context.sampleRate,
+    duration: buffer.length / context.sampleRate,
+    alignment: null,
+  });
+  state.source = { file, member: null, info: null };
+  await state.engine.sync();
+}
+
+// The Original Track of the open song, decoded again straight at `rate`.
+async function readSource(rate) {
+  const src = state.source;
+  const bytes = src.member ? await (await openZip(src.file)).bytes(src.member) : new Uint8Array(await src.file.arrayBuffer());
+  const buffer = await decodeAt(bytes.buffer, rate);
+  const align = checkAlignment(buffer.length, src.info, rate);
+  const pick = (c) => buffer.getChannelData(Math.min(c, buffer.numberOfChannels - 1)).slice(align.trimStart, align.trimStart + align.length);
+  let left = pick(0);
+  let right = pick(1);
+  // The same shift the player applied, if the browser moved the Original Track.
+  const a = state.alignment;
+  if (a && a.applied && state.context) {
+    const shift = Math.round((a.offset * rate) / state.context.sampleRate);
+    const move = (x) => {
+      const y = new Float32Array(x.length);
+      if (shift >= 0) y.set(x.subarray(shift));
+      else y.set(x.subarray(0, x.length + shift), -shift);
+      return y;
+    };
+    left = move(left);
+    right = move(right);
+  }
+  return { left, right, seconds: left.length / rate };
+}
+
+function floatToInt16(x) {
+  const out = new Int16Array(x.length);
+  for (let i = 0; i < x.length; i++) {
+    const v = x[i] < -1 ? -1 : x[i] > 1 ? 1 : x[i];
+    out[i] = v < 0 ? v * 32768 : v * 32767;
+  }
+  return out;
+}
+
+// The new stems join the player: next to the stems of EUTERIA (Python) if the
+// song has them (and then each pair is compared), otherwise as the stems.
+async function addStemsToPlayer(stems, rate, entry) {
+  const engine = state.engine;
+  const contextRate = state.context.sampleRate;
+  for (const t of state.tracks.filter((t) => t.web)) engine.removeTrack(t.key);
+  state.tracks = state.tracks.filter((t) => !t.web);
+  const python = state.tracks.filter((t) => STEM_NAMES.includes(t.key)).map((t) => t.key);
+  const extra = python.length > 0;
+  const tracks = STEM_NAMES.map((stem) => {
+    const channels = resampleChannels(stems[stem], rate, contextRate).map(floatToInt16);
+    return {
+      key: extra ? `web-${stem}` : stem,
+      stem,
+      title: extra ? `${TRACK_TITLES[stem]} · web` : TRACK_TITLES[stem],
+      bus: stem === "drums" ? "drums" : "pitched",
+      channels,
+      length: channels[0].length,
+      gain: 1,
+      on: !extra,
+    };
+  });
+  entry.compare = [];
+  if (extra) {
+    setStatus("sep-status", "Comparing with the stems of EUTERIA (Python)…");
+    await nextFrame();
+    const lent = await lendTracks(python);
+    try {
+      for (const t of lent) {
+        const web = tracks.find((w) => w.stem === t.key);
+        entry.compare.push({ key: t.key, ...compareStem(t.channels.map((b) => new Int16Array(b)), web.channels, contextRate) });
+      }
+    } finally {
+      restoreTracks(lent);
+    }
+  }
+  for (const t of tracks) {
+    state.tracks.push({
+      key: t.key,
+      title: t.title,
+      bus: t.bus,
+      length: t.length,
+      gain: 1,
+      on: t.on,
+      web: true,
+      align: null,
+      decodeMs: null,
+      fileBytes: null,
+      pcmBytes: t.channels.reduce((sum, c) => sum + c.byteLength, 0),
+    });
+    engine.addTrack(t);
+  }
+  if (!extra) {
+    const original = state.tracks.find((t) => t.key === "original");
+    if (original) {
+      original.on = false;
+      engine.setTrack("original", { on: false });
+    }
+  }
+  await engine.sync();
+  renderTracks();
+}
+
+async function separateSong(file) {
+  if (state.busy || sep.running || !sepAvailable()) return;
+  const choice = sepChoice();
+  sep.running = true;
+  state.busy = true;
+  updateUi();
+  const entry = { model: choice.model.key, rate: choice.rate, runtime: choice.runtime.key, ep: sepConfig.ep };
+  mark("separation");
+  try {
+    const context = await ensureAudio();
+    if (state.playing) await playPause();
+    if (file) await openAudioFile(file, context);
+    if (!state.source) throw new Error("Open a song first (card 1), or choose an audio file.");
+    entry.title = state.song.title;
+    const worker = separator();
+    let status = await worker.status(choice.model);
+    if (!status.cached) {
+      setStatus("sep-status", `Downloading the model (about ${choice.model.approxMB} MB, only the first time)…`);
+      status = await worker.download(choice.model);
+      entry.download = { mb: status.bytes / 1e6, seconds: status.downloadMs / 1000 };
+    }
+    sep.models[choice.model.key] = status;
+    entry.sha256 = status.sha256;
+    setStatus("sep-status", "Preparing the model on the graphics card…");
+    const loaded = await worker.load(choice.model, choice.runtime, sepConfig.ep);
+    entry.backend = loaded.backend;
+    entry.sessionSeconds = loaded.reused ? 0 : loaded.createMs / 1000;
+    setStatus("sep-status", "Reading the song…");
+    const source = await readSource(choice.rate);
+    entry.seconds = sep.seconds = source.seconds;
+    setStatus("sep-status", "Separating…");
+    const result = await worker.separate(source.left, source.right, choice.rate);
+    entry.wallSeconds = result.wallMs / 1000;
+    entry.speed = entry.seconds / entry.wallSeconds;
+    entry.chunks = result.chunks;
+    entry.times = result.times;
+    if (sep.keepRaw) sep.raw = { stems: result.stems, rate: choice.rate };
+    setStatus("sep-status", "Adding the stems to the player…");
+    await addStemsToPlayer(result.stems, choice.rate, entry);
+    state.results.separations.push(entry);
+    unmark();
+    let text = `Separated ${fmtTime(entry.seconds)} of music in ${fmtTime(entry.wallSeconds)} (${entry.speed.toFixed(1)}× real time).`;
+    if (entry.compare.length) {
+      text += ` The new stems are in the track list as "Vocals · web" and so on, switched off.\n`;
+      text += `Closeness to EUTERIA (Python), in dB (above 15 they are very close): `;
+      text += entry.compare.map((c) => `${TRACK_TITLES[c.key]} ${c.siSdr.toFixed(1)}`).join(", ") + ".";
+    } else {
+      text += " The six stems are in the track list.";
+    }
+    setStatus("sep-status", text, "ok");
+  } catch (error) {
+    unmark();
+    if (error.message === "Stopped.") setStatus("sep-status", "Stopped.", "error");
+    else fail("Separation", error, "sep-status");
+  } finally {
+    sep.running = false;
+    state.busy = false;
+    updateUi();
+    updateReport();
+    refreshModelStatus();
+  }
+}
+
+function stopSeparation() {
+  if (sep.separator) sep.separator.terminate();
+  sep.separator = null;
+}
+
+async function deleteModel() {
+  const { model } = sepChoice();
+  try {
+    await separator().remove(model);
+    setStatus("sep-status", "Model deleted from the browser.");
+  } catch (error) {
+    fail("Deleting the model", error, "sep-status");
+  }
+  refreshModelStatus();
+}
+
 // ----- UI state -------------------------------------------------------------------
 
 let uiScheduled = false;
@@ -711,6 +978,7 @@ function updateUi() {
   $("loop").textContent = lp.on ? "Loop on" : "Loop off";
   $("loop").classList.toggle("on", lp.on);
   $("loop-out").textContent = lp.end > lp.start ? `${fmtTime(lp.start, true)} – ${fmtTime(lp.end, true)}` : "";
+  updateSepUi();
 }
 
 // ----- report -------------------------------------------------------------------
@@ -748,6 +1016,15 @@ function updateReport() {
   for (const x of r.exports) lines.push(`Export: ${x.name} · ${fmtTime(x.seconds)} · ${x.mb.toFixed(1)} MB · ${x.totalS.toFixed(1)} s${x.reductionDb >= 0.1 ? ` · lowered ${x.reductionDb.toFixed(1)} dB` : ""}`);
   for (const x of r.downloads) lines.push(`Download: ${x}`);
   for (const x of r.shares) lines.push(`Share: ${x}`);
+  for (const s of r.separations) {
+    const b = s.backend || {};
+    const t = s.times;
+    lines.push(`Separation: ${s.title} · ${fmtTime(s.seconds)} · model ${s.model} at ${s.rate / 1000} kHz · ONNX Runtime ${s.runtime} (${b.ortVersion || "?"}) · ${b.ep}${b.adapter ? ` on ${b.adapter}` : ""} · ${s.wallSeconds.toFixed(1)} s = ${s.speed.toFixed(2)}× real time`);
+    lines.push(`  ${s.chunks} chunks · first ${(t.firstRun / 1000).toFixed(2)} s, then ${((t.run - t.firstRun) / Math.max(1, s.chunks - 1) / 1000).toFixed(2)} s each · STFT ${(t.stft / 1000).toFixed(1)} s and inverse ${(t.istft / 1000).toFixed(1)} s in all · session ${s.sessionSeconds.toFixed(1)} s${s.download ? ` · downloaded ${s.download.mb.toFixed(0)} MB in ${s.download.seconds.toFixed(0)} s` : ""} · sha256 ${(s.sha256 || "").slice(0, 12)}`);
+    if (s.compare && s.compare.length) {
+      lines.push(`  vs EUTERIA (Python), SI-SDR dB (correlation, level, lag): ${s.compare.map((c) => `${TRACK_TITLES[c.key]} ${c.siSdr.toFixed(1)} (${c.corr.toFixed(3)}, ${c.levelDb >= 0 ? "+" : ""}${c.levelDb.toFixed(1)} dB, ${c.lag})`).join(" · ")}`);
+    }
+  }
   if (r.wakeLock) lines.push(`Wake lock: ${r.wakeLock}`);
   for (const e of r.errors) lines.push(`ERROR ${e}`);
   const notes = $("notes").value.trim();
@@ -857,6 +1134,16 @@ function wire() {
   $("copy").addEventListener("click", copyReport);
   $("share-report").addEventListener("click", shareReport);
   $("notes").addEventListener("input", updateReport);
+  $("sep-run").addEventListener("click", () => separateSong(null));
+  document.querySelector("label[for=sep-file]").addEventListener("click", unlockAudio);
+  $("sep-file").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (file) separateSong(file);
+  });
+  $("sep-stop").addEventListener("click", stopSeparation);
+  $("sep-delete").addEventListener("click", deleteModel);
+  $("sep-model").addEventListener("change", refreshModelStatus);
   document.addEventListener("keydown", (e) => {
     const tag = (e.target && e.target.tagName) || "";
     if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || e.repeat) return;
@@ -883,6 +1170,15 @@ async function init() {
     renderDevice(state.device);
     // Sharing is offered on phones and tablets only: computers download.
     $("share-report").hidden = !(state.device.handheld && navigator.share);
+    // Half precision needs 16-bit floats in the shaders.
+    if (state.device.gpu.available && !state.device.gpu.shaderF16) {
+      const half = $("sep-model").querySelector("option[value=fp16]");
+      half.disabled = true;
+      half.textContent += " (not supported by this graphics card)";
+      $("sep-model").value = "fp32";
+    }
+    updateSepUi();
+    refreshModelStatus();
   } catch (error) {
     fail("Device check", error);
   }
@@ -890,6 +1186,6 @@ async function init() {
 }
 
 // Hooks for the automated tests.
-window.euteriaLab = { state, ensureAudio, openFile, runWorker, lendTracks, restoreTracks, loadIntoEngine, updateReport };
+window.euteriaLab = { state, ensureAudio, openFile, runWorker, lendTracks, restoreTracks, loadIntoEngine, updateReport, sep, sepConfig, separateSong, refreshModelStatus, updateSepUi };
 
 init();

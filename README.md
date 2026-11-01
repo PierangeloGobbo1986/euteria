@@ -65,6 +65,14 @@ Open it on each device (phone, tablet, computer) and go through the cards in ord
 6. **Engine speed**: how many times faster than real time the engine runs on this
    device with all tracks on, and its slowest moments (a single audio block, and a
    stretch of about 23 ms) against the time playback gives them.
+7. **Separation (computer)**: separates the Original Track of the open song, or an
+   audio file, into the six stems in the browser (Chrome or Edge with WebGPU), and
+   reports the speed. With a project that already has stems from EUTERIA (Python),
+   the new stems join the track list next to them ("Vocals · web" and so on) and the
+   report gives, for each pair, how close they are (SI-SDR in dB, correlation, level).
+   Options: the model at half or full precision, the rate it runs at (44.1 kHz, the
+   rate it was trained at, or 48 kHz, as EUTERIA (Python) runs it), and the ONNX
+   Runtime build.
 
 **Copy report** puts every result in the clipboard, ready to paste back.
 
@@ -97,6 +105,33 @@ stems (cross-correlation of their energy envelopes, as `measure_alignment_offset
 in EUTERIA (Python)) and shifts the Original Track when a browser's decoder placed it
 more than 5 ms away. Safari, for one, decoded a 44.1 kHz MP3 one MP3 frame early.
 
+## How the separation works
+
+The model is the one of EUTERIA (Python): BS-RoFormer SW, six stems (vocals, drums,
+bass, guitar, piano, other). In the browser it runs as the ONNX conversion published
+by [bs-roformer-web](https://github.com/elicwhite/bs-roformer-web): the checkpoint
+without its STFT, fixed at 345 STFT frames (176128 samples), at half (336 MB) or full
+(669 MB) precision. It is downloaded from Hugging Face the first time and kept in the
+browser's private storage (OPFS); it is not part of this repository.
+
+`src/separate-worker.js` runs it in a Web Worker with
+[ONNX Runtime Web](https://onnxruntime.ai) on the graphics card (WebGPU), loaded from
+the jsDelivr CDN. The worker computes the STFT and the inverse STFT itself
+(`src/stft.js`, identical to `torch.stft` / `torch.istft` as the model uses them) and
+cuts the song as `demix_track()` does in EUTERIA (Python): chunks that overlap by
+half, linear fades a tenth of a chunk long, mirrored edges. The inverse STFT of a
+chunk runs while the graphics card computes the next one. Rates are converted with
+`src/resample.js`, the same filter as `scipy.signal.resample_poly`.
+
+The whole chain was checked against PyTorch with a small model of the same
+architecture and random weights, exported the same way: on the CPU the stems agree
+to within rounding, on WebGPU to within the graphics card's arithmetic.
+
+Graphics cards whose WebGPU lacks 16-bit floats cannot run the half-precision model
+(it would return silence instead of failing): there the Lab offers full precision
+only, and the worker refuses the half-precision model. Any chunk that comes back
+silent or not finite stops the separation with an error.
+
 ## Repository layout
 
 - `index.html`: the app (a placeholder for now).
@@ -104,7 +139,8 @@ more than 5 ms away. Safari, for one, decoded a 44.1 kHz MP3 one MP3 frame early
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
 - `src/`: shared code: project files (`zip.js`, `project.js`), the alignment of the
   Original Track (`align.js`), the audio engine (`engine*.js`), the export worker
-  (`render-worker.js`), device checks (`device.js`) and the synthetic test song
+  (`render-worker.js`), the separation (`separation.js`, `separate-worker.js`,
+  `stft.js`, `resample.js`), device checks (`device.js`) and the synthetic test song
   (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
 
@@ -114,8 +150,8 @@ repository is published as it is by GitHub Pages.
 ## Roadmap
 
 - **Phase 0**: feasibility tests on real devices: audio engine on iPhone, opening
-  `.euteria` files with exact alignment, MP3 export and sharing (test page online),
-  then in-browser separation on a computer (next).
+  `.euteria` files with exact alignment, MP3 export and sharing (done), then
+  in-browser separation on a computer (test page online).
 - **Phase 1**: listening mode.
 - **Phase 2**: full mode with in-browser separation.
 - **Phase 3**: band features.

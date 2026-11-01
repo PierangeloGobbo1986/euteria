@@ -158,3 +158,5 @@ footer { color: var(--dim); font-size: 12px; padding-top: 4px; padding-bottom: 3
 .export-item .name { font-weight: 600; overflow-wrap: anywhere; }
 .export-item .meta { color: var(--dim); font-size: 12px; }
 #export-actions { margin-top: 10px; }
+.button.disabled { opacity: .6; pointer-events: none; color: var(--dim); }
+.control select { width: 100%; justify-content: flex-start; }

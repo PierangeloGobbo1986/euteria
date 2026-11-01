@@ -8,7 +8,11 @@
 const COARSE_RATE = 4000; // Hz of the coarse search
 const EXCERPT_SECONDS = 40; // central part of the song that is compared
 const MAX_OFFSET_SECONDS = 5; // beyond this it is not a shift but another problem
-const MIN_CONFIDENCE = 0.3; // below this nothing is corrected
+// Below this nothing is corrected. Stricter than in EUTERIA (Python), where the
+// stems have just been made from the same mix: here the check only catches
+// decoders that move a track, and the stems of a real separation give 0.95 or
+// more. Stems that do not add up to the mix must never move it.
+const MIN_CONFIDENCE = 0.8;
 const DEADBAND_SECONDS = 0.005; // inaudible: left untouched
 const SMOOTH = 21; // envelope smoothing, in coarse samples
 
