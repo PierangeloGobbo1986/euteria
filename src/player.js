@@ -6,6 +6,7 @@
 
 import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName } from "./project.js";
+import { int16Peaks } from "./peaks.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
 export const TEMPO_RANGE = [0.5, 2];
@@ -90,6 +91,9 @@ export class Player {
     this.onupdate = null;
     this.onsettings = null;
     this.wakeLock = null;
+    // The tracks whose waveform the page draws (null: every track); their
+    // envelope is computed when the song opens.
+    this.peakKeys = null;
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.playing) this._wake(true);
     });
@@ -179,7 +183,18 @@ export class Player {
 
   _load(song, kind) {
     const engine = this.engine;
-    this.tracks = song.tracks.map((t) => ({ key: t.key, title: t.title, bus: t.bus, length: t.length, gain: t.gain, on: t.on, align: t.align || null }));
+    let wanted = new Set(song.tracks.map((t) => t.key).filter((k) => !this.peakKeys || this.peakKeys.includes(k)));
+    if (!wanted.size) wanted = new Set([song.tracks[0].key]);
+    this.tracks = song.tracks.map((t) => ({
+      key: t.key,
+      title: t.title,
+      bus: t.bus,
+      length: t.length,
+      gain: t.gain,
+      on: t.on,
+      align: t.align || null,
+      peaks: wanted.has(t.key) ? int16Peaks(t.channels, t.length) : null,
+    }));
     for (const t of song.tracks) engine.addTrack(t); // hands the PCM to the audio thread
     this.song = {
       title: song.title,

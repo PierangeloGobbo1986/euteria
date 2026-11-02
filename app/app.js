@@ -6,13 +6,15 @@
 // folder (recent ones again with one click in Chrome and Edge), and volumes
 // and tempo have sliders too.
 
-import { Player, KEY_RANGE } from "../src/player.js";
+import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
-import { TRACK_TITLES, sliderToGain, gainToSlider } from "../src/project.js";
+import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider } from "../src/project.js";
+import { readGrid, emptyGrid } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, parseTime, numberField, keyField, confirmTap } from "./controls.js";
+import { Timeline } from "./timeline.js";
 
 const $ = (id) => document.getElementById(id);
 const phone = document.documentElement.dataset.layout === "phone";
@@ -21,8 +23,13 @@ const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.ma
 const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const LAYOUT_KEY = "euteria.layout";
 const MAX_EXPORTS = phone ? 6 : 10; // older exports leave the list, to keep memory free
+const DEFAULT_LOOP_SECONDS = 16; // as EUTERIA (Python)
+const WAVE_COLORS = { original: "#d6a85f", stems: ["#8eaaa5", "#809692"] }; // as EUTERIA (Python)
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const player = new Player();
+// The phone draws the Original Track only; a computer every track.
+player.peakKeys = phone ? ["original"] : null;
 const library = phone && Library.supported() ? new Library() : null;
 
 const app = {
@@ -34,6 +41,9 @@ const app = {
   fields: {},
   seeking: false,
   persisted: null,
+  timeline: null,
+  grid: emptyGrid(),
+  gridVisible: true,
 };
 
 // ----- messages -------------------------------------------------------------------
@@ -74,12 +84,13 @@ let saveTimer = null;
 function rememberSettings() {
   clearTimeout(saveTimer);
   saveTimer = null;
-  if (app.current && player.song) saveSettings(app.current.key, player.settings());
+  if (app.current && player.song) saveSettings(app.current.key, { ...player.settings(), view: app.timeline.getView(), grid: app.gridVisible });
 }
-player.onsettings = () => {
+function settingsChanged() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(rememberSettings, 500);
-};
+}
+player.onsettings = settingsChanged;
 window.addEventListener("pagehide", rememberSettings);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") rememberSettings();
@@ -101,10 +112,14 @@ async function openSong(file, origin) {
       notice(key ? `Opening ${file.name}: ${TRACK_TITLES[key] || key} (${done + 1} of ${total})…` : `Opening ${file.name}: lining up the tracks…`)
     );
     const key = settingsKey(song, file);
-    player.apply(loadSettings(key) || practiceFromManifest(song.manifest));
+    const saved = loadSettings(key);
+    player.apply(saved || practiceFromManifest(song.manifest));
+    app.grid = readGrid(song.manifest, song.duration);
+    const practice = (song.manifest && song.manifest.practice) || {};
+    app.gridVisible = saved && typeof saved.grid === "boolean" ? saved.grid : practice.grid_visible !== false;
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name };
-    renderPlayer();
     showView("player");
+    renderPlayer(saved && saved.view);
     window.scrollTo(0, 0);
     const warning = trackWarning();
     if (warning) notice(warning, "error");
@@ -464,6 +479,80 @@ function buildControls() {
   f.loopEnd = numberField({ ...time, label: "Loop end", onChange: (v) => player.setLoopEnd(v) });
   $("loop-start-box").append(f.loopStart.el);
   $("loop-end-box").append(f.loopEnd.el);
+  app.timeline = new Timeline($("timeline"), {
+    compact: phone,
+    varsOn: $("tl-wrap"),
+    onSeek: (t) => player.seek(t),
+    onLoop: (lp) => player.setLoop({ on: true, start: lp.start, end: lp.end }),
+    onView: settingsChanged,
+    onChange: updateZoom,
+  });
+  $("tl-hint").textContent = phone ? "Pinch to zoom, drag to scroll" : "Drag to scroll, pinch or ctrl+wheel to zoom";
+  if (!phone) {
+    // On a computer the tracks are the rows of the timeline.
+    $("quick-slot").append($("quick"));
+    $("timeline").closest(".card").append($("tracks-note"));
+  }
+}
+
+function updateZoom() {
+  const t = app.timeline;
+  $("zoom-level").textContent = `${Math.round(t.zoom * 100)}%`;
+  $("zoom-out").disabled = !player.song || t.zoom <= 1.0001;
+  $("zoom-in").disabled = !player.song || t.zoom >= t.zoomMax - 0.0001;
+  $("zoom-level").disabled = !player.song;
+}
+
+function waveRows() {
+  if (phone) {
+    const t = player.tracks.find((x) => x.peaks) || player.tracks[0];
+    return t ? [{ key: t.key, color: WAVE_COLORS.original, peaks: t.peaks, on: true }] : [];
+  }
+  let stem = 0;
+  return player.tracks.map((t) => ({
+    key: t.key,
+    color: STEM_NAMES.includes(t.key) ? WAVE_COLORS.stems[stem++ % 2] : WAVE_COLORS.original,
+    peaks: t.peaks,
+    on: t.on,
+  }));
+}
+
+// Python's toggle_loop(): a loop switched on appears where the user is
+// looking. Here it starts at the bar being played if the playhead is in
+// view, else in the middle of the view; it lasts 16 seconds, or as long as
+// the loop it replaces, in whole bars when the song has a grid.
+function loopInView() {
+  const d = player.song.duration;
+  const [v0, v1] = app.timeline.visibleRange();
+  const span = Math.max(0.5, v1 - v0);
+  let { start, end } = player.loop;
+  const valid = end - start >= MIN_LOOP;
+  if (valid && start >= v0 - 1e-6 && end <= v1 + 1e-6) return { start, end };
+  let width = clamp(valid ? end - start : DEFAULT_LOOP_SECONDS, 0.5, Math.max(0.5, span * 0.5));
+  const p = player.position;
+  start = p >= v0 && p <= v1 ? p : (v0 + v1) / 2 - width / 2;
+  start = clamp(start, 0, Math.max(0, d - width));
+  const bars = app.grid.bars;
+  if (bars.length > 1) {
+    const barLen = (bars[bars.length - 1] - bars[0]) / (bars.length - 1);
+    let i = 0;
+    while (i + 1 < bars.length && bars[i + 1] <= start + 1e-6) i++;
+    const n = Math.max(1, Math.round(width / barLen));
+    const j = Math.min(bars.length - 1, i + n);
+    return { start: bars[i], end: j > i ? bars[j] : Math.min(d, bars[i] + barLen) };
+  }
+  return { start, end: Math.min(d, start + width) };
+}
+
+function toggleLoop() {
+  if (!player.song) return;
+  if (player.loop.on) player.setLoop({ ...player.loop, on: false });
+  else player.setLoop({ on: true, ...loopInView() });
+}
+
+// After a jump made with a button or a key, the timeline shows the playhead.
+function revealPlayhead() {
+  if (player.song) app.timeline.reveal(player.position);
 }
 
 function trackRow(t) {
@@ -491,14 +580,17 @@ function trackRow(t) {
   return { key, el: h("div", { class: "track" }, ...parts), toggle, volume, slider };
 }
 
-function renderPlayer() {
+function renderPlayer(view = null) {
   const song = player.song;
-  const box = $("tracks");
+  const box = phone ? $("tracks") : $("tl-heads");
   box.textContent = "";
   app.rows = [];
   $("song-title").textContent = song ? song.title : "";
+  $("grid-toggle").hidden = !(song && app.grid.bars.length);
   if (!song) {
     $("song-meta").textContent = "";
+    app.timeline.setSong({ duration: 0, sampleRate: 48000, rows: [], grid: emptyGrid() });
+    updateZoom();
     scheduleUi();
     return;
   }
@@ -514,6 +606,10 @@ function renderPlayer() {
   $("tracks-note").textContent = player.hasStems ? "" : "An audio file has no separate instruments: tempo, key and loop work on the whole song.";
   app.fields.loopStart.setRange(0, song.duration);
   app.fields.loopEnd.setRange(0, song.duration);
+  app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
+  app.timeline.setLoop(player.loop);
+  app.timeline.setPosition(player.position, player.playing);
+  updateZoom();
   updateUi();
 }
 
@@ -643,7 +739,15 @@ function updateUi() {
       if (+row.slider.value !== v) row.slider.value = String(v);
       row.slider.disabled = busy;
     }
+    if (!phone) app.timeline.setRowOn(row.key, t.on);
   }
+  if (song) {
+    app.timeline.setLoop(player.loop);
+    app.timeline.setPosition(player.position, player.playing);
+  }
+  const grid = $("grid-toggle");
+  grid.classList.toggle("on", app.gridVisible);
+  grid.setAttribute("aria-pressed", String(app.gridVisible));
   $("all-stems").disabled = !ready;
   $("original-only").disabled = !ready;
 
@@ -733,9 +837,18 @@ function wire() {
     player.unlock();
     player.toggle();
   });
-  $("stop").addEventListener("click", () => player.stop());
-  $("back5").addEventListener("click", () => player.skip(-5));
-  $("fwd5").addEventListener("click", () => player.skip(5));
+  $("stop").addEventListener("click", () => {
+    player.stop();
+    revealPlayhead();
+  });
+  $("back5").addEventListener("click", () => {
+    player.skip(-5);
+    revealPlayhead();
+  });
+  $("fwd5").addEventListener("click", () => {
+    player.skip(5);
+    revealPlayhead();
+  });
   const seek = $("seek");
   const seekTime = () => (player.song ? (+seek.value / 1000) * player.song.duration : 0);
   seek.addEventListener("input", () => {
@@ -745,13 +858,26 @@ function wire() {
   seek.addEventListener("change", () => {
     app.seeking = false;
     player.seek(seekTime());
+    revealPlayhead();
   });
 
   // Tracks, loop, export
   $("all-stems").addEventListener("click", () => player.allStems());
   $("original-only").addEventListener("click", () => player.originalOnly());
-  $("loop").addEventListener("click", () => player.toggleLoop());
-  $("loop-quick").addEventListener("click", () => player.toggleLoop());
+  $("loop").addEventListener("click", toggleLoop);
+  $("loop-quick").addEventListener("click", toggleLoop);
+  $("zoom-in").addEventListener("click", () => app.timeline.zoomBy(1.5));
+  $("zoom-out").addEventListener("click", () => app.timeline.zoomBy(1 / 1.5));
+  $("zoom-level").addEventListener("click", () => {
+    app.timeline.setView({ zoom: 1, start: 0 });
+    settingsChanged();
+  });
+  $("grid-toggle").addEventListener("click", () => {
+    app.gridVisible = !app.gridVisible;
+    app.timeline.setGridVisible(app.gridVisible);
+    settingsChanged();
+    scheduleUi();
+  });
   $("set-a").addEventListener("click", () => player.setLoopStart(player.position));
   $("set-b").addEventListener("click", () => player.setLoopEnd(player.position));
   $("export").addEventListener("click", exportMp3);
@@ -788,11 +914,13 @@ function onKey(e) {
   } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
     e.preventDefault();
     player.skip(e.key === "ArrowLeft" ? -5 : 5);
+    revealPlayhead();
   } else if (e.key === "Home") {
     e.preventDefault();
     player.seek(player.loop.on ? player.loop.start : 0);
+    revealPlayhead();
   } else if ((e.key === "l" || e.key === "L") && !e.repeat) {
-    player.toggleLoop();
+    toggleLoop();
   } else if (e.key === "[") {
     player.setLoopStart(player.position);
   } else if (e.key === "]") {
@@ -800,6 +928,13 @@ function onKey(e) {
   } else if (/^[1-9]$/.test(e.key) && !e.repeat) {
     const t = player.tracks[+e.key - 1];
     if (t) player.setTrackOn(t.key, !t.on);
+  } else if (e.key === "+" || e.key === "=") {
+    app.timeline.zoomBy(1.5);
+  } else if (e.key === "-" || e.key === "_") {
+    app.timeline.zoomBy(1 / 1.5);
+  } else if (e.key === "0") {
+    app.timeline.setView({ zoom: 1, start: 0 });
+    settingsChanged();
   }
 }
 

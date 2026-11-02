@@ -125,65 +125,81 @@
       </div>
     </div>
 
-    <div class="panels">
-      <section class="card tracks-card">
-        <div class="card-head">
-          <h2>Tracks</h2>
-          <div id="quick" class="quick">
-            <button id="all-stems" type="button" class="small">All stems</button>
-            <button id="original-only" type="button" class="small">Original only</button>
-          </div>
+    <section class="card timeline-card">
+      <div class="tl-toolbar">
+        <div class="zoom" role="group" aria-label="Zoom">
+          <button id="zoom-out" type="button" class="small" aria-label="Zoom out">−</button>
+          <button id="zoom-level" type="button" class="small" title="Whole song" aria-label="Zoom: back to the whole song">100%</button>
+          <button id="zoom-in" type="button" class="small" aria-label="Zoom in">+</button>
         </div>
-        <div id="tracks" class="tracks"></div>
-        <p id="tracks-note" class="hint" hidden></p>
+        <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
+        <span id="tl-hint" class="tl-hint"></span>
+        <div class="spacer"></div>
+        <div id="quick-slot" class="computer-only"></div>
+      </div>
+      <div id="tl-wrap" class="tl-wrap">
+        <div id="tl-heads" class="tl-heads computer-only"></div>
+        <div id="timeline" class="tl-host"></div>
+      </div>
+    </section>
+
+    <section class="card tracks-card phone-only">
+      <div class="card-head">
+        <h2>Tracks</h2>
+        <div id="quick" class="quick">
+          <button id="all-stems" type="button" class="small">All stems</button>
+          <button id="original-only" type="button" class="small">Original only</button>
+        </div>
+      </div>
+      <div id="tracks" class="tracks"></div>
+      <p id="tracks-note" class="hint" hidden></p>
+    </section>
+
+    <div class="panels">
+      <section class="card">
+        <h2>Tempo and key</h2>
+        <div class="field">
+          <span class="label">Tempo</span>
+          <div id="tempo-box" class="control-box"></div>
+        </div>
+        <div class="field">
+          <span class="label">Key</span>
+          <div id="key-box" class="control-box"></div>
+        </div>
+        <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
       </section>
 
-      <div class="side">
-        <section class="card">
-          <h2>Tempo and key</h2>
-          <div class="field">
-            <span class="label">Tempo</span>
-            <div id="tempo-box" class="control-box"></div>
-          </div>
-          <div class="field">
-            <span class="label">Key</span>
-            <div id="key-box" class="control-box"></div>
-          </div>
-          <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
-        </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>Loop</h2>
+          <button id="loop" type="button" class="small toggle-pill">Off</button>
+        </div>
+        <div class="field">
+          <span class="label">Start</span>
+          <div id="loop-start-box" class="control-box"></div>
+          <button id="set-a" type="button" class="small">Set</button>
+        </div>
+        <div class="field">
+          <span class="label">End</span>
+          <div id="loop-end-box" class="control-box"></div>
+          <button id="set-b" type="button" class="small">Set</button>
+        </div>
+        <p class="hint"><b>Set</b> takes the position being played. On the timeline, drag the edges of the loop: they snap to the bars.</p>
+      </section>
 
-        <section class="card">
-          <div class="card-head">
-            <h2>Loop</h2>
-            <button id="loop" type="button" class="small toggle-pill">Off</button>
-          </div>
-          <div class="field">
-            <span class="label">Start</span>
-            <div id="loop-start-box" class="control-box"></div>
-            <button id="set-a" type="button" class="small">Set</button>
-          </div>
-          <div class="field">
-            <span class="label">End</span>
-            <div id="loop-end-box" class="control-box"></div>
-            <button id="set-b" type="button" class="small">Set</button>
-          </div>
-          <p class="hint"><b>Set</b> takes the position being played.</p>
-        </section>
-
-        <section class="card">
-          <h2>Export MP3</h2>
-          <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key).</p>
-          <button id="export" type="button">Export MP3</button>
-          <p id="export-status" class="status"></p>
-          <div id="exports" class="exports"></div>
-          <div id="export-actions" class="row" hidden>
-            <button id="download" type="button" class="primary">Download</button>
-            <button id="share" type="button" class="primary" hidden>Share…</button>
-          </div>
-        </section>
-      </div>
+      <section class="card">
+        <h2>Export MP3</h2>
+        <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key).</p>
+        <button id="export" type="button">Export MP3</button>
+        <p id="export-status" class="status"></p>
+        <div id="exports" class="exports"></div>
+        <div id="export-actions" class="row" hidden>
+          <button id="download" type="button" class="primary">Download</button>
+          <button id="share" type="button" class="primary" hidden>Share…</button>
+        </div>
+      </section>
     </div>
-    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end here · 1 to 7 switch a track on or off. Double-click a slider to bring it back to 100%.</p>
+    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end here · 1 to 7 switch a track on or off · + and − zoom, 0 the whole song. On the timeline: click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom, drag the loop or its edges (Alt: without snapping). Double-click a slider to bring it back to 100%.</p>
   </section>
 </main>
 

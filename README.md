@@ -8,8 +8,8 @@ and off, change tempo and key in real time, loop a passage, follow the bar grid 
 the chords, and export the parts you need as MP3.
 
 **Status: in development.** Phase 0 (feasibility tests on real devices) is done. Phase 1
-(listening mode) is under way: the first step, the player with the library and the MP3
-export, is online and being tested.
+(listening mode) is under way: the player with the library and the MP3 export is online
+and tested on iPhone and Mac; the timeline (step 2) is online and being tested.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page: https://pierangelogobbo1986.github.io/euteria/lab/
@@ -34,7 +34,8 @@ to the other one.
   In Chrome and Edge, *Recent* opens them again with one click (the browser asks once
   for permission). Volumes and tempo also have sliders; keyboard: Space play or pause,
   ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
-  at the current position, 1 to 7 switch a track on or off.
+  at the current position, 1 to 7 switch a track on or off, + and − zoom, 0 the whole
+  song.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
@@ -42,8 +43,25 @@ end, and the MP3 export of the stems that are on, downloaded or, on phones, shar
 (WhatsApp, Save to Files). An audio file opens as a single track: tempo, key and loop
 work on the whole song.
 
-Every song reopens as it was left (tracks, volumes, tempo, key, loop, position): the
-settings are kept in the browser. A project opened for the first time starts from the
+**The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
+the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
+computer every track has its own row, with its switch and volume beside it (a track
+that is off is drawn dimmed); on the phone the row is the Original Track. A tap or a
+click moves the playhead; dragging scrolls (with momentum on touch screens); pinching,
+ctrl+wheel (a trackpad pinch) or the zoom buttons go from the whole song (100%) to
+about 100 pixels per second, and a tap on the percentage goes back to the whole song.
+The overview under the timeline shows the whole song and the part in view, which can
+be dragged. The edges of the loop are dragged on the timeline and snap to the bars and
+beats (Alt or Option places them freely); with a mouse the whole loop can be dragged
+too. A loop switched on starts at the bar being played (or in the middle of the view if
+the playhead is elsewhere) and lasts 16 seconds, at most half of what is in view, in
+whole bars; a loop already placed and in view stays where it is. While the song plays,
+the view follows the playhead, except for a few seconds after it was moved by hand.
+*Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
+EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
+
+Every song reopens as it was left (tracks, volumes, tempo, key, loop, position, zoom,
+the part in view, the grid shown or hidden): the settings are kept in the browser. A project opened for the first time starts from the
 practice settings saved by EUTERIA (Python): tempo, transposition (if the project was
 left transposed), loop, volumes and the tracks that are on.
 
@@ -209,17 +227,27 @@ audio file); those of the 300 songs opened most recently are kept.
 `src/player.js` holds one audio context and one engine for the whole session. Opening
 a song closes the previous one first, so that two songs are never in memory together.
 
+The waveforms of the timeline (`src/peaks.js`) are computed once, when a song opens,
+before its audio goes to the audio thread: the lowest and highest sample every 256
+samples (about 5 ms), as 8-bit values, about 90 kB per track for four minutes. The
+timeline (`app/timeline.js`) draws on two canvases, one for the waveforms, the grid and
+the chords, redrawn when the view changes, and one for the loop and the playhead,
+redrawn as the song plays; only the part of the song in view is drawn. The grid
+(`src/grid.js`) is read from the project as EUTERIA (Python) saves it: the times of the
+beats and of the bars, the bar number offset and the chords, keyed by bar.
+
 ## Repository layout
 
-- `index.html`, `app/`: the app (page, styles, `app.js`, the number fields in
-  `controls.js`, icons); `manifest.webmanifest` and `sw.js` (service worker) make it
-  installable and usable offline.
+- `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
+  the number fields in `controls.js`, icons); `manifest.webmanifest` and `sw.js`
+  (service worker) make it installable and usable offline.
 - `lab/`: the Phase 0 test page, and the sync test projects `sync-test.euteria`
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
 - `src/`: shared code: project files (`zip.js`, `project.js`), the alignment of the
   Original Track (`align.js`), the audio engine (`engine*.js`), the player
   (`player.js`), the export worker (`render-worker.js`), the library (`library.js`,
   `library-worker.js`), recent files (`recent.js`), per-song settings (`settings.js`),
+  the grid and chords of a project (`grid.js`), waveform envelopes (`peaks.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
   `onnx-rewrite.js`), device checks (`device.js`) and the synthetic test song
   (`synth.js`).
@@ -234,10 +262,10 @@ repository is published as it is by GitHub Pages.
   opening `.euteria` files with exact alignment, MP3 export and sharing, in-browser
   separation on a computer.
 - **Phase 1**: listening mode. Step 1: the player, the library (phone), opening files
-  and recent files (computer), settings kept per song, MP3 export, offline use
-  (online, being tested). Next: the timeline (waveform, bar grid and numbers, chords,
-  loop drawn on it, zoom), editing and saving (grid, chords, loop, `.euteria` export),
-  the metronome with count-in.
+  and recent files (computer), settings kept per song, MP3 export, offline use (done,
+  tested on iPhone and Mac). Step 2: the timeline (waveforms, bar grid and numbers,
+  chords, loop dragged on it, zoom, overview; online, being tested). Next: editing and
+  saving (grid, chords, loop, `.euteria` export), the metronome with count-in.
 - **Phase 2**: full mode with in-browser separation.
 - **Phase 3**: band features.
 
