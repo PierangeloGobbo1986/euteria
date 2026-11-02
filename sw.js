@@ -9,7 +9,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v1";
+const CACHE = "euteria-app-v2";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -23,6 +23,7 @@ const SHELL = [
   "app/icons/icon-512.png",
   "app/icons/icon-maskable-512.png",
   "app/icons/apple-touch-icon.png",
+  "app/icons/logo-96.png",
   "src/align.js",
   "src/device.js",
   "src/engine.js",

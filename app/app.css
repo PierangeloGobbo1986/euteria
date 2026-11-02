@@ -58,12 +58,19 @@ b { font-weight: 650; }
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-.appbar-inner { height: var(--appbar); display: flex; align-items: center; gap: 10px; }
-.brand { font-size: 20px; font-weight: 800; letter-spacing: .06em; }
+.appbar-inner { min-height: var(--appbar); padding-top: 6px; padding-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 9px; font-size: 20px; font-weight: 800; letter-spacing: .06em; flex: none; }
+.brand .logo { width: 34px; height: 34px; border-radius: 8px; display: block; }
+.credit { flex: 0 1 auto; min-width: 0; text-align: right; font-size: 11px; line-height: 1.3; color: var(--muted); }
+.credit p { margin: 0; }
+.credit .acronym b { color: var(--gold); font-weight: 750; }
+.credit .author { color: var(--dim); margin-top: 1px; }
+[data-layout=computer] .credit { border-left: 1px solid var(--border); padding-left: 14px; margin-left: 4px; font-size: 12px; }
+[data-layout=phone] .credit .acronym span { display: block; }
 .spacer { flex: 1; }
 .open-group { display: flex; gap: 8px; align-items: center; }
 [data-layout=phone] .computer-only { display: none !important; }
-.back { margin-left: -8px; padding-left: 8px; padding-right: 10px; color: var(--accent); font-weight: 600; }
+.back { flex: none; white-space: nowrap; margin-left: -8px; padding-left: 8px; padding-right: 10px; color: var(--accent); font-weight: 600; }
 [data-layout=phone] body[data-view=player] .back + .brand { display: none; }
 
 /* ----- buttons ----- */
@@ -407,6 +414,18 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
   [data-layout=computer] .track { grid-template-columns: minmax(0, 1fr) auto; }
   [data-layout=computer] .track input[type=range] { grid-column: 1 / -1; grid-row: 2; }
   .welcome { padding: 20px; }
+}
+@media (max-width: 1000px) {
+  [data-layout=computer] .credit .acronym span { display: block; }
+}
+@media (max-width: 640px) {
+  [data-layout=computer] .credit { border-left: 0; padding-left: 0; }
+  [data-layout=computer] .open-group #recent-menu { display: none !important; }
+}
+@media (max-width: 400px) {
+  .brand { font-size: 17px; gap: 7px; }
+  .brand .logo { width: 30px; height: 30px; }
+  .credit { font-size: 10px; }
 }
 @media (max-width: 380px) {
   [data-layout=phone] .num .step { width: 38px; }

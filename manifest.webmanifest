@@ -1,7 +1,7 @@
 {
   "name": "EUTERIA",
   "short_name": "EUTERIA",
-  "description": "Practise with the separated parts of a song: choose the instruments, change tempo and key, loop a passage, export the parts you need as MP3.",
+  "description": "Enhanced Universal Tool for Exploring Recordings, Improvisations & Arrangements: practise with the separated parts of a song. Created by Pierangelo Gobbo.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

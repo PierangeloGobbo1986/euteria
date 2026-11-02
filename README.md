@@ -1,5 +1,8 @@
 # EUTERIA Web
 
+**EUTERIA**: **E**nhanced **U**niversal **T**ool for **E**xploring **R**ecordings,
+**I**mprovisations & **A**rrangements. Created by Pierangelo Gobbo.
+
 Practise with the separated parts of a song, in the browser: switch instruments on
 and off, change tempo and key in real time, loop a passage, follow the bar grid and
 the chords, and export the parts you need as MP3.
