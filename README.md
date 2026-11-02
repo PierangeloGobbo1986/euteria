@@ -8,8 +8,9 @@ and off, change tempo and key in real time, loop a passage, follow the bar grid 
 the chords, and export the parts you need as MP3.
 
 **Status: in development.** Phase 0 (feasibility tests on real devices) is done. Phase 1
-(listening mode) is under way: the player with the library and the MP3 export is online
-and tested on iPhone and Mac; the timeline (step 2) is online and being tested.
+(listening mode) is under way: the player with the library and the MP3 export, and the
+timeline, are online and tested on iPhone and Mac; editing and saving the grid and the
+chords (step 3) is online and being tested.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page: https://pierangelogobbo1986.github.io/euteria/lab/
@@ -36,7 +37,7 @@ to the other one.
   for permission). Volumes and tempo also have sliders; keyboard: Space play or pause,
   ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
   at the current position, 1 to 7 switch a track on or off, + and − zoom, 0 the whole
-  song.
+  song, Ctrl+S (⌘S on a Mac) save.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
@@ -71,10 +72,52 @@ the view follows the playhead, except for a few seconds after it was moved by ha
 *Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
+**Editing the grid and the chords.** *Edit*, in the timeline's toolbar, opens the
+editor of EUTERIA (Python), on the phone too:
+
+- **The grid**: *BPM* (20-400, by half beats per minute), the meter (4/4, 3/4, 6/8) and
+  the anchor, the first beat of a bar: *Set anchor* puts it at the playhead (placed
+  exactly with the playhead field), and the field beside it moves it by hundredths of a
+  second. Each change rebuilds the grid from the anchor, both ways, as EUTERIA (Python)
+  does. Chords and bar numbers stay with their bars measured from the anchor, so a bar
+  that appears or vanishes at the start of the song (an anchor moved by a few
+  hundredths, a different tempo) shifts nothing. *Clear grid* (two taps) removes the
+  grid and the chords; *Set anchor* makes a new grid at the tempo kept. An audio file
+  starts without a grid, at 180 BPM as in EUTERIA (Python).
+- **The chords**: a tap or a click in the chord lane selects a bar, dragging along the
+  lane (or shift-click) several. The chord typed goes to every bar selected (an empty
+  chord removes it); Return (*next* on the phone keyboard) goes on to the following
+  bar, so a song is entered chord after chord without leaving the keyboard. ‹ and ›
+  move the selection. *Copy* and *Paste* copy the chords of the bars selected: pasted
+  into several bars they repeat to fill them (as in EUTERIA (Python)), pasted into one
+  bar they all go in from there. On a computer: a click puts the cursor in the chord
+  field, a key from A to G starts a chord, ← → move the selection (Shift: extend it),
+  Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
+- **Bar numbers**: *Bar* shows the number of the bar selected; typing another number
+  renumbers every bar from it (the bar number offset of EUTERIA (Python)), for a pickup
+  bar or a song that starts in the middle.
+
+Every edit is kept in the browser at once, so nothing is lost if the song is closed;
+until it is saved, a dot on *Edit* says so. **Save** writes the grid, the chords and the
+practice settings (tempo, key, loop, volumes, tracks on) in the song's `manifest.json`,
+in the fields EUTERIA (Python) uses:
+
+- phone: the song in the library is updated; *Share…* sends it (AirDrop, Save to
+  Files, a chat), to open it on a computer (*Download* where the browser cannot share
+  such a file);
+- computer, Chrome and Edge: the file itself is updated (the browser asks once for
+  permission to write it);
+- computer, Safari and Firefox, which cannot write files: *Save a copy* downloads the
+  song with the changes;
+- an audio file becomes an EUTERIA project (`.euteria`) holding it, with its grid and
+  chords: in the library on the phone, where you choose in Chrome and Edge, downloaded
+  elsewhere.
+
 Every song reopens as it was left (tracks, volumes, tempo, key, loop, position, zoom,
-the part in view, the grid shown or hidden): the settings are kept in the browser. A project opened for the first time starts from the
-practice settings saved by EUTERIA (Python): tempo, transposition (if the project was
-left transposed), loop, volumes and the tracks that are on.
+the part in view, the grid shown or hidden, the edits not saved yet): the settings are
+kept in the browser. A project opened for the first time starts from the practice
+settings saved in it: tempo, transposition (if the project was left transposed), loop,
+volumes and the tracks that are on.
 
 On iPhone and iPad it is best to add EUTERIA to the Home Screen (Share, then *Add to
 Home Screen*) and use it from there: Safari may delete the data of websites that have
@@ -247,18 +290,32 @@ redrawn as the song plays; only the part of the song in view is drawn. The grid
 (`src/grid.js`) is read from the project as EUTERIA (Python) saves it: the times of the
 beats and of the bars, the bar number offset and the chords, keyed by bar.
 
+Saving (`src/zipwrite.js`, `src/manifest.js`) rewrites only `manifest.json`: the audio is
+never read into memory. In place (the library, or a file Chrome and Edge may write), the
+new manifest and a new zip directory replace the end of the file, a few kilobytes: the
+manifest saved before as well when it is the last member, so that saving again and
+again does not make the file grow (the first time, the manifest written by EUTERIA
+(Python) at the start of the file stays there, unlisted). A copy is assembled by the
+browser from slices of the file as it is downloaded. The file written is read back
+before the app says it is saved. Edits not saved yet are kept with the song's settings
+as the tempo, meter, anchor, bar number offset and chords: the beats and bars are
+rebuilt from them.
+
 ## Repository layout
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
-  the number fields in `controls.js`, icons); `manifest.webmanifest` and `sw.js`
-  (service worker) make it installable and usable offline.
+  the editor of the grid and the chords in `editor.js`, the number fields in
+  `controls.js`, icons); `manifest.webmanifest` and `sw.js` (service worker) make it
+  installable and usable offline.
 - `lab/`: the Phase 0 test page, and the sync test projects `sync-test.euteria`
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
-- `src/`: shared code: project files (`zip.js`, `project.js`), the alignment of the
+- `src/`: shared code: project files (`zip.js`, `project.js`; written by `zipwrite.js`
+  and `manifest.js`), the alignment of the
   Original Track (`align.js`), the audio engine (`engine*.js`), the player
   (`player.js`), the export worker (`render-worker.js`), the library (`library.js`,
   `library-worker.js`), recent files (`recent.js`), per-song settings (`settings.js`),
-  the grid and chords of a project (`grid.js`), waveform envelopes (`peaks.js`),
+  the grid and chords of a project, and their editing (`grid.js`), waveform envelopes
+  (`peaks.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
   `onnx-rewrite.js`), device checks (`device.js`) and the synthetic test song
   (`synth.js`).
@@ -275,8 +332,9 @@ repository is published as it is by GitHub Pages.
 - **Phase 1**: listening mode. Step 1: the player, the library (phone), opening files
   and recent files (computer), settings kept per song, MP3 export, offline use (done,
   tested on iPhone and Mac). Step 2: the timeline (waveforms, bar grid and numbers,
-  chords, loop dragged on it, zoom, overview; online, being tested). Next: editing and
-  saving (grid, chords, loop, `.euteria` export), the metronome with count-in.
+  chords, loop dragged on it, zoom, overview; done, tested on iPhone and Mac). Step 3:
+  editing the grid, the bar numbers and the chords, saved in the `.euteria` file
+  (online, being tested). Next: the metronome with count-in.
 - **Phase 2**: full mode with in-browser separation.
 - **Phase 3**: band features.
 

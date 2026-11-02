@@ -1,20 +1,25 @@
-// EUTERIA Web, the app (listening mode).
+// EUTERIA Web, the app.
 //
 // Two layouts share one player. "phone" (phones and tablets): songs are copied
 // into a library inside the app, which shows the space they take, and values
 // are numbers with − and + buttons. "computer": songs are opened from any
 // folder (recent ones again with one click in Chrome and Edge), and volumes
-// and tempo have sliders too.
+// and tempo have sliders too. The grid and the chords of a song are edited
+// in the timeline (app/editor.js) and saved in the song's file.
 
 import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
+import { openZip } from "../src/zip.js";
+import { manifestPatch, withManifest, buildProject } from "../src/zipwrite.js";
+import { savedManifest, newProjectManifest, newProjectId, manifestBytes } from "../src/manifest.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider } from "../src/project.js";
-import { readGrid, emptyGrid } from "../src/grid.js";
+import { readGrid, emptyGrid, applyGridEdits } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, parseTime, numberField, keyField, confirmTap } from "./controls.js";
 import { Timeline } from "./timeline.js";
+import { Editor } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 const phone = document.documentElement.dataset.layout === "phone";
@@ -26,6 +31,15 @@ const MAX_EXPORTS = phone ? 6 : 10; // older exports leave the list, to keep mem
 const DEFAULT_LOOP_SECONDS = 16; // as EUTERIA (Python)
 const WAVE_COLORS = { original: "#d6a85f", stems: ["#8eaaa5", "#809692"] }; // as EUTERIA (Python)
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const HINTS = phone
+  ? {
+      view: "Tap or drag on the waveform to place the playhead, pinch to zoom, drag the overview or the bar numbers to scroll. Drag the green bar of the loop to move it, its handles to change it: they snap to the bars.",
+      edit: "Tap a bar in the chord lane to select it, drag along the lane to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there.",
+    }
+  : {
+      view: "Click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom. Drag the loop to move it, or its edges to change it: they snap to the bars (Alt: freely).",
+      edit: "Click a bar in the chord lane and type its chord (Return: the next bar); shift-click or drag along the lane to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there.",
+    };
 
 const player = new Player();
 // The phone draws the Original Track only; a computer every track.
@@ -34,7 +48,10 @@ const library = phone && Library.supported() ? new Library() : null;
 
 const app = {
   view: null,
-  current: null, // the open song: {key, source: "library" | "file", entryId, name}
+  // The open song: {key (of its settings), source: "library" | "file",
+  // entryId (library), name, file (as it is now), handle (a file Chrome and
+  // Edge may write to)}.
+  current: null,
   adding: false,
   exports: [], // {id, file, url, name, seconds, tempo, key, selected}
   rows: [],
@@ -45,7 +62,9 @@ const app = {
   scrub: null, // where a finger drags the playhead while the song plays
   grid: emptyGrid(),
   gridVisible: true,
+  saving: false,
 };
+let editor = null; // app/editor.js, made with the timeline
 
 // ----- messages -------------------------------------------------------------------
 
@@ -85,7 +104,9 @@ let saveTimer = null;
 function rememberSettings() {
   clearTimeout(saveTimer);
   saveTimer = null;
-  if (app.current && player.song) saveSettings(app.current.key, { ...player.settings(), view: app.timeline.getView(), grid: app.gridVisible });
+  if (app.current && player.song) {
+    saveSettings(app.current.key, { ...player.settings(), view: app.timeline.getView(), grid: app.gridVisible, edits: editor.edits(), dirty: editor.dirty });
+  }
 }
 function settingsChanged() {
   clearTimeout(saveTimer);
@@ -115,12 +136,16 @@ async function openSong(file, origin) {
     const key = settingsKey(song, file);
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
+    // The grid of the file, with the edits not saved in it yet.
+    const edits = saved && saved.edits;
     app.grid = readGrid(song.manifest, song.duration);
+    if (edits) app.grid = applyGridEdits(app.grid, edits, song.duration);
     const practice = (song.manifest && song.manifest.practice) || {};
     app.gridVisible = saved && typeof saved.grid === "boolean" ? saved.grid : practice.grid_visible !== false;
-    app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name };
+    app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null };
     showView("player");
     renderPlayer(saved && saved.view);
+    editor.songOpened({ differs: !!edits, built: !!(edits && edits.built), dirty: !!(saved && saved.dirty) });
     window.scrollTo(0, 0);
     const warning = trackWarning();
     if (warning) notice(warning, "error");
@@ -247,7 +272,7 @@ function renderLibrary() {
     const bits = [];
     if (entry.duration) bits.push(fmtTime(entry.duration));
     if (entry.kind === "audio") bits.push("audio file");
-    else if (entry.tracks) bits.push(`${entry.tracks} tracks`);
+    else if (entry.tracks) bits.push(`${entry.tracks} track${entry.tracks === 1 ? "" : "s"}`);
     bits.push(fmtSize(entry.size));
     const open = h("button", { type: "button", class: "lib-open" }, h("span", { class: "title", text: entry.title }), h("span", { class: "meta", text: bits.join(" · ") }));
     open.disabled = busy;
@@ -328,7 +353,7 @@ async function openHandle(handle) {
     notice(`${handle.name} could not be read. ${(error && error.message) || error}`, "error");
     return;
   }
-  const song = await openSong(file, { source: "file" });
+  const song = await openSong(file, { source: "file", handle });
   if (song) {
     await addRecent(handle, { title: song.title, size: file.size });
     renderRecent();
@@ -351,7 +376,7 @@ async function openRecentItem(item) {
     } else notice(`${item.name} could not be opened. ${(error && error.message) || error}`, "error");
     return;
   }
-  const song = await openSong(file, { source: "file" });
+  const song = await openSong(file, { source: "file", handle: item.handle });
   if (song) {
     await addRecent(item.handle, { title: song.title, size: file.size });
     renderRecent();
@@ -443,9 +468,10 @@ function wireDrop() {
 }
 
 async function openDropped(file, handlePromise) {
-  const handle = await handlePromise;
-  const song = await openSong(file, { source: "file" });
-  if (song && handle && handle.kind === "file") {
+  let handle = await handlePromise;
+  if (handle && handle.kind !== "file") handle = null;
+  const song = await openSong(file, { source: "file", handle });
+  if (song && handle) {
     await addRecent(handle, { title: song.title, size: file.size });
     renderRecent();
   }
@@ -510,13 +536,25 @@ function buildControls() {
     onLoop: (lp) => player.setLoop({ on: true, start: lp.start, end: lp.end }),
     onView: settingsChanged,
     onChange: updateZoom,
+    onSelect: (sel, info) => editor.onSelect(sel, info),
   });
-  $("tl-hint").textContent = phone
-    ? "Tap or drag on the waveform to place the playhead, pinch to zoom, drag the overview or the bar numbers to scroll. Drag the green bar of the loop to move it, its handles to change it: they snap to the bars."
-    : "Click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom. Drag the loop to move it, or its edges to change it: they snap to the bars (Alt: freely).";
+  editor = new Editor({
+    app,
+    player,
+    phone,
+    timeline: app.timeline,
+    changed: settingsChanged,
+    refreshPage: scheduleUi,
+    save: () => saveSong(),
+    share: () => shareSong(),
+    saveInfo,
+  });
   if (phone) {
-    // Under the timeline: place the playhead, then set the loop right there.
+    // Under the timeline: the chord of the bars selected in it, then the
+    // playhead and the loop, then the grid.
     $("tl-wrap").after($("loop-controls"));
+    $("tl-wrap").after($("chord-edit"));
+    $("loop-controls").after($("grid-edit"));
   } else {
     // On a computer the tracks are the rows of the timeline.
     $("quick-slot").append($("quick"));
@@ -621,13 +659,18 @@ function trackRow(t) {
   return { key, el: h("div", { class: "track" }, ...parts), toggle, volume, slider };
 }
 
+function showSongMeta() {
+  const song = player.song;
+  const n = player.tracks.length;
+  $("song-meta").textContent = song ? `${song.kind === "audio" ? "Audio file" : `${n} track${n === 1 ? "" : "s"}`} · ${fmtTime(song.duration)}` : "";
+}
+
 function renderPlayer(view = null) {
   const song = player.song;
   const box = phone ? $("tracks") : $("tl-heads");
   box.textContent = "";
   app.rows = [];
   $("song-title").textContent = song ? song.title : "";
-  $("grid-toggle").hidden = !(song && app.grid.bars.length);
   if (!song) {
     $("song-meta").textContent = "";
     app.timeline.setSong({ duration: 0, sampleRate: 48000, rows: [], grid: emptyGrid() });
@@ -635,8 +678,7 @@ function renderPlayer(view = null) {
     scheduleUi();
     return;
   }
-  const n = player.tracks.length;
-  $("song-meta").textContent = `${song.kind === "audio" ? "Audio file" : `${n} track${n === 1 ? "" : "s"}`} · ${fmtTime(song.duration)}`;
+  showSongMeta();
   for (const t of player.tracks) {
     const row = trackRow(t);
     app.rows.push(row);
@@ -736,6 +778,257 @@ async function shareSelected() {
   }
 }
 
+// ----- saving the song ------------------------------------------------------------------------
+//
+// The edits (grid, chords) and the practice settings go into the song's
+// manifest.json. A song of the library (phone) is updated in place; on a
+// computer Chrome and Edge write the file itself, the other browsers download
+// a copy. An audio file becomes an EUTERIA project (.euteria) holding it.
+
+const extensionOf = (name) => ((/\.([A-Za-z0-9]{1,8})$/.exec(name || "") || [])[1] || "").toLowerCase();
+
+function safeName(text) {
+  const name = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\s+/g, " ").replace(/^[ .]+|[ .]+$/g, "").slice(0, 120);
+  return name || "EUTERIA";
+}
+
+function practiceState() {
+  return {
+    rate: player.rate,
+    semitones: player.semitones,
+    loop: player.loop,
+    gridVisible: app.gridVisible,
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain })),
+  };
+}
+
+// How Save works for the open song: "library" (the song in the app is
+// updated), "file" (the file itself), "new-file" (an audio file saved as a
+// project where the user chooses), "copy" (a download).
+function saveMode() {
+  const cur = app.current;
+  if (!cur || !player.song) return null;
+  if (cur.source === "library") return "library";
+  if (player.song.kind === "audio") return "showSaveFilePicker" in window ? "new-file" : "copy";
+  return cur.handle && typeof cur.handle.createWritable === "function" ? "file" : "copy";
+}
+
+let sharing = null;
+// The phone sends the song with the share sheet, or downloads it where the
+// browser cannot share such a file.
+function shareMode() {
+  if (sharing === null) {
+    try {
+      sharing = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "song.euteria", { type: "application/zip" })] }));
+    } catch (_) {
+      sharing = false;
+    }
+  }
+  return sharing ? "share" : "download";
+}
+
+function saveInfo() {
+  const mode = saveMode();
+  const audio = !!player.song && player.song.kind === "audio";
+  const label = { library: audio ? "Save as project" : "Save", file: "Save", "new-file": "Save as project…", copy: audio ? "Download as project" : "Save a copy" }[mode] || "Save";
+  const title = {
+    library: "Save the changes in the song (in the library)",
+    file: `Save the changes in ${app.current ? app.current.name : "the file"}`,
+    "new-file": "Save the song as an EUTERIA project (.euteria), with its grid and chords",
+    copy: "This browser cannot write the file: download a copy with the changes",
+  }[mode];
+  const library = mode === "library";
+  return { label, title, share: library, shareLabel: library && shareMode() === "share" ? "Share…" : "Download", busy: app.saving };
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = h("a", { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+
+async function writePermission(handle) {
+  try {
+    if ((await handle.queryPermission({ mode: "readwrite" })) === "granted") return true;
+    return (await handle.requestPermission({ mode: "readwrite" })) === "granted";
+  } catch (_) {
+    return false;
+  }
+}
+
+// The file as written: its manifest must read back.
+async function checkSaved(file, id) {
+  const m = JSON.parse(await (await openZip(file)).text("manifest.json"));
+  if (m.project_id !== id) throw new Error("the file read back is not the one written");
+}
+
+// The song is now `file` (saved in place): its settings follow it.
+function savedInPlace(file, manifest) {
+  const cur = app.current;
+  const oldKey = cur.key;
+  player.song.manifest = manifest;
+  player.song.kind = "project";
+  cur.file = file;
+  cur.name = file.name;
+  cur.key = settingsKey(player.song, file);
+  editor.saved(true);
+  rememberSettings();
+  if (cur.source === "library") {
+    if (cur.key !== oldKey) forgetSettings(oldKey);
+    library.update(cur.entryId, { settingsKey: cur.key, kind: "project" });
+    renderLibrary();
+  }
+  showSongMeta();
+}
+
+// Resolves with true once saved.
+async function saveSong() {
+  const song = player.song;
+  const cur = app.current;
+  if (!song || !cur || player.busy || app.saving) return false;
+  editor.commitInput();
+  let mode = saveMode();
+  let target = null;
+  // What needs the click comes first: the permission to write, the place.
+  if (mode === "file" && !(await writePermission(cur.handle))) {
+    mode = "copy";
+    editor.say("EUTERIA may not write the file: a copy is downloaded instead.");
+  }
+  if (mode === "new-file") {
+    try {
+      target = await window.showSaveFilePicker({
+        id: "euteria-songs",
+        suggestedName: `${safeName(song.title)}.euteria`,
+        types: [{ description: "EUTERIA project", accept: { "application/x-euteria": [".euteria"] } }],
+      });
+    } catch (error) {
+      if (error && error.name === "AbortError") return false;
+      mode = "copy";
+    }
+  }
+  app.saving = true;
+  scheduleUi();
+  try {
+    const file = cur.file;
+    if (song.kind === "audio" || !song.manifest) {
+      // An audio file: a new project around it.
+      const id = newProjectId();
+      const ext = extensionOf(file.name);
+      const member = `audio/original.${AUDIO_EXTENSIONS.includes(ext) ? ext : "audio"}`;
+      const manifest = newProjectManifest({ id, title: song.title, fileName: file.name, member, grid: app.grid, state: practiceState() });
+      const blob = await buildProject([
+        { name: "manifest.json", data: manifestBytes(manifest) },
+        { name: member, data: file },
+      ]);
+      const name = `${safeName(song.title)}.euteria`;
+      if (mode === "library") {
+        const entry = library.get(cur.entryId);
+        await library.replace(entry, blob, name, "project");
+        const saved = await library.file(library.get(cur.entryId));
+        await checkSaved(saved, id);
+        savedInPlace(saved, manifest);
+        editor.say("Saved: the song is now an EUTERIA project, with its grid and chords.", "ok");
+      } else if (mode === "new-file") {
+        const w = await target.createWritable();
+        try {
+          await w.write(blob);
+          await w.close();
+        } catch (error) {
+          await w.abort().catch(() => {});
+          throw error;
+        }
+        const saved = await target.getFile();
+        await checkSaved(saved, id);
+        cur.handle = target;
+        cur.source = "file";
+        savedInPlace(saved, manifest);
+        await addRecent(target, { title: song.title, size: saved.size });
+        renderRecent();
+        editor.say(`Saved in ${saved.name}.`, "ok");
+      } else {
+        downloadBlob(blob, name);
+        editor.saved(false);
+        rememberSettings();
+        editor.say(`Downloaded: ${name}.`, "ok");
+      }
+      return true;
+    }
+    // A project: its manifest.json rewritten.
+    const manifest = savedManifest(song.manifest, app.grid, practiceState());
+    const bytes = manifestBytes(manifest);
+    const zip = await openZip(file);
+    if (mode === "library") {
+      const entry = library.get(cur.entryId);
+      const { at, bytes: tail } = await manifestPatch(zip, bytes);
+      await library.patch(entry, at, tail);
+      const saved = await library.file(library.get(cur.entryId));
+      await checkSaved(saved, manifest.project_id);
+      savedInPlace(saved, manifest);
+      editor.say("Saved.", "ok");
+    } else if (mode === "file") {
+      const { at, bytes: tail } = await manifestPatch(zip, bytes);
+      const w = await cur.handle.createWritable({ keepExistingData: true });
+      try {
+        await w.truncate(at);
+        await w.write({ type: "write", position: at, data: tail });
+        await w.close();
+      } catch (error) {
+        await w.abort().catch(() => {});
+        throw error;
+      }
+      const saved = await cur.handle.getFile();
+      await checkSaved(saved, manifest.project_id);
+      savedInPlace(saved, manifest);
+      await addRecent(cur.handle, { title: song.title, size: saved.size });
+      renderRecent();
+      editor.say(`Saved in ${saved.name}.`, "ok");
+    } else {
+      downloadBlob(await withManifest(file, zip, bytes), cur.name);
+      editor.saved(false);
+      rememberSettings();
+      editor.say(`Downloaded a copy with the changes: ${cur.name}.`, "ok");
+    }
+    return true;
+  } catch (error) {
+    const changed = error && error.name === "NotReadableError";
+    editor.say(
+      changed
+        ? "The song could not be saved: its file changed since it was opened. Open it again (the edits are kept)."
+        : `The song could not be saved. ${(error && error.message) || error}`,
+      "error",
+      0
+    );
+    return false;
+  } finally {
+    app.saving = false;
+    scheduleUi();
+  }
+}
+
+// The phone: the song (saved first if it has changes) to the share sheet, to
+// send it to a computer or keep it in Files.
+async function shareSong() {
+  const cur = app.current;
+  if (!library || !cur || cur.source !== "library" || app.saving || player.busy) return;
+  if (editor.dirty || player.song.kind === "audio") {
+    if (!(await saveSong())) return;
+  }
+  const entry = library.get(cur.entryId);
+  if (!entry) return;
+  try {
+    const stored = await library.file(entry);
+    const file = new File([stored], entry.name, { type: "application/zip" });
+    if (shareMode() === "share") await navigator.share({ files: [file], title: entry.title });
+    else downloadBlob(file, entry.name);
+  } catch (error) {
+    if (error && error.name === "NotAllowedError") editor.say("Saved. Tap Share again to send the song.");
+    else if (!error || error.name !== "AbortError") editor.say(`The song could not be shared. ${(error && error.message) || error}`, "error");
+  }
+}
+
 // ----- updating the page -------------------------------------------------------------------
 
 let uiQueued = false;
@@ -786,8 +1079,12 @@ function updateUi() {
     app.timeline.setPosition(player.position, player.playing);
   }
   const grid = $("grid-toggle");
+  grid.hidden = !(song && app.grid.bars.length);
   grid.classList.toggle("on", app.gridVisible);
   grid.setAttribute("aria-pressed", String(app.gridVisible));
+  const hint = editor.on && song ? HINTS.edit : HINTS.view;
+  if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
+  editor.refresh();
   $("all-stems").disabled = !ready;
   $("original-only").disabled = !ready;
 
@@ -936,11 +1233,22 @@ function wire() {
 
 function onKey(e) {
   if (e.key === "Escape") closeMenu();
-  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.defaultPrevented) return;
   const target = e.target || {};
   const tag = target.tagName || "";
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || target.isContentEditable) return;
-  if (!player.song || app.view !== "player") return;
+  const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(tag) || target.isContentEditable;
+  const open = !!player.song && app.view === "player";
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === "s" || e.key === "S")) {
+    // Ctrl+S, ⌘S: save the song (the field being typed in first).
+    if (!open) return;
+    e.preventDefault();
+    if (typing && target.blur) target.blur();
+    saveSong();
+    return;
+  }
+  if (typing || !open) return;
+  if (editor.key(e)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.code === "Space") {
     if (tag === "BUTTON") return; // the focused button takes it
     e.preventDefault();
@@ -1032,6 +1340,24 @@ async function init() {
 }
 
 // Hooks for the automated tests.
-window.euteria = { player, app, library, openSong, addSong, openEntry, deleteEntry, deleteAll, renderLibrary, renderRecent, notice };
+window.euteria = {
+  player,
+  app,
+  library,
+  get editor() {
+    return editor;
+  },
+  openSong,
+  addSong,
+  openEntry,
+  deleteEntry,
+  deleteAll,
+  renderLibrary,
+  renderRecent,
+  notice,
+  saveSong,
+  shareSong,
+  saveMode,
+};
 
 init();

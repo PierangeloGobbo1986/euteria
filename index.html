@@ -137,6 +137,7 @@
         </div>
         <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
         <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
+        <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the grid and the chords">Edit</button>
         <div id="loop-controls" class="loop-controls">
           <div id="position-box" class="position-box"></div>
           <div class="loop-sets">
@@ -146,6 +147,39 @@
         </div>
         <div class="spacer"></div>
         <div id="quick-slot" class="computer-only"></div>
+      </div>
+      <!-- Editing: the grid (tempo, meter, anchor) and saving -->
+      <div id="grid-edit" class="edit-panel grid-edit" hidden>
+        <div class="edit-row grid-row">
+          <div id="bpm-box" class="edit-item"></div>
+          <div id="meter-box" class="edit-item"></div>
+          <div class="edit-item anchor-item">
+            <button id="set-anchor" type="button" class="small" title="A bar starts at the playhead: the first beat of the grid">Set anchor</button>
+            <div id="anchor-box"></div>
+          </div>
+        </div>
+        <div class="edit-row save-row">
+          <button id="save-song" type="button" class="small primary">Save</button>
+          <button id="share-song" type="button" class="small" hidden>Share…</button>
+          <span id="edit-status" class="edit-status" role="status" aria-live="polite"></span>
+          <button id="clear-grid" type="button" class="small ghost danger" title="Remove the grid and the chords">Clear grid</button>
+        </div>
+      </div>
+      <!-- Editing: the chords of the bars selected in the chord lane -->
+      <div id="chord-edit" class="edit-panel chord-edit" hidden>
+        <div class="edit-row">
+          <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
+          <div class="bar-nav">
+            <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
+            <span class="mini-label">Bar</span>
+            <div id="bar-box"></div>
+            <button id="bar-next" type="button" class="small" aria-label="Next bar" title="Next bar">›</button>
+          </div>
+          <div class="clip">
+            <button id="chord-copy" type="button" class="small" title="Copy the chords of the selected bars">Copy</button>
+            <button id="chord-paste" type="button" class="small" title="Paste the chords copied">Paste</button>
+          </div>
+        </div>
       </div>
       <div id="tl-wrap" class="tl-wrap">
         <div id="tl-heads" class="tl-heads computer-only"></div>
@@ -192,7 +226,7 @@
         </div>
       </section>
     </div>
-    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · 1 to 7 switch a track on or off · + and − zoom, 0 the whole song. Double-click a slider to bring it back to 100%.</p>
+    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · 1 to 7 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%.</p>
   </section>
 </main>
 

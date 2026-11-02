@@ -41,7 +41,7 @@ function newId() {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function copyWithWorker(file, name, onProgress) {
+function runWorker(message, onProgress = () => {}) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./library-worker.js", import.meta.url));
     worker.onmessage = (event) => {
@@ -51,16 +51,18 @@ function copyWithWorker(file, name, onProgress) {
         return;
       }
       worker.terminate();
-      if (m.type === "done") resolve();
+      if (m.type === "done") resolve(m);
       else reject(Object.assign(new Error(m.message), { name: m.name }));
     };
     worker.onerror = (event) => {
       worker.terminate();
-      reject(new Error(event.message || "The copy failed."));
+      reject(new Error(event.message || "The library could not be written."));
     };
-    worker.postMessage({ id: 1, file, name });
+    worker.postMessage({ id: 1, ...message });
   });
 }
+
+const copyWithWorker = (file, name, onProgress) => runWorker({ op: "copy", file, name }, onProgress);
 
 // For browsers without synchronous access handles in workers.
 async function copyOnPage(dir, file, name, onProgress) {
@@ -83,11 +85,17 @@ async function copyOnPage(dir, file, name, onProgress) {
   }
 }
 
-function friendly(error) {
+// A full storage explained; other errors as they are.
+function spaceError(error) {
   if (error && error.name === "QuotaExceededError") {
     return new Error("There is not enough space for this song. Delete songs you no longer need, or free some space on the device.");
   }
-  return new Error(`The song could not be added to the library (${(error && error.message) || error}).`);
+  return error;
+}
+
+function friendly(error) {
+  const e = spaceError(error);
+  return e !== error ? e : new Error(`The song could not be added to the library (${(error && error.message) || error}).`);
 }
 
 export class Library {
@@ -188,6 +196,57 @@ export class Library {
       throw error;
     }
     return new File([stored], entry.name, { type: stored.type, lastModified: stored.lastModified });
+  }
+
+  // Writes `bytes` at `at`, cutting the song's file there (a project saved
+  // in place); resolves with the new size.
+  async patch(entry, at, bytes) {
+    let size;
+    try {
+      size = (await runWorker({ op: "patch", name: entry.stored, at, bytes })).size;
+    } catch (error) {
+      if (error.name !== "NotSupportedError") throw spaceError(error);
+      const handle = await (await this.dir()).getFileHandle(entry.stored);
+      const w = await handle.createWritable({ keepExistingData: true });
+      try {
+        await w.truncate(at);
+        await w.write({ type: "write", position: at, data: bytes });
+        await w.close();
+      } catch (e) {
+        try {
+          await w.abort();
+        } catch (_) {}
+        throw spaceError(e);
+      }
+      size = at + bytes.length;
+    }
+    this.update(entry.id, { size });
+    return size;
+  }
+
+  // Replaces the song's file with `blob` (an audio file that became a
+  // project); resolves with the new size.
+  async replace(entry, blob, name, kind) {
+    const dir = await this.dir();
+    const stored = `${newId()}.${extensionOf(name) || "bin"}`;
+    try {
+      try {
+        await copyWithWorker(blob, stored, () => {});
+      } catch (error) {
+        if (error.name !== "NotSupportedError") throw error;
+        await copyOnPage(dir, blob, stored, () => {});
+      }
+    } catch (error) {
+      try {
+        await dir.removeEntry(stored);
+      } catch (_) {}
+      throw spaceError(error);
+    }
+    try {
+      await dir.removeEntry(entry.stored);
+    } catch (_) {}
+    this.update(entry.id, { stored, name, kind, size: blob.size });
+    return blob.size;
   }
 
   update(id, fields) {

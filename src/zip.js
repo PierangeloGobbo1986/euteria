@@ -1,4 +1,5 @@
-// Minimal ZIP reader for EUTERIA project files (.euteria, .musicproj).
+// Minimal ZIP reader for EUTERIA project files (.euteria, .musicproj). The
+// raw central directory is kept too, for src/zipwrite.js.
 //
 // It reads the central directory and returns each member as a slice of the
 // File, so a large project is never loaded into memory all at once. Members
@@ -27,6 +28,7 @@ export async function openZip(blob) {
   if (count === 0xffff || directoryOffset === 0xffffffff) throw new Error("ZIP64 archives are not supported.");
 
   const directory = new DataView(await blob.slice(directoryOffset, directoryOffset + directorySize).arrayBuffer());
+  const raw = new Uint8Array(directory.buffer, directory.byteOffset, directory.byteLength);
   const names = new TextDecoder();
   const entries = new Map();
   let p = 0;
@@ -36,14 +38,17 @@ export async function openZip(blob) {
     const extraLength = directory.getUint16(p + 30, true);
     const commentLength = directory.getUint16(p + 32, true);
     const name = names.decode(new Uint8Array(directory.buffer, directory.byteOffset + p + 46, nameLength));
+    const end = p + 46 + nameLength + extraLength + commentLength;
     entries.set(name, {
       name,
       method: directory.getUint16(p + 10, true),
+      crc: directory.getUint32(p + 16, true),
       compressedSize: directory.getUint32(p + 20, true),
       size: directory.getUint32(p + 24, true),
       localOffset: directory.getUint32(p + 42, true),
+      record: raw.subarray(p, end), // this entry's record in the central directory
     });
-    p += 46 + nameLength + extraLength + commentLength;
+    p = end;
   }
 
   async function dataRange(entry) {
@@ -54,6 +59,9 @@ export async function openZip(blob) {
   }
 
   return {
+    // The central directory: where it starts, its entries in order.
+    directory: { offset: directoryOffset, size: directorySize, entries: [...entries.values()] },
+    dataRange,
     names: () => [...entries.keys()],
     has: (name) => entries.has(name),
     size: (name) => (entries.has(name) ? entries.get(name).size : 0),
