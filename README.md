@@ -125,7 +125,16 @@ the jsDelivr CDN. The worker computes the STFT and the inverse STFT itself
 cuts the song as `demix_track()` does in EUTERIA (Python): chunks that overlap by
 half (or by a quarter, which needs a third fewer chunks), linear fades a tenth of a
 chunk long, mirrored edges. The inverse STFT of a chunk runs while the graphics card
-computes the next one. Rates are converted with
+computes the next one.
+
+Before the session is created, `src/onnx-rewrite.js` rewrites the attention of the
+model: its `Einsum` nodes (queries times keys, weights times values) become
+`MatMul` nodes, with a `Transpose` where needed. The result is the same, but ONNX
+Runtime computes `Einsum` with a generic kernel: on an Apple graphics card these 48
+nodes took three quarters of the time of every block, each holding the card for
+about a tenth of a second, which most likely is also what made Chrome stutter. The model
+file is edited in memory, at the level of its protobuf encoding; the downloaded file
+stays as it is. Rates are converted with
 `src/resample.js`, the same filter as `scipy.signal.resample_poly`.
 
 The whole chain was checked against PyTorch with a small model of the same
@@ -145,8 +154,8 @@ silent or not finite stops the separation with an error.
 - `src/`: shared code: project files (`zip.js`, `project.js`), the alignment of the
   Original Track (`align.js`), the audio engine (`engine*.js`), the export worker
   (`render-worker.js`), the separation (`separation.js`, `separate-worker.js`,
-  `stft.js`, `resample.js`), device checks (`device.js`) and the synthetic test song
-  (`synth.js`).
+  `stft.js`, `resample.js`, `onnx-rewrite.js`), device checks (`device.js`) and the
+  synthetic test song (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
 
 The site is plain HTML, CSS and JavaScript modules: there is no build step, and the

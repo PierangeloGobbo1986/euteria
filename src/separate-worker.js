@@ -12,6 +12,8 @@
  * reflected edges.
  *
  * The model is downloaded once into the browser's private storage (OPFS).
+ * Before the session is created, its attention is rewritten as plain matrix
+ * products (src/onnx-rewrite.js), which ONNX Runtime computes far faster.
  *
  * Messages: status, download, delete (model files), load (ONNX Runtime and
  * the session), separate, benchmark (the first chunks only, timed, with an
@@ -20,6 +22,7 @@
  */
 
 import { Stft } from "./stft.js";
+import { rewriteAttention } from "./onnx-rewrite.js";
 
 const STEMS = ["bass", "drums", "other", "vocals", "guitar", "piano"]; // order of the model output
 const CHANNELS = 2;
@@ -155,7 +158,7 @@ function hex(buffer) {
 
 // ----- ONNX Runtime and the session ---------------------------------------------------
 
-async function load({ model, runtime, ep, graph = "disabled" }) {
+async function load({ model, runtime, ep, graph = "disabled", rewrite = true }) {
   if (ort && runtimeKey !== runtime.key) throw new Error("Another ONNX Runtime is already loaded in this worker.");
   if (!ort) {
     ort = await import(runtime.base + runtime.bundle);
@@ -164,7 +167,7 @@ async function load({ model, runtime, ep, graph = "disabled" }) {
     ort.env.logLevel = "error";
     runtimeKey = runtime.key;
   }
-  const key = `${model.file}|${ep}|${graph}`;
+  const key = `${model.file}|${ep}|${graph}|${rewrite}`;
   if (session && sessionKey === key) return { reused: true, backend };
   if (session) {
     await session.release().catch(() => {});
@@ -174,7 +177,9 @@ async function load({ model, runtime, ep, graph = "disabled" }) {
   const dir = await modelsDir();
   const handle = await fileHandle(dir, model.file);
   if (!handle) throw new Error("The model is not downloaded.");
-  const bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+  let bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+  let rewritten = 0;
+  if (rewrite) ({ bytes, rewritten } = rewriteAttention(bytes));
   let adapter = null;
   if (ep === "webgpu") {
     if (!navigator.gpu) throw new Error("WebGPU is not available in this browser.");
@@ -200,7 +205,7 @@ async function load({ model, runtime, ep, graph = "disabled" }) {
   for (const name of INPUTS) if (!session.inputNames.includes(name)) throw new Error(`The model has no input "${name}".`);
   for (const name of OUTPUTS) if (!session.outputNames.includes(name)) throw new Error(`The model has no output "${name}".`);
   sessionKey = key;
-  backend = { ep, adapter, graph, ortVersion: ort.env.versions ? ort.env.versions.web || ort.env.versions.common : "" };
+  backend = { ep, adapter, graph, rewritten, ortVersion: ort.env.versions ? ort.env.versions.web || ort.env.versions.common : "" };
   return { reused: false, createMs, backend };
 }
 

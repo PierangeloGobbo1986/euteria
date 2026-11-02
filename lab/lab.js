@@ -887,7 +887,7 @@ async function separateSong(file) {
     const worker = separator();
     await ensureModel(choice.model, entry);
     setStatus("sep-status", "Preparing the model on the graphics card…");
-    const loaded = await worker.load(choice.model, choice.runtime, sepConfig.ep);
+    const loaded = await worker.load(choice.model, choice.runtime, sepConfig.ep, sepConfig.rewrite);
     entry.backend = loaded.backend;
     entry.sessionSeconds = loaded.reused ? 0 : loaded.createMs / 1000;
     setStatus("sep-status", "Reading the song…");
@@ -965,7 +965,7 @@ async function compareRuntimes() {
       sep.benchLabel = runtime.label;
       try {
         setStatus("sep-status", `Comparing runtimes: ${runtime.label}, preparing the model…`);
-        const loaded = await separator().load(choice.model, runtime, sepConfig.ep);
+        const loaded = await separator().load(choice.model, runtime, sepConfig.ep, sepConfig.rewrite);
         const res = await separator().benchmark(source.left.slice(0, length), source.right.slice(0, length), choice.rate, {
           overlap: choice.overlap,
           maxChunks: sepConfig.benchChunks,
@@ -978,6 +978,7 @@ async function compareRuntimes() {
           label: runtime.label,
           ortVersion: res.backend.ortVersion,
           adapter: res.backend.adapter,
+          rewritten: res.backend.rewritten,
           sessionMs: loaded.reused ? 0 : loaded.createMs,
           firstMs: res.times.perChunk[0],
           blockMs,
@@ -1111,7 +1112,7 @@ function updateReport() {
   for (const s of r.separations) {
     const b = s.backend || {};
     const t = s.times;
-    lines.push(`Separation: ${s.title} · ${fmtTime(s.seconds)} · model ${s.model} at ${s.rate / 1000} kHz · overlap ${Math.round(s.overlap * 100)}% · ${s.runtime} (${b.ortVersion || "?"}) · ${b.ep}${b.adapter ? ` on ${b.adapter}` : ""} · ${s.wallSeconds.toFixed(1)} s = ${s.speed.toFixed(2)}× real time`);
+    lines.push(`Separation: ${s.title} · ${fmtTime(s.seconds)} · model ${s.model} at ${s.rate / 1000} kHz · overlap ${Math.round(s.overlap * 100)}% · ${s.runtime} (${b.ortVersion || "?"}) · ${b.ep}${b.adapter ? ` on ${b.adapter}` : ""} · attention as MatMul: ${b.rewritten || 0} nodes · ${s.wallSeconds.toFixed(1)} s = ${s.speed.toFixed(2)}× real time`);
     lines.push(`  ${s.chunks} chunks · first ${(t.firstRun / 1000).toFixed(2)} s, then ${((t.run - t.firstRun) / Math.max(1, s.chunks - 1) / 1000).toFixed(2)} s each · STFT ${(t.stft / 1000).toFixed(1)} s and inverse ${(t.istft / 1000).toFixed(1)} s in all · session ${s.sessionSeconds.toFixed(1)} s${s.download ? ` · downloaded ${s.download.mb.toFixed(0)} MB in ${s.download.seconds.toFixed(0)} s` : ""} · sha256 ${(s.sha256 || "").slice(0, 12)}`);
     if (s.compare && s.compare.length) {
       lines.push(`  vs EUTERIA (Python), SI-SDR dB (correlation, level, lag): ${s.compare.map((c) => `${TRACK_TITLES[c.key]} ${c.siSdr.toFixed(1)} (${c.corr.toFixed(3)}, ${c.levelDb >= 0 ? "+" : ""}${c.levelDb.toFixed(1)} dB, ${c.lag})`).join(" · ")}`);
@@ -1126,7 +1127,7 @@ function updateReport() {
         continue;
       }
       const est = (overlap) => fmtTime((chunksFor(c.samples, overlap) * x.blockMs) / 1000);
-      lines.push(`  ${x.label} (${x.ortVersion}): first block ${(x.firstMs / 1000).toFixed(2)} s, then ${(x.blockMs / 1000).toFixed(2)} s · session ${(x.sessionMs / 1000).toFixed(1)} s · whole song ≈ ${est(0.5)} (50%) / ${est(0.25)} (25%)`);
+      lines.push(`  ${x.label} (${x.ortVersion}): first block ${(x.firstMs / 1000).toFixed(2)} s, then ${(x.blockMs / 1000).toFixed(2)} s · session ${(x.sessionMs / 1000).toFixed(1)} s · attention as MatMul: ${x.rewritten || 0} nodes · whole song ≈ ${est(0.5)} (50%) / ${est(0.25)} (25%)`);
       if (x.profile) {
         const p = x.profile;
         const top = p.ops.slice(0, 10).map((o) => `${o.type} ${(o.ms / 1000).toFixed(2)} s ${Math.round((o.ms / p.gpuMs) * 100)}% ×${o.count}`);

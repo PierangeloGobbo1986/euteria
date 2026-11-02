@@ -38,7 +38,7 @@ export function chunksFor(samples, overlap = 0.5) {
 
 // Settings the automated tests can change (local files, the CPU instead of
 // WebGPU, fewer chunks in the comparison).
-export const config = { models: MODELS, runtimes: RUNTIMES, ep: "webgpu", benchChunks: 6, benchProfileChunk: 2 };
+export const config = { models: MODELS, runtimes: RUNTIMES, ep: "webgpu", rewrite: true, benchChunks: 6, benchProfileChunk: 2 };
 
 export class Separator {
   constructor() {
@@ -100,9 +100,9 @@ export class Separator {
     return this._call({ type: "delete", model });
   }
 
-  load(model, runtime, ep) {
+  load(model, runtime, ep, rewrite = true) {
     const { key, base, bundle } = runtime;
-    return this._call({ type: "load", model, runtime: { key, base, bundle }, ep, graph: runtime.graph }, [], key);
+    return this._call({ type: "load", model, runtime: { key, base, bundle }, ep, graph: runtime.graph, rewrite }, [], key);
   }
 
   // Float32 channels at `sampleRate` (handed over to the worker); resolves
