@@ -48,27 +48,29 @@ work on the whole song.
 **The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
 computer every track has its own row, with its switch and volume beside it (a track
-that is off is drawn dimmed); on the phone the row is the Original Track. A tap or a
-click moves the playhead (the yellow line); pinching, ctrl+wheel (a trackpad pinch) or
+that is off is drawn dimmed); on the phone the row is the Original Track. Mouse and
+finger work alike on the waveforms: a tap or a click places the playhead (the yellow
+line), dragging from inside the loop moves the loop and keeps its length, dragging
+from anywhere else drags the playhead, to place it exactly. Dragging the bar numbers
+scrolls (with momentum on a touch screen); pinching, ctrl+wheel (a trackpad pinch) or
 the zoom buttons go from the whole song (100%) to about 100 pixels per second, and a
 tap on the percentage goes back to the whole song. The overview under the timeline
-shows the whole song and the part in view, which can be dragged. With a mouse,
-dragging the waveforms scrolls too. With a finger, dragging the waveform moves the
-playhead, to place it exactly; the bar numbers and the overview scroll (with momentum).
+shows the whole song, the part in view and the loop: dragging the frame of the view or
+of the loop moves it (the loop snaps to the bars), a tap elsewhere brings the view
+there.
 
 The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
-them freely); dragging the loop itself moves it and keeps its length. With a mouse the
-loop and its edges are grabbed anywhere along them; with a finger, in the band under
-the bar numbers (the green bar and its two handles). Next to *Loop* (in the timeline's
-toolbar on a computer, right under the timeline on the phone) one field shows the
-playhead to the hundredth of a second: it follows the yellow line, and typing a time
-or − and + (two hundredths at a time, held to repeat) move the line. *Set start* and
-*Set end* put the start or the end of the loop at the playhead; *Set end* also switches
-the loop on. A loop switched on with *Loop* starts at
-the bar being played (or in the middle of the view if the playhead is elsewhere) and
-lasts 16 seconds, at most half of what is in view, in whole bars; a loop already placed
-and in view stays where it is. While the song plays,
-the view follows the playhead, except for a few seconds after it was moved by hand.
+them freely): with a finger by the handles in the band under the bar numbers, with a
+mouse anywhere along them; the green bar in that band moves the loop too. Next to
+*Loop* (in the timeline's toolbar on a computer, under the timeline on the phone, after
+the editing tools) one field shows the playhead to the hundredth of a second: it
+follows the yellow line, and typing a time or − and + (a hundredth at a time, held to
+repeat) move the line. *Set start* and *Set end* put the start or the end of the loop
+at the playhead; *Set end* also switches the loop on. A loop switched on with *Loop*
+starts at the bar being played (or in the middle of the view if the playhead is
+elsewhere) and lasts 16 seconds, at most half of what is in view, in whole bars; a loop
+already placed and in view stays where it is. While the song plays, the view follows
+the playhead, except for a few seconds after it was moved by hand.
 *Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 

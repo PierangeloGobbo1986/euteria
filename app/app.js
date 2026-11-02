@@ -33,11 +33,11 @@ const WAVE_COLORS = { original: "#d6a85f", stems: ["#8eaaa5", "#809692"] }; // a
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const HINTS = phone
   ? {
-      view: "Tap or drag on the waveform to place the playhead, pinch to zoom, drag the overview or the bar numbers to scroll. Drag the green bar of the loop to move it, its handles to change it: they snap to the bars.",
+      view: "Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles under the bar numbers to change it (they snap to the bars). Pinch to zoom, drag the bar numbers to scroll. In the overview, drag the frame of the view or of the loop to move it.",
       edit: "Tap a bar in the chord lane to select it, drag along the lane to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there.",
     }
   : {
-      view: "Click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom. Drag the loop to move it, or its edges to change it: they snap to the bars (Alt: freely).",
+      view: "Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Drag the bar numbers to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it.",
       edit: "Click a bar in the chord lane and type its chord (Return: the next bar); shift-click or drag along the lane to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there.",
     };
 
@@ -502,12 +502,12 @@ function buildControls() {
   f.key = keyField({ label: "Key", min: KEY_RANGE[0], max: KEY_RANGE[1], onChange: (v) => player.setSemitones(v) });
   $("key-box").append(f.key.el);
   // The playhead, to the hundredth of a second: it follows the yellow line,
-  // and typing a time or − and + (two hundredths) move the line.
+  // and typing a time or − and + (a hundredth) move the line.
   f.position = numberField({
     label: "Playhead",
     min: 0,
     max: 0,
-    step: 0.02,
+    step: 0.01,
     decimals: 2,
     inputMode: "decimal",
     format: (v) => fmtTime(v, 2),
@@ -550,11 +550,11 @@ function buildControls() {
     saveInfo,
   });
   if (phone) {
-    // Under the timeline: the chord of the bars selected in it, then the
-    // playhead and the loop, then the grid.
+    // Under the timeline: the editing tools (the chord of the bars selected
+    // in it, then the grid), then the playhead and the loop.
     $("tl-wrap").after($("loop-controls"));
+    $("tl-wrap").after($("grid-edit"));
     $("tl-wrap").after($("chord-edit"));
-    $("loop-controls").after($("grid-edit"));
   } else {
     // On a computer the tracks are the rows of the timeline.
     $("quick-slot").append($("quick"));

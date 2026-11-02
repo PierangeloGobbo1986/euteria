@@ -3,18 +3,16 @@
 // per track on a computer) with the bar grid over it, the loop and the
 // playhead. Only the part of the song in view is drawn.
 //
-// A tap or a click moves the playhead; pinching, ctrl+wheel (a trackpad
-// pinch) or the zoom buttons zoom from the whole song (100%) to about 100
-// pixels per second; the overview under the timeline shows the whole song
-// and the part in view, which can be dragged. The loop's edges are dragged,
-// snapping to the bars and beats (Alt or Option turns snapping off), and the
-// loop itself is dragged to move it, keeping its length.
-//
-// With a mouse, dragging the waveforms scrolls (the loop and its edges are
-// grabbed anywhere along them). With a finger, dragging the waveform moves the
-// playhead, to place it before setting the loop; the loop is grabbed in the
-// band under the bar numbers (its green bar and handles), and the bar numbers
-// and the overview scroll.
+// The same with a mouse and a finger: on the waveforms, a tap or a click
+// places the playhead, dragging from inside the loop moves the loop (keeping
+// its length), dragging from anywhere else drags the playhead. The loop's
+// edges are dragged by its handles under the bar numbers (with a mouse,
+// anywhere along them), snapping to the bars and beats (Alt or Option turns
+// snapping off). Dragging the bar numbers scrolls; pinching, ctrl+wheel (a
+// trackpad pinch) or the zoom buttons zoom from the whole song (100%) to
+// about 100 pixels per second. The overview under the timeline shows the
+// whole song, the part in view and the loop: dragging their frames moves the
+// view or the loop, a tap elsewhere brings the view there.
 // While the song plays the view follows the playhead, except for a few
 // seconds after the user moved it.
 //
@@ -22,7 +20,7 @@
 // tap or a click selects one, dragging along the lane (or shift-click)
 // selects several.
 
-import { barNumber, barAt } from "../src/grid.js";
+import { barNumber, barAt, nearestBar } from "../src/grid.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
 
 const C = {
@@ -125,7 +123,7 @@ export class Timeline {
     this.main = document.createElement("div");
     this.main.className = "tl-main";
     this.main.setAttribute("role", "img");
-    this.main.setAttribute("aria-label", "Timeline: tap to move the playhead, drag to scroll, pinch to zoom, drag the edges of the loop to change it");
+    this.main.setAttribute("aria-label", "Timeline: tap or drag to move the playhead, drag inside the loop to move it, drag the bar numbers to scroll, pinch to zoom");
     this.base = document.createElement("canvas");
     this.base.className = "tl-base";
     this.top = document.createElement("canvas");
@@ -133,7 +131,7 @@ export class Timeline {
     this.main.append(this.base, this.top);
     this.over = document.createElement("canvas");
     this.over.className = "tl-overview";
-    this.over.setAttribute("aria-label", "Overview of the whole song: drag to move the view");
+    this.over.setAttribute("aria-label", "Overview of the whole song: drag the frame of the view or of the loop to move it, tap elsewhere to bring the view there");
     host.append(this.main, this.over);
     this._bind();
     this.resizer = new ResizeObserver(() => this.layout());
@@ -302,7 +300,7 @@ export class Timeline {
 
   setLoop(loop) {
     this.loop = { on: !!loop.on, start: +loop.start || 0, end: +loop.end || 0 };
-    if (!this.gesture) this.dragLoop = null;
+    if (!this.gesture && !this.overDrag) this.dragLoop = null;
     this.drawTop();
     this.drawOverview();
   }
@@ -701,28 +699,95 @@ export class Timeline {
       if (this.safari) this.onView();
       this.safari = null;
     });
+    this._bindOverview();
+  }
+
+  // The overview: dragging the frame of the view or of the loop moves it
+  // (the loop snaps to the bars, Alt or Option: freely); a press elsewhere
+  // brings the view there and drags it.
+  _bindOverview() {
     const ov = this.over;
-    const toView = (e) => {
+    const at = (e) => {
       const r = ov.getBoundingClientRect();
-      const t = ((e.clientX - r.left) / Math.max(1, r.width)) * this.duration;
+      return { x: e.clientX - r.left, t: clamp(((e.clientX - r.left) / Math.max(1, r.width)) * this.duration, 0, this.duration) };
+    };
+    // The frame under x: "loop", "view" or null (the narrower one where they
+    // overlap; narrow frames are grabbed a little around them).
+    const frameAt = (x, type) => {
+      const k = this.width / this.duration;
+      const pad = type === "mouse" ? 2 : 8;
+      const frames = [];
+      const lp = this.loop;
+      if (lp.on && lp.end > lp.start) frames.push({ kind: "loop", a: lp.start * k, b: lp.end * k });
+      if (this.zoom > 1.001) frames.push({ kind: "view", a: this.start * k, b: this.start * k + Math.max(4, this.span * k) });
+      const hits = frames.filter((f) => {
+        const grow = Math.max(pad, (24 - (f.b - f.a)) / 2);
+        return x >= f.a - grow && x <= f.b + grow;
+      });
+      hits.sort((f, g) => f.b - f.a - (g.b - g.a));
+      return hits.length ? hits[0].kind : null;
+    };
+    const centre = (t) => {
       this.start = this.clampStart(t - this.span / 2);
       this.lastUser = now();
       this.requestDraw();
     };
     ov.addEventListener("pointerdown", (e) => {
-      if (!(this.duration > 0)) return;
+      if (!(this.duration > 0) || (e.pointerType === "mouse" && e.button !== 0)) return;
       this._stopInertia();
       try {
         ov.setPointerCapture(e.pointerId);
       } catch (_) {}
-      this.overDrag = e.pointerId;
-      toView(e);
+      const { x, t } = at(e);
+      const kind = frameAt(x, e.pointerType) || "jump";
+      this.overDrag = { kind, id: e.pointerId, t0: t, start0: this.start, loop0: { ...this.loop }, moved: false };
+      if (kind === "jump") centre(t);
+      if (e.pointerType === "mouse") ov.style.cursor = kind === "jump" ? "" : "grabbing";
     });
-    ov.addEventListener("pointermove", (e) => this.overDrag === e.pointerId && toView(e));
+    ov.addEventListener("pointermove", (e) => {
+      const d = this.overDrag;
+      if (!d || d.id !== e.pointerId) {
+        if (!d && e.pointerType === "mouse" && this.duration > 0) ov.style.cursor = frameAt(at(e).x, "mouse") ? "grab" : "";
+        return;
+      }
+      const { t } = at(e);
+      if (d.kind === "jump") {
+        centre(t);
+        return;
+      }
+      d.moved = true;
+      if (d.kind === "view") {
+        this.start = this.clampStart(d.start0 + t - d.t0);
+        this.lastUser = now();
+        this.requestDraw();
+        return;
+      }
+      const w = d.loop0.end - d.loop0.start;
+      let s = clamp(d.loop0.start + t - d.t0, 0, Math.max(0, this.duration - w));
+      if (!e.altKey && this.hasGrid) {
+        const bars = this.grid.bars;
+        const i = nearestBar(bars, s);
+        if (i >= 0 && bars[i] + w <= this.duration + 1e-9) s = bars[i];
+      }
+      this.dragLoop = { on: true, start: s, end: s + w };
+      this.drawTop();
+      this.drawOverview();
+    });
     const end = (e) => {
-      if (this.overDrag !== e.pointerId) return;
+      const d = this.overDrag;
+      if (!d || d.id !== e.pointerId) return;
       this.overDrag = null;
-      this.onView();
+      if (e.pointerType === "mouse") ov.style.cursor = "";
+      if (d.kind === "loop") {
+        const lp = this.dragLoop;
+        this.dragLoop = null;
+        if (lp && d.moved && e.type !== "pointercancel") {
+          this.loop = { ...lp };
+          this.onLoop(lp);
+        }
+        this.drawTop();
+        this.drawOverview();
+      } else this.onView();
     };
     ov.addEventListener("pointerup", end);
     ov.addEventListener("pointercancel", end);
@@ -742,14 +807,21 @@ export class Timeline {
     const lp = this.loop;
     if (!lp.on || !(lp.end > lp.start)) return null;
     const mouse = type === "mouse";
-    // A finger grabs the loop in the band under the bar numbers (above the
-    // chord lane while editing).
+    const x1 = this.x(lp.start);
+    const x2 = this.x(lp.end);
+    const d1 = Math.abs(x - x1);
+    const d2 = Math.abs(x - x2);
+    const inside = x > x1 && x < x2;
+    if (y >= this.headHeight) {
+      // The waveforms: the loop from inside it (a mouse also grabs its edges).
+      if (mouse && Math.min(d1, d2) <= 6) return d1 <= d2 ? "start" : "end";
+      return inside ? "body" : null;
+    }
+    // Above them: a finger grabs the loop in the band under the bar numbers
+    // (above the chord lane while editing), a mouse also along the chords.
     if (!mouse && (y < R - 20 || y >= (this.editing ? R : Math.max(this.headHeight, R + 10)))) return null;
-    const reach = mouse ? 6 : 16;
-    const d1 = Math.abs(x - this.x(lp.start));
-    const d2 = Math.abs(x - this.x(lp.end));
-    if (Math.min(d1, d2) <= reach && y >= this.dims.ruler - 20) return d1 <= d2 ? "start" : "end";
-    if (x > this.x(lp.start) && x < this.x(lp.end) && y >= this.dims.ruler - (mouse ? 0 : 20)) return "body";
+    if (Math.min(d1, d2) <= (mouse ? 6 : 16) && y >= R - 20) return d1 <= d2 ? "start" : "end";
+    if (inside && y >= R - (mouse ? 0 : 20)) return "body";
     return null;
   }
 
@@ -786,8 +858,14 @@ export class Timeline {
     } catch (_) {}
     this._stopInertia();
     if (this.pointers.size >= 2) {
-      // A second finger: pinch (Safari reports it with gesture events instead).
+      // A second finger: pinch (Safari reports it with gesture events
+      // instead). A playhead being dragged stays where it was taken.
       this.dragLoop = null;
+      if (this.scrub !== null) {
+        const t = this.scrub;
+        this.scrub = null;
+        this.onSeek(t);
+      }
       const [a, b] = [...this.pointers.values()];
       this.gesture = { kind: "pinch", dist0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), zoom0: this.zoom, anchor: this.t((a.x + b.x) / 2) };
       this.drawTop();
@@ -803,9 +881,9 @@ export class Timeline {
     }
     if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId };
     else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, moved: false };
-    else if (e.pointerType !== "mouse" && p.y >= this.headHeight) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
+    else if (p.y >= this.headHeight) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
     else this.gesture = { kind: "press", id: e.pointerId, x0: p.x, y0: p.y, start0: this.start, samples: [{ x: p.x, t: e.timeStamp }] };
-    if (e.pointerType === "mouse" && this.gesture.kind !== "press") this.main.style.cursor = zone === "body" ? "grabbing" : "ew-resize";
+    if (e.pointerType === "mouse" && this.gesture.kind !== "press") this.main.style.cursor = zone === "body" ? "grabbing" : this.gesture.kind === "scrub" ? "col-resize" : "ew-resize";
   }
 
   _move(e) {
