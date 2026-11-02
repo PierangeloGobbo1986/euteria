@@ -311,16 +311,17 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .zoom #zoom-level { min-width: 64px; border-left: 0; border-right: 0; font-size: 13px; color: var(--muted); }
 .tl-hint { margin: 8px 0 0; }
 #loop.on { background: var(--accent-bg); border-color: var(--accent); color: #d8fff3; }
-.loop-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.loop-point { display: flex; align-items: center; gap: 6px; }
-.loop-point .control-box { flex: none; }
-.loop-point > button { white-space: nowrap; }
+.loop-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.loop-sets { display: flex; gap: 8px; }
+.loop-sets button { white-space: nowrap; }
+.num.time input { width: 4.6em; }
 [data-layout=computer] .loop-controls .num { height: 36px; }
 [data-layout=computer] .loop-controls .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .loop-controls .num input { font-size: 15px; }
-[data-layout=phone] .loop-controls { flex-direction: column; align-items: stretch; gap: 8px; margin-top: 12px; }
-[data-layout=phone] .loop-point { justify-content: space-between; gap: 10px; }
-[data-layout=phone] .loop-point > button { min-height: 44px; min-width: 104px; }
+[data-layout=phone] .loop-controls { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
+[data-layout=phone] .position-box .num { display: flex; width: 100%; }
+[data-layout=phone] .position-box .num .value { flex: 1; }
+[data-layout=phone] .loop-sets button { flex: 1; min-height: 44px; }
 .tl-wrap { display: block; }
 [data-layout=computer] .tl-wrap { display: grid; grid-template-columns: 186px minmax(0, 1fr); }
 .tl-host { min-width: 0; }
@@ -407,7 +408,7 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .num select { -webkit-appearance: none; appearance: none; background-image: none; }
 .num input:focus { outline: none; background: #263136; }
 .num .unit { color: var(--muted); font-size: 14px; margin-left: 3px; }
-.num.time input { width: 4.2em; text-align: center; }
+.num.time input { text-align: center; }
 .num.time .value { padding: 0 4px; }
 .num.key select { width: auto; min-width: 2.6em; text-align: center; text-align-last: center; padding: 0 4px; cursor: pointer; }
 .num.key select option { background: var(--panel); color: var(--text); }

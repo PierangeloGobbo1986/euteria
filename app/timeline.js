@@ -3,13 +3,18 @@
 // per track on a computer) with the bar grid over it, the loop and the
 // playhead. Only the part of the song in view is drawn.
 //
-// A tap moves the playhead; dragging pans (with momentum on touch screens);
-// pinching, ctrl+wheel (a trackpad pinch) or the zoom buttons zoom from the
-// whole song (100%) to about 100 pixels per second. The loop's edges are
-// dragged, snapping to the bars and beats (Alt or Option turns snapping off),
-// and the loop itself is dragged to move it, keeping its length (a drag that
-// starts on the bar numbers always scrolls). The overview under the
-// timeline shows the whole song and the part in view, which can be dragged.
+// A tap or a click moves the playhead; pinching, ctrl+wheel (a trackpad
+// pinch) or the zoom buttons zoom from the whole song (100%) to about 100
+// pixels per second; the overview under the timeline shows the whole song
+// and the part in view, which can be dragged. The loop's edges are dragged,
+// snapping to the bars and beats (Alt or Option turns snapping off), and the
+// loop itself is dragged to move it, keeping its length.
+//
+// With a mouse, dragging the waveforms scrolls (the loop and its edges are
+// grabbed anywhere along them). With a finger, dragging the waveform moves the
+// playhead, to place it before setting the loop; the loop is grabbed in the
+// band under the bar numbers (its green bar and handles), and the bar numbers
+// and the overview scroll.
 // While the song plays the view follows the playhead, except for a few
 // seconds after the user moved it.
 
@@ -74,8 +79,10 @@ export class Timeline {
   // the user has panned or zoomed, onChange() after every redraw of the view.
   // varsOn: the element that gets --tl-head and --tl-row (the height of the
   // ruler and chords, and of a row), so that a column beside can line up.
-  constructor(host, { compact = false, varsOn = null, onSeek, onLoop, onView, onChange } = {}) {
+  constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange } = {}) {
     this.host = host;
+    this.onScrub = onScrub || (() => {});
+    this.scrub = null; // where a finger is dragging the playhead
     this.varsOn = varsOn || host;
     this.compact = compact;
     this.onSeek = onSeek || (() => {});
@@ -525,7 +532,7 @@ export class Timeline {
         }
       }
     }
-    const x = Math.round(this.x(this.position));
+    const x = Math.round(this.x(this.scrub ?? this.position));
     if (x >= -4 && x <= this.width + 4) {
       ctx.fillStyle = "rgba(231, 189, 109, 0.18)";
       ctx.fillRect(x - 2.5, 0, 5, H);
@@ -591,7 +598,7 @@ export class Timeline {
       ctx.strokeRect(x0 + 0.5, 0.5, w - 1, H - 1);
     }
     ctx.fillStyle = C.playhead;
-    ctx.fillRect(Math.round(this.position * k) - 0.5, 0, 1.5, H);
+    ctx.fillRect(Math.round((this.scrub ?? this.position) * k) - 0.5, 0, 1.5, H);
   }
 
   // ----- interaction -----------------------------------------------------------------
@@ -657,11 +664,13 @@ export class Timeline {
   _hit(x, y, type) {
     const lp = this.loop;
     if (!lp.on || !(lp.end > lp.start)) return null;
-    const reach = type === "mouse" ? 6 : 16;
+    const mouse = type === "mouse";
+    if (!mouse && (y < this.dims.ruler - 20 || y >= Math.max(this.headHeight, this.dims.ruler + 10))) return null;
+    const reach = mouse ? 6 : 16;
     const d1 = Math.abs(x - this.x(lp.start));
     const d2 = Math.abs(x - this.x(lp.end));
-    if (Math.min(d1, d2) <= reach && y >= this.dims.ruler - 14) return d1 <= d2 ? "start" : "end";
-    if (x > this.x(lp.start) && x < this.x(lp.end) && y >= this.dims.ruler) return "body";
+    if (Math.min(d1, d2) <= reach && y >= this.dims.ruler - 20) return d1 <= d2 ? "start" : "end";
+    if (x > this.x(lp.start) && x < this.x(lp.end) && y >= this.dims.ruler - (mouse ? 0 : 20)) return "body";
     return null;
   }
 
@@ -708,6 +717,7 @@ export class Timeline {
     const zone = this._hit(p.x, p.y, e.pointerType);
     if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId };
     else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, moved: false };
+    else if (e.pointerType !== "mouse" && p.y >= this.headHeight) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
     else this.gesture = { kind: "press", id: e.pointerId, x0: p.x, y0: p.y, start0: this.start, samples: [{ x: p.x, t: e.timeStamp }] };
     if (e.pointerType === "mouse" && this.gesture.kind !== "press") this.main.style.cursor = zone === "body" ? "grabbing" : "ew-resize";
   }
@@ -743,6 +753,15 @@ export class Timeline {
       this.dragLoop = { on: true, start, end };
       this.drawTop();
       this.drawOverview();
+      return;
+    }
+    if (g.kind === "scrub") {
+      if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
+      g.moved = true;
+      this.scrub = clamp(this.t(p.x), 0, this.duration);
+      this.drawTop();
+      this.drawOverview();
+      this.onScrub(this.scrub);
       return;
     }
     if (g.kind === "body") {
@@ -797,6 +816,10 @@ export class Timeline {
     else if (g.kind === "body") {
       if (g.moved) commitLoop();
       else if (!cancelled && pt) this.onSeek(clamp(this.t(pt.x), 0, this.duration));
+    } else if (g.kind === "scrub") {
+      const t = g.moved ? this.scrub : pt ? clamp(this.t(pt.x), 0, this.duration) : null;
+      this.scrub = null;
+      if (t !== null && (g.moved || !cancelled)) this.onSeek(t);
     } else if (g.kind === "press") {
       if (!cancelled && pt) this.onSeek(clamp(this.t(pt.x), 0, this.duration));
     } else if (g.kind === "pan") {

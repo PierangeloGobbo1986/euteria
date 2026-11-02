@@ -26,7 +26,7 @@ to the other one.
   and the space still available, and deletes songs one at a time (✕, then *Delete*) or
   all together (*Delete all*, tapped twice). The same file is never copied twice, and a
   file that is neither a project nor readable audio is refused before it takes any
-  space. Volumes, tempo, key and the loop points are numbers with − and + buttons: a
+  space. Volumes, tempo, key and the playhead are numbers with − and + buttons: a
   tap on the number brings up the keypad, holding a button repeats it. Play, stop,
   −5 s, +5 s and the loop stay at the bottom of the screen; *Library*, at the top right,
   goes back to the library.
@@ -48,17 +48,22 @@ work on the whole song.
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
 computer every track has its own row, with its switch and volume beside it (a track
 that is off is drawn dimmed); on the phone the row is the Original Track. A tap or a
-click moves the playhead; dragging scrolls (with momentum on touch screens); pinching,
-ctrl+wheel (a trackpad pinch) or the zoom buttons go from the whole song (100%) to
-about 100 pixels per second, and a tap on the percentage goes back to the whole song.
-The overview under the timeline shows the whole song and the part in view, which can
-be dragged. The edges of the loop are dragged on the timeline and snap to the bars and
-beats (Alt or Option places them freely); dragging the loop itself moves it and keeps
-its length (a drag that starts on the bar numbers always scrolls). The start and the
-end of the loop sit in the timeline's toolbar on a computer and right under the
-timeline on the phone: *Set start* and *Set end* take the position of the playhead
-(place it with a tap, after zooming in if needed), *Set end* also switches the loop on,
-and − and + move them by a tenth of a second. A loop switched on with *Loop* starts at
+click moves the playhead (the yellow line); pinching, ctrl+wheel (a trackpad pinch) or
+the zoom buttons go from the whole song (100%) to about 100 pixels per second, and a
+tap on the percentage goes back to the whole song. The overview under the timeline
+shows the whole song and the part in view, which can be dragged. With a mouse,
+dragging the waveforms scrolls too. With a finger, dragging the waveform moves the
+playhead, to place it exactly; the bar numbers and the overview scroll (with momentum).
+
+The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
+them freely); dragging the loop itself moves it and keeps its length. With a mouse the
+loop and its edges are grabbed anywhere along them; with a finger, in the band under
+the bar numbers (the green bar and its two handles). Next to *Loop* (in the timeline's
+toolbar on a computer, right under the timeline on the phone) one field shows the
+playhead to the hundredth of a second: it follows the yellow line, and typing a time
+or − and + (two hundredths at a time, held to repeat) move the line. *Set start* and
+*Set end* put the start or the end of the loop at the playhead; *Set end* also switches
+the loop on. A loop switched on with *Loop* starts at
 the bar being played (or in the middle of the view if the playhead is elsewhere) and
 lasts 16 seconds, at most half of what is in view, in whole bars; a loop already placed
 and in view stays where it is. While the song plays,

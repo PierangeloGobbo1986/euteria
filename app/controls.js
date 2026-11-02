@@ -14,12 +14,14 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
-export function fmtTime(s, tenths = false) {
+// m:ss, or with `decimals` (true: 1) tenths or hundredths of a second.
+export function fmtTime(s, decimals = 0) {
+  const d = decimals === true ? 1 : +decimals || 0;
   if (!isFinite(s) || s < 0) s = 0;
-  if (tenths) s = Math.round(s * 10) / 10;
+  if (d) s = Math.round(s * 10 ** d) / 10 ** d;
   const m = Math.floor(s / 60);
   const sec = s - m * 60;
-  return tenths ? `${m}:${sec.toFixed(1).padStart(4, "0")}` : `${m}:${String(Math.floor(sec)).padStart(2, "0")}`;
+  return d ? `${m}:${sec.toFixed(d).padStart(3 + d, "0")}` : `${m}:${String(Math.floor(sec)).padStart(2, "0")}`;
 }
 
 export function fmtSize(bytes) {

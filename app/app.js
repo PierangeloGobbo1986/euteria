@@ -42,6 +42,7 @@ const app = {
   seeking: false,
   persisted: null,
   timeline: null,
+  scrub: null, // where a finger drags the playhead while the song plays
   grid: emptyGrid(),
   gridVisible: true,
 };
@@ -474,21 +475,44 @@ function buildControls() {
   $("tempo-box").append(f.tempo.el);
   f.key = keyField({ label: "Key", min: KEY_RANGE[0], max: KEY_RANGE[1], onChange: (v) => player.setSemitones(v) });
   $("key-box").append(f.key.el);
-  const time = { min: 0, max: 0, step: 0.1, decimals: 1, inputMode: "decimal", format: (v) => fmtTime(v, true), parse: parseTime, className: "time" };
-  f.loopStart = numberField({ ...time, label: "Loop start", onChange: (v) => player.setLoopStart(v) });
-  f.loopEnd = numberField({ ...time, label: "Loop end", onChange: (v) => player.setLoopEnd(v) });
-  $("loop-start-box").append(f.loopStart.el);
-  $("loop-end-box").append(f.loopEnd.el);
+  // The playhead, to the hundredth of a second: it follows the yellow line,
+  // and typing a time or − and + (two hundredths) move the line.
+  f.position = numberField({
+    label: "Playhead",
+    min: 0,
+    max: 0,
+    step: 0.02,
+    decimals: 2,
+    inputMode: "decimal",
+    format: (v) => fmtTime(v, 2),
+    parse: parseTime,
+    className: "time",
+    onChange: (v) => {
+      player.seek(v);
+      revealPlayhead();
+    },
+  });
+  $("position-box").append(f.position.el);
   app.timeline = new Timeline($("timeline"), {
     compact: phone,
     varsOn: $("tl-wrap"),
-    onSeek: (t) => player.seek(t),
+    onSeek: (t) => {
+      app.scrub = null;
+      player.seek(t);
+    },
+    // A finger dragging the playhead: paused, it moves at once; playing,
+    // the song jumps there when the finger lifts.
+    onScrub: (t) => {
+      if (player.playing) app.scrub = t;
+      else player.seek(t);
+      scheduleUi();
+    },
     onLoop: (lp) => player.setLoop({ on: true, start: lp.start, end: lp.end }),
     onView: settingsChanged,
     onChange: updateZoom,
   });
   $("tl-hint").textContent = phone
-    ? "Tap to move the playhead, pinch to zoom, drag to scroll. Drag the loop to move it, or its edges to change it: they snap to the bars."
+    ? "Tap or drag on the waveform to place the playhead, pinch to zoom, drag the overview or the bar numbers to scroll. Drag the green bar of the loop to move it, its handles to change it: they snap to the bars."
     : "Click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom. Drag the loop to move it, or its edges to change it: they snap to the bars (Alt: freely).";
   if (phone) {
     // Under the timeline: place the playhead, then set the loop right there.
@@ -621,8 +645,7 @@ function renderPlayer(view = null) {
   $("quick").hidden = !player.hasStems;
   $("tracks-note").hidden = player.hasStems;
   $("tracks-note").textContent = player.hasStems ? "" : "An audio file has no separate instruments: tempo, key and loop work on the whole song.";
-  app.fields.loopStart.setRange(0, song.duration);
-  app.fields.loopEnd.setRange(0, song.duration);
+  app.fields.position.setRange(0, song.duration);
   app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
   app.timeline.setLoop(player.loop);
   app.timeline.setPosition(player.position, player.playing);
@@ -738,7 +761,7 @@ function updateUi() {
   play.setAttribute("aria-label", player.playing ? "Pause" : "Play");
   const duration = song ? song.duration : 0;
   if (!app.seeking) {
-    $("time-now").textContent = fmtTime(player.position, true);
+    $("time-now").textContent = fmtTime(app.scrub ?? player.position, true);
     $("seek").value = duration > 0 ? String(Math.round((player.position / duration) * 1000)) : "0";
   }
   $("time-total").textContent = fmtTime(duration);
@@ -788,10 +811,8 @@ function updateUi() {
   quick.classList.toggle("on", lp.on);
   quick.setAttribute("aria-pressed", String(lp.on));
   quick.disabled = !song;
-  f.loopStart.set(lp.start);
-  f.loopEnd.set(lp.end);
-  f.loopStart.disable(!song);
-  f.loopEnd.disable(!song);
+  f.position.set(app.scrub ?? player.position);
+  f.position.disable(!song);
   $("set-a").disabled = !song;
   $("set-b").disabled = !song;
 
