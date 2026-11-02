@@ -25,8 +25,7 @@ const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAt
 
 export class Editor {
   // ctx: {app, player, phone, timeline, changed() (the edits are to be kept),
-  // refreshPage(), save(), share(), saveInfo() -> {label, title, share,
-  // shareLabel, busy}}.
+  // refreshPage()}. Saving is in the Project files card (app.js).
   constructor(ctx) {
     this.ctx = ctx;
     this.on = false;
@@ -122,8 +121,6 @@ export class Editor {
     input.addEventListener("keydown", (e) => this._inputKey(e));
 
     $("edit-toggle").addEventListener("click", () => this.setOn(!this.on));
-    $("save-song").addEventListener("click", () => this.ctx.save());
-    $("share-song").addEventListener("click", () => this.ctx.share());
   }
 
   // Return: the next bar (Shift: the previous one), the keyboard stays up.
@@ -176,6 +173,21 @@ export class Editor {
   // The edits to keep in this browser, or null (the grid is the file's).
   edits() {
     return this.differs ? gridEdits(this.grid, this.built) : null;
+  }
+
+  // The edits are dropped: the grid of the file again.
+  reset(grid) {
+    this.ctx.app.grid = grid;
+    this.differs = false;
+    this.built = false;
+    this.dirty = false;
+    this.sel = null;
+    this.target = null;
+    this.ctx.timeline.setGrid(grid);
+    if (this.on) this._selectAtPlayhead();
+    else this.ctx.timeline.setSelection(null);
+    this.loadInput();
+    this.ctx.refreshPage();
   }
 
   // The song was saved: in its own file (inPlace), or as a copy.
@@ -444,7 +456,6 @@ export class Editor {
     if (!show) return;
 
     const busy = !!player.busy;
-    const info = this.ctx.saveInfo();
     this.bpm.set(g.bpm || DEFAULT_BPM);
     this.bpm.disable(busy);
     if (document.activeElement !== this.meter) this.meter.value = g.meter;
@@ -465,18 +476,17 @@ export class Editor {
     $("chord-copy").disabled = !sel;
     $("chord-paste").disabled = !sel || !this.clip.length;
 
-    const save = $("save-song");
-    setText(save, info.busy ? "Saving…" : info.label);
-    setAttr(save, "title", info.title || "");
-    save.disabled = busy || info.busy;
-    const share = $("share-song");
-    share.hidden = !info.share;
-    share.disabled = busy || info.busy;
-    if (info.share) setText(share, info.shareLabel);
-
     const status = $("edit-status");
     const m = this.message && performance.now() < this.message.until ? this.message : null;
-    const text = m ? m.text : this.dirty ? "Changes not saved yet" : has ? "" : phone ? "No grid: set the anchor at the first beat of a bar." : "No grid: put the playhead on the first beat of a bar and set the anchor.";
+    const text = m
+      ? m.text
+      : this.dirty
+        ? "Changes not saved yet: Save is at the top right."
+        : has
+          ? ""
+          : phone
+            ? "No grid: set the anchor at the first beat of a bar."
+            : "No grid: put the playhead on the first beat of a bar and set the anchor.";
     setText(status, text);
     setAttr(status, "class", `edit-status ${m ? m.kind : this.dirty ? "dirty" : ""}`.trim());
   }

@@ -18,23 +18,27 @@ separation of the instruments in the app, on a computer) is online and being tes
 ## Using the app
 
 The app chooses its layout from the device; the link at the bottom of the page switches
-to the other one.
+to the other one. In both, the home screen is the **Library**; in a song, *Library* and,
+under it, *Save* (gold) sit at the top right.
 
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
-  *Add song* copies a `.euteria` project (or an audio file) from the Files app, a
-  download or a chat into the app's private storage and opens it. The library lists
+  *Open MP3 / audio* and *Open EUTERIA project* copy an audio file or a `.euteria`
+  project from the Files app, a download or a chat into the app's private storage and
+  open it. The library lists
   every song with its length, number of tracks and size, shows the space they take
   and the space still available, and deletes songs one at a time (✕, then *Delete*) or
   all together (*Delete all*, tapped twice). The same file is never copied twice, and a
   file that is neither a project nor readable audio is refused before it takes any
   space. Volumes, tempo, key and the playhead are numbers with − and + buttons: a
   tap on the number brings up the keypad, holding a button repeats it. Play, stop,
-  −5 s, +5 s and the loop stay at the bottom of the screen; *Library*, at the top right,
-  goes back to the library.
-- **Computer layout**: songs are opened from any folder (*Open…*, or dropped on the
-  window), so the folder where you keep the songs you are studying stays the only copy.
-  In Chrome and Edge, *Recent* opens them again with one click (the browser asks once
-  for permission). The column of the tracks starts, beside the bar numbers and the
+  −5 s, +5 s and the loop stay at the bottom of the screen. Deleting a song frees the
+  space of the app's copy; the file it was added from (in Files, in a chat) is not
+  touched, as a web app cannot reach it.
+- **Computer layout**: songs are opened from any folder (*Open MP3 / audio*, *Open
+  EUTERIA project*, or dropped on the window), so the folder where you keep the songs
+  you are studying stays the only copy. In Chrome and Edge the Library lists the songs
+  opened before, to open them again with one click (the browser asks once for
+  permission). The column of the tracks starts, beside the bar numbers and the
   chords, with *Bars and Chords* (the editor, see below), then *All stems* and *Original
   only*. Volumes and tempo also have sliders; keyboard: Space play or pause,
   ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
@@ -43,9 +47,13 @@ to the other one.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
-end, and the MP3 export of the stems that are on, downloaded or, on phones, shared
-(WhatsApp, Save to Files). An audio file opens as a single track: tempo, key and loop
-work on the whole song.
+end. The card *File export and sharing* has *Share project*, which sends the song's file
+(its bars, chords and practice settings saved in it first) with the share sheet: email,
+WhatsApp, Files, AirDrop; and the MP3 export of the stems that are on, downloaded or
+shared, where the browser can share files (Safari, and Chrome and Edge on some
+systems). Chrome and Edge cannot share project files: there a phone downloads the
+project, and a computer has it in its folder, to attach to an email or a message. An
+audio file opens as a single track: tempo, key and loop work on the whole song.
 
 **The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
@@ -102,14 +110,14 @@ editor of EUTERIA (Python), the same in both layouts:
   renumbers every bar from it (the bar number offset of EUTERIA (Python)), for a pickup
   bar or a song that starts in the middle.
 
-Every edit is kept in the browser at once, so nothing is lost if the song is closed;
-until it is saved, a dot on *Bars and Chords* (*Edit*) says so. **Save** writes the grid, the chords and the
-practice settings (tempo, key, loop, volumes, tracks on) in the song's `manifest.json`,
-in the fields EUTERIA (Python) uses:
+Every edit is kept in the browser at once, so nothing is lost if the page closes; until
+it is saved, a dot on *Bars and Chords* (*Edit*) and on *Save* says so. Leaving the song
+for the Library or another song then asks, as EUTERIA (Python) does: *Save*, *Don't
+save* (the song goes back to what its file has) or *Cancel*. **Save** (top right, Ctrl+S
+or ⌘S) writes the grid, the chords and the practice settings (tempo, key, loop, volumes,
+tracks on) in the song's `manifest.json`, in the fields EUTERIA (Python) uses:
 
-- phone: the song in the library is updated; *Share…* sends it (AirDrop, Save to
-  Files, a chat), to open it on a computer (*Download* where the browser cannot share
-  such a file);
+- phone: the song in the library is updated;
 - computer, Chrome and Edge: the file itself is updated (the browser asks once for
   permission to write it);
 - computer, Safari and Firefox, which cannot write files: *Save a copy* downloads the
@@ -146,10 +154,9 @@ opens once the separation is over. A 4-minute song makes a project of about 70 M
 light enough to send over WhatsApp and to keep on a phone. On a phone, and in browsers
 that cannot separate, a note under the tracks says what is needed.
 
-**The version** of the app is shown next to its name. **Update** (at the top right: on a
-computer after *Recent*, on the phone in the library) looks for a new version and, if
-there is one, switches to it at once; the edits and the settings of the open song are
-kept. A gold dot on *Update* says that a newer version is online. When online, the app
+**The version** of the app is shown next to its name. **Update** (at the top right of the
+Library) looks for a new version and, if there is one, switches to it at once; the
+settings of the open song are kept, and changes not saved are asked about first. A gold dot on *Update* says that a newer version is online. When online, the app
 always loads its newest files anyway: the service worker asks the site whether each file
 changed, and uses the copy it keeps only without a connection.
 

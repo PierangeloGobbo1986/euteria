@@ -47,13 +47,10 @@
       </div>
     </div>
     <div class="spacer"></div>
-    <button id="back" class="library-btn" type="button" hidden>Library</button>
-    <div class="computer-only open-group">
-      <button id="open" class="primary" type="button">Open…</button>
-      <div id="recent-menu" class="menu-wrap" hidden>
-        <button id="recent-button" type="button" aria-haspopup="true" aria-expanded="false">Recent</button>
-        <div id="recent-popup" class="menu" role="menu" hidden></div>
-      </div>
+    <!-- In a song: back to the library, and Save under it -->
+    <div id="song-nav" class="song-nav" hidden>
+      <button id="back" class="library-btn" type="button">Library</button>
+      <button id="save-top" class="primary save-top" type="button">Save</button>
     </div>
     <button id="update" class="update-btn" type="button">Update</button>
   </div>
@@ -63,25 +60,29 @@
   <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   <p id="unsupported" class="notice error" hidden>This browser cannot run EUTERIA: it needs a recent version of Safari, Chrome, Edge or Firefox.</p>
 
+  <!-- The song open, from the library -->
+  <div id="now" class="now" hidden>
+    <button id="now-play" class="now-play" type="button" aria-label="Play">▶</button>
+    <button id="now-open" class="now-open" type="button">
+      <span id="now-title" class="title"></span>
+      <span id="now-time" class="meta"></span>
+    </button>
+    <span class="chev" aria-hidden="true">›</span>
+  </div>
+
   <!-- Phone layout: the library -->
   <section id="library-view" class="view" hidden>
-    <div id="now" class="now" hidden>
-      <button id="now-play" class="now-play" type="button" aria-label="Play">▶</button>
-      <button id="now-open" class="now-open" type="button">
-        <span id="now-title" class="title"></span>
-        <span id="now-time" class="meta"></span>
-      </button>
-      <span class="chev" aria-hidden="true">›</span>
-    </div>
-    <div class="lib-head">
-      <h1>Library</h1>
-      <label id="add-label" class="button primary" for="add-input">Add song</label>
-      <input id="add-input" type="file" hidden>
+    <h1 class="home-title">Library</h1>
+    <div class="open-buttons">
+      <label id="add-label" class="button primary" for="add-input">Open MP3 / audio</label>
+      <label id="add-project-label" class="button primary" for="add-project-input">Open EUTERIA project</label>
+      <input id="add-input" type="file" hidden accept="audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.caf">
+      <input id="add-project-input" type="file" hidden>
     </div>
     <ul id="lib-list" class="lib-list"></ul>
     <div id="lib-empty" class="empty" hidden>
       <p>No songs yet.</p>
-      <p>Add a <b>.euteria</b> project exported by EUTERIA (Python), from the Files app, a download or a chat. An audio file (MP3, M4A, WAV…) works too, for tempo, key and loop.</p>
+      <p><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open MP3 / audio</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords.</p>
     </div>
     <div id="lib-foot" class="lib-foot" hidden>
       <span id="lib-usage"></span>
@@ -91,22 +92,19 @@
     <p id="lib-unsupported" class="hint" hidden>This browser cannot keep songs inside the app: each song is opened from its file and stays open until the next one.</p>
   </section>
 
-  <!-- Computer layout, no song open yet -->
+  <!-- Computer layout: the library, the songs opened before -->
   <section id="welcome-view" class="view" hidden>
-    <div class="welcome">
-      <h1>Open a song</h1>
-      <p>A <b>.euteria</b> project exported by EUTERIA (Python), a <b>.musicproj</b>, or an audio file (MP3, WAV, M4A, FLAC…) from the folder where you keep the songs you are studying. In Chrome and Edge, EUTERIA separates the instruments of an audio file too.</p>
-      <div class="row">
-        <button id="open-big" class="primary big" type="button">Open…</button>
-      </div>
-      <p class="hint">Or drop the file on this window.</p>
-      <div id="recent-block" hidden>
-        <h2>Recent</h2>
-        <ul id="recent-list" class="recent-list"></ul>
-      </div>
+    <h1 class="home-title">Library</h1>
+    <div class="open-buttons">
+      <button id="open-audio" class="primary big" type="button">Open MP3 / audio</button>
+      <button id="open-project" class="primary big" type="button">Open EUTERIA project</button>
     </div>
+    <p class="hint">Or drop a file on this window. <b>Open MP3 / audio</b> opens WAV, M4A, FLAC and the other audio files too, and in Chrome and Edge EUTERIA separates their instruments. <b>Open EUTERIA project</b> opens a <b>.euteria</b> project, or a <b>.musicproj</b> of EUTERIA (Python).</p>
+    <h2 class="recent-title">Recent</h2>
+    <ul id="recent-list" class="recent-list"></ul>
+    <p id="recent-empty" class="hint" hidden>The songs you open are listed here, to open them again with one click.</p>
   </section>
-  <input id="open-input" type="file" hidden accept=".euteria,.musicproj,audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.ogg,.opus">
+  <input id="open-input" type="file" hidden>
 
   <!-- The player -->
   <section id="player-view" class="view" hidden>
@@ -166,8 +164,6 @@
           </div>
         </div>
         <div class="edit-row save-row">
-          <button id="save-song" type="button" class="small primary">Save</button>
-          <button id="share-song" type="button" class="small" hidden>Share…</button>
           <span id="edit-status" class="edit-status" role="status" aria-live="polite"></span>
           <button id="clear-grid" type="button" class="small ghost danger" title="Remove the grid and the chords">Clear grid</button>
         </div>
@@ -226,8 +222,14 @@
         <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
       </section>
 
-      <section class="card">
-        <h2>Export MP3</h2>
+      <section class="card project-card">
+        <h2>File export and sharing</h2>
+        <div class="row">
+          <button id="share-song" type="button" class="primary">Share project…</button>
+        </div>
+        <p id="project-hint" class="hint">Sends the song's file (.euteria) by email, WhatsApp and so on, as it is now: its bars, chords and practice settings are saved in it first.</p>
+        <p id="project-status" class="status" role="status" aria-live="polite"></p>
+        <h3 class="sub">Export MP3</h3>
         <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key).</p>
         <button id="export" type="button">Export MP3</button>
         <p id="export-status" class="status"></p>
@@ -250,6 +252,17 @@
   </span>
 </footer>
 <div id="drop" class="drop" hidden><div>Drop the song here</div></div>
+<dialog id="leave-dialog" class="leave-dialog" aria-labelledby="leave-text">
+  <form method="dialog">
+    <p id="leave-text">Save the changes before leaving this song?</p>
+    <p class="hint">The grid, the bar numbers or the chords changed since the song was last saved.</p>
+    <div class="row">
+      <button value="save" class="primary">Save</button>
+      <button value="discard" class="danger">Don't save</button>
+      <button value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
 <noscript><p class="notice error">EUTERIA needs JavaScript.</p></noscript>
 </body>
 </html>

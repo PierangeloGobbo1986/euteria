@@ -92,15 +92,68 @@ function setExportStatus(text, kind = "") {
 
 const homeView = () => (phone ? "library" : "welcome");
 
+// The library is the home: the songs (phone) or the songs opened before
+// (computer), and the buttons to open more.
 function showView(view) {
   app.view = view;
   document.body.dataset.view = view;
   for (const v of ["library", "welcome", "player"]) $(`${v}-view`).hidden = v !== view;
-  $("back").hidden = !(phone && view === "player");
+  $("song-nav").hidden = view !== "player";
   if (view === "library") renderLibrary();
   if (view === "welcome") renderRecent();
   scheduleUi();
 }
+
+// ----- leaving a song with changes not saved ---------------------------------------
+//
+// As in EUTERIA (Python): before the library or another song, a song whose
+// bars or chords changed asks whether to save them. Don't save brings back
+// the song as its file has it. (Tempo, key, loop and volumes are kept on the
+// device anyway, and go in the file at the next Save.)
+
+let leaving = false; // the page is going away on purpose: no question from the browser
+
+function askToSave() {
+  const dialog = $("leave-dialog");
+  return new Promise((resolve) => {
+    const done = () => {
+      dialog.removeEventListener("close", done);
+      resolve(dialog.returnValue || "cancel");
+    };
+    dialog.returnValue = "";
+    dialog.addEventListener("close", done);
+    dialog.showModal();
+  });
+}
+
+// Resolves with true when the song may be left.
+async function confirmLeave() {
+  if (!player.song || !editor.dirty) return true;
+  const choice = await askToSave();
+  if (choice === "save") return saveSong();
+  if (choice === "discard") {
+    discardEdits();
+    return true;
+  }
+  return false;
+}
+
+function discardEdits() {
+  const song = player.song;
+  editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
+  rememberSettings();
+  notice("The changes to the bars and chords were not saved: the song is as its file has it.", "", 5000);
+}
+
+async function goHome() {
+  if (await confirmLeave()) showView(homeView());
+}
+
+window.addEventListener("beforeunload", (e) => {
+  if (leaving || !editor || !editor.dirty) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
 
 // ----- settings of the open song ----------------------------------------------------
 
@@ -221,6 +274,7 @@ async function openEntry(entry, fresh = false) {
     showView("player");
     return;
   }
+  if (!(await confirmLeave())) return;
   let file;
   try {
     file = await library.file(entry);
@@ -295,8 +349,9 @@ function renderLibrary() {
   }
   $("lib-empty").hidden = !library || entries.length > 0;
   $("lib-foot").hidden = !library || entries.length === 0;
-  $("add-label").classList.toggle("disabled", busy);
+  for (const id of ["add-label", "add-project-label"]) $(id).classList.toggle("disabled", busy);
   $("add-input").disabled = busy;
+  $("add-project-input").disabled = busy;
   $("lib-clear").disabled = busy;
   updateUsage(entries);
   updateLibraryHint();
@@ -328,24 +383,24 @@ function updateLibraryHint() {
 
 // ----- files and recent files (computer) --------------------------------------------------
 
-async function pickFile() {
+const PICK = {
+  audio: { description: "Audio files", accept: { "audio/*": AUDIO_EXTENSIONS.map((e) => `.${e}`) }, input: `audio/*,${AUDIO_EXTENSIONS.map((e) => `.${e}`).join(",")}` },
+  project: { description: "EUTERIA projects", accept: { "application/x-euteria": [".euteria", ".musicproj"] }, input: ".euteria,.musicproj" },
+};
+
+// kind: "audio" (Open MP3 / audio) or "project" (Open EUTERIA project).
+async function pickFile(kind) {
   player.unlock();
+  const pick = PICK[kind];
   if (!("showOpenFilePicker" in window)) {
-    $("open-input").click();
+    const input = $("open-input");
+    input.accept = pick.input;
+    input.click();
     return;
   }
   let handle;
   try {
-    [handle] = await window.showOpenFilePicker({
-      id: "euteria-songs",
-      multiple: false,
-      types: [
-        {
-          description: "EUTERIA projects and audio files",
-          accept: { "application/x-euteria": [".euteria", ".musicproj"], "audio/*": AUDIO_EXTENSIONS.map((e) => `.${e}`) },
-        },
-      ],
-    });
+    [handle] = await window.showOpenFilePicker({ id: "euteria-songs", multiple: false, types: [{ description: pick.description, accept: pick.accept }] });
   } catch (error) {
     if (error && error.name !== "AbortError") notice(`The file could not be opened. ${error.message}`, "error");
     return;
@@ -354,6 +409,7 @@ async function pickFile() {
 }
 
 async function openHandle(handle) {
+  if (!(await confirmLeave())) return;
   let file;
   try {
     file = await handle.getFile();
@@ -370,8 +426,7 @@ async function openHandle(handle) {
 
 async function openRecentItem(item) {
   player.unlock();
-  closeMenu();
-  if (player.busy) return;
+  if (player.busy || !(await confirmLeave())) return;
   let file;
   try {
     file = await recentFile(item);
@@ -398,10 +453,10 @@ function recentMeta(item) {
 
 async function renderRecent() {
   if (phone) return;
-  const supported = recentSupported();
-  $("recent-menu").hidden = !supported;
-  if (!supported) {
-    $("recent-block").hidden = true;
+  if (!recentSupported()) {
+    $("recent-list").textContent = "";
+    $("recent-empty").textContent = "This browser cannot keep the list of the songs opened: open them again from their folder.";
+    $("recent-empty").hidden = false;
     return;
   }
   const items = await listRecent();
@@ -417,25 +472,9 @@ async function renderRecent() {
     });
     list.append(h("li", { class: "recent-item" }, open, forget));
   }
-  $("recent-block").hidden = !items.length;
-  const popup = $("recent-popup");
-  popup.textContent = "";
-  if (!items.length) popup.append(h("div", { class: "empty-menu", text: "The songs you open will be listed here." }));
-  for (const item of items) {
-    const b = h("button", { type: "button", role: "menuitem" }, h("span", { class: "title", text: item.title || item.name }), h("span", { class: "meta", text: fmtSize(item.size) }));
-    b.addEventListener("click", () => openRecentItem(item));
-    popup.append(b);
-  }
+  $("recent-empty").textContent = "The songs you open are listed here, to open them again with one click.";
+  $("recent-empty").hidden = items.length > 0;
 }
-
-function toggleMenu(show) {
-  const popup = $("recent-popup");
-  const open = show === undefined ? popup.hidden : show;
-  popup.hidden = !open;
-  $("recent-button").setAttribute("aria-expanded", String(open));
-  if (open) renderRecent();
-}
-const closeMenu = () => toggleMenu(false);
 
 // ----- drag and drop, files opened with the installed app ----------------------------------
 
@@ -478,6 +517,7 @@ function wireDrop() {
 async function openDropped(file, handlePromise) {
   let handle = await handlePromise;
   if (handle && handle.kind !== "file") handle = null;
+  if (!(await confirmLeave())) return;
   const song = await openSong(file, { source: "file", handle });
   if (song && handle) {
     await addRecent(handle, { title: song.title, size: file.size });
@@ -569,9 +609,6 @@ function buildControls() {
     timeline: app.timeline,
     changed: settingsChanged,
     refreshPage: scheduleUi,
-    save: () => saveSong(),
-    share: () => shareSong(),
-    saveInfo,
   });
   if (phone) {
     // Under the timeline: the editing tools (the chord of the bars selected
@@ -748,7 +785,7 @@ const selectedExports = () => app.exports.filter((e) => e.selected);
 
 function canShareFiles(files) {
   try {
-    return !!(phone && navigator.canShare && navigator.canShare({ files }));
+    return !!(navigator.canShare && navigator.canShare({ files }));
   } catch (_) {
     return false;
   }
@@ -841,8 +878,9 @@ function saveMode() {
 }
 
 let sharing = null;
-// The phone sends the song with the share sheet, or downloads it where the
-// browser cannot share such a file.
+// Whether this browser shares project files with the share sheet (Safari,
+// on iPhone, iPad and Mac). Chrome and Edge share only some kinds of file:
+// there a phone downloads the project, a computer has it in its folder.
 function shareMode() {
   if (sharing === null) {
     try {
@@ -854,18 +892,25 @@ function shareMode() {
   return sharing ? "share" : "download";
 }
 
-function saveInfo() {
+// What Save does for the open song, said in its tooltip.
+function saveTitle() {
   const mode = saveMode();
   const audio = !!player.song && player.song.kind === "audio";
-  const label = { library: audio ? "Save as project" : "Save", file: "Save", "new-file": "Save as project…", copy: audio ? "Download as project" : "Save a copy" }[mode] || "Save";
-  const title = {
-    library: "Save the changes in the song (in the library)",
+  const what = {
+    library: audio ? "Save the song as an EUTERIA project, in the library" : "Save the changes in the song",
     file: `Save the changes in ${app.current ? app.current.name : "the file"}`,
-    "new-file": "Save the song as an EUTERIA project (.euteria), with its grid and chords",
-    copy: "This browser cannot write the file: download a copy with the changes",
+    "new-file": "Save the song as an EUTERIA project (.euteria): you choose where",
+    copy: audio ? "This browser cannot write files: download the song as an EUTERIA project" : "This browser cannot write the file: download a copy with the changes",
   }[mode];
-  const library = mode === "library";
-  return { label, title, share: library, shareLabel: library && shareMode() === "share" ? "Share…" : "Download", busy: app.saving };
+  return what ? `${what} (${/Mac/.test(navigator.platform || "") ? "⌘S" : "Ctrl+S"})` : "Save";
+}
+
+// Messages of Save and Share project: at the top, and in the card.
+function reportSave(text, kind = "", ms = 6000) {
+  notice(text, kind, ms);
+  app.projectMessage = { text, kind, until: ms ? performance.now() + ms : Infinity };
+  scheduleUi();
+  if (ms) setTimeout(scheduleUi, ms + 50);
 }
 
 function downloadBlob(blob, name) {
@@ -911,18 +956,19 @@ function savedInPlace(file, manifest) {
   showSongMeta();
 }
 
-// Resolves with true once saved.
-async function saveSong() {
+// Resolves with true once saved. quiet: no message when it worked.
+async function saveSong({ quiet = false } = {}) {
   const song = player.song;
   const cur = app.current;
   if (!song || !cur || player.busy || app.saving) return false;
   editor.commitInput();
+  const say = (text, kind) => quiet || reportSave(text, kind);
   let mode = saveMode();
   let target = null;
   // What needs the click comes first: the permission to write, the place.
   if (mode === "file" && !(await writePermission(cur.handle))) {
     mode = "copy";
-    editor.say("EUTERIA may not write the file: a copy is downloaded instead.");
+    reportSave("EUTERIA may not write the file: a copy is downloaded instead.");
   }
   if (mode === "new-file") {
     try {
@@ -957,7 +1003,7 @@ async function saveSong() {
         const saved = await library.file(library.get(cur.entryId));
         await checkSaved(saved, id);
         savedInPlace(saved, manifest);
-        editor.say("Saved: the song is now an EUTERIA project, with its grid and chords.", "ok");
+        say("Saved: the song is now an EUTERIA project, with its bars and chords.", "ok");
       } else if (mode === "new-file") {
         const w = await target.createWritable();
         try {
@@ -974,12 +1020,12 @@ async function saveSong() {
         savedInPlace(saved, manifest);
         await addRecent(target, { title: song.title, size: saved.size });
         renderRecent();
-        editor.say(`Saved in ${saved.name}.`, "ok");
+        say(`Saved in ${saved.name}.`, "ok");
       } else {
         downloadBlob(blob, name);
         editor.saved(false);
         rememberSettings();
-        editor.say(`Downloaded: ${name}.`, "ok");
+        say(`Downloaded: ${name}.`, "ok");
       }
       return true;
     }
@@ -994,7 +1040,7 @@ async function saveSong() {
       const saved = await library.file(library.get(cur.entryId));
       await checkSaved(saved, manifest.project_id);
       savedInPlace(saved, manifest);
-      editor.say("Saved.", "ok");
+      say("Saved.", "ok");
     } else if (mode === "file") {
       const { at, bytes: tail } = await manifestPatch(zip, bytes);
       const w = await cur.handle.createWritable({ keepExistingData: true });
@@ -1011,17 +1057,17 @@ async function saveSong() {
       savedInPlace(saved, manifest);
       await addRecent(cur.handle, { title: song.title, size: saved.size });
       renderRecent();
-      editor.say(`Saved in ${saved.name}.`, "ok");
+      say(`Saved in ${saved.name}.`, "ok");
     } else {
       downloadBlob(await withManifest(file, zip, bytes), cur.name);
       editor.saved(false);
       rememberSettings();
-      editor.say(`Downloaded a copy with the changes: ${cur.name}.`, "ok");
+      say(`Downloaded a copy with the changes: ${cur.name}.`, "ok");
     }
     return true;
   } catch (error) {
     const changed = error && error.name === "NotReadableError";
-    editor.say(
+    reportSave(
       changed
         ? "The song could not be saved: its file changed since it was opened. Open it again (the edits are kept)."
         : `The song could not be saved. ${(error && error.message) || error}`,
@@ -1035,24 +1081,49 @@ async function saveSong() {
   }
 }
 
-// The phone: the song (saved first if it has changes) to the share sheet, to
-// send it to a computer or keep it in Files.
-async function shareSong() {
+// The project as it is now, as a new file in memory (a song not in the
+// library: its file is left as it is).
+async function projectFile() {
+  const song = player.song;
   const cur = app.current;
-  if (!library || !cur || cur.source !== "library" || app.saving || player.busy) return;
-  if (editor.dirty || player.song.kind === "audio") {
-    if (!(await saveSong())) return;
+  if (song.kind === "audio" || !song.manifest) {
+    const ext = extensionOf(cur.file.name);
+    const member = `audio/original.${AUDIO_EXTENSIONS.includes(ext) ? ext : "audio"}`;
+    const manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: cur.file.name, member, grid: app.grid, state: practiceState() });
+    const blob = await buildProject([
+      { name: "manifest.json", data: manifestBytes(manifest) },
+      { name: member, data: cur.file },
+    ]);
+    return new File([blob], `${safeName(song.title)}.euteria`, { type: "application/zip" });
   }
-  const entry = library.get(cur.entryId);
-  if (!entry) return;
+  const zip = await openZip(cur.file);
+  const blob = await withManifest(cur.file, zip, manifestBytes(savedManifest(song.manifest, app.grid, practiceState())));
+  return new File([blob], cur.name, { type: "application/zip" });
+}
+
+// Share project: the song's file, its bars, chords and practice settings
+// saved in it first, to the share sheet (email, WhatsApp, Files, AirDrop).
+// A phone whose browser cannot share it downloads it.
+async function shareProject() {
+  const song = player.song;
+  const cur = app.current;
+  if (!song || !cur || app.saving || player.busy) return;
+  editor.commitInput();
+  let file;
   try {
-    const stored = await library.file(entry);
-    const file = new File([stored], entry.name, { type: "application/zip" });
-    if (shareMode() === "share") await navigator.share({ files: [file], title: entry.title });
-    else downloadBlob(file, entry.name);
+    if (cur.source === "library" && library) {
+      if (!(await saveSong({ quiet: true }))) return;
+      const entry = library.get(cur.entryId);
+      if (!entry) return;
+      file = new File([await library.file(entry)], entry.name, { type: "application/zip" });
+    } else {
+      file = await projectFile();
+    }
+    if (shareMode() === "share") await navigator.share({ files: [file], title: song.title });
+    else downloadBlob(file, file.name);
   } catch (error) {
-    if (error && error.name === "NotAllowedError") editor.say("Saved. Tap Share again to send the song.");
-    else if (!error || error.name !== "AbortError") editor.say(`The song could not be shared. ${(error && error.message) || error}`, "error");
+    if (error && error.name === "NotAllowedError") reportSave("Saved. Tap Share project again to send it.");
+    else if (!error || error.name !== "AbortError") reportSave(`The project could not be shared. ${(error && error.message) || error}`, "error", 0);
   }
 }
 
@@ -1146,9 +1217,11 @@ async function updateApp() {
       notice(`EUTERIA is up to date: version ${VERSION}.`, "ok", 4000);
       return;
     }
+    if (!(await confirmLeave())) return;
     notice(`Updating EUTERIA to version ${latest}…`);
     rememberSettings();
     await renewServiceWorker();
+    leaving = true;
     location.reload();
   } finally {
     button.disabled = false;
@@ -1267,31 +1340,61 @@ function updateUi() {
   $("export-hint").textContent = !song || stems ? "The stems that are on, as they sound now (volumes, tempo, key)." : "The export combines stems: an audio file has none.";
   $("key-hint").hidden = !!song && !stems;
 
-  if (phone) {
-    const showNow = app.view === "library" && !!song;
-    $("now").hidden = !showNow;
-    if (showNow) {
-      $("now-title").textContent = song.title;
-      $("now-time").textContent = `${fmtTime(player.position)} / ${fmtTime(duration)}`;
-      $("now-play").textContent = playText;
-      $("now-play").setAttribute("aria-label", player.playing ? "Pause" : "Play");
-      $("now-play").disabled = !ready;
-    }
+  // Save, at the top right, and Share project.
+  const save = $("save-top");
+  const saveText = app.saving ? "Saving…" : "Save";
+  if (save.textContent !== saveText) save.textContent = saveText;
+  save.disabled = !song || busy || app.saving;
+  save.classList.toggle("dirty", !!song && editor.dirty);
+  const saveTip = song ? saveTitle() : "Save";
+  if (save.title !== saveTip) save.title = saveTip;
+  const shareProj = $("share-song");
+  const canSend = shareMode() === "share" || (phone && !!library);
+  const shareText = shareMode() === "share" ? "Share project…" : phone ? "Download project" : "Share project…";
+  if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
+  shareProj.disabled = !song || busy || app.saving || !canSend;
+  const projectHint =
+    shareMode() === "share"
+      ? "Sends the song's file (.euteria) by email, WhatsApp and so on, as it is now: its bars, chords and practice settings are saved in it first."
+      : canSend
+        ? "Downloads the song's file (.euteria) as it is now, its bars, chords and practice settings saved in it first: this browser cannot share it."
+        : "This browser cannot share project files: attach the song's .euteria file from its folder to an email or a message (an audio file becomes a project with Save).";
+  if ($("project-hint").textContent !== projectHint) $("project-hint").textContent = projectHint;
+  const m = app.projectMessage && performance.now() < app.projectMessage.until ? app.projectMessage : null;
+  const status = $("project-status");
+  const statusText = m ? m.text : song && editor.dirty ? "Changes to the bars and chords not saved yet." : "";
+  if (status.textContent !== statusText) status.textContent = statusText;
+  const statusClass = `status ${m ? m.kind : song && editor.dirty ? "dirty" : ""}`.trim();
+  if (status.className !== statusClass) status.className = statusClass;
+
+  // The song open, on the library screen.
+  const showNow = (app.view === "library" || app.view === "welcome") && !!song;
+  $("now").hidden = !showNow;
+  if (showNow) {
+    $("now-title").textContent = song.title;
+    $("now-time").textContent = `${fmtTime(player.position)} / ${fmtTime(duration)}`;
+    $("now-play").textContent = playText;
+    $("now-play").setAttribute("aria-label", player.playing ? "Pause" : "Play");
+    $("now-play").disabled = !ready;
   }
 }
 
 // ----- wiring ---------------------------------------------------------------------------------
 
 function wire() {
-  // Library (phone)
-  $("add-label").addEventListener("click", () => player.unlock());
-  $("add-input").addEventListener("change", (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (file) addSong(file);
-  });
+  // Library (phone): an audio file or a project, copied into the app.
+  for (const id of ["add-label", "add-project-label"]) $(id).addEventListener("click", () => player.unlock());
+  for (const id of ["add-input", "add-project-input"]) {
+    $(id).addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (file) addSong(file);
+    });
+  }
   if (library) confirmTap($("lib-clear"), "Tap again to delete every song", deleteAll);
-  $("back").addEventListener("click", () => showView("library"));
+  $("back").addEventListener("click", goHome);
+  $("save-top").addEventListener("click", () => saveSong());
+  $("share-song").addEventListener("click", shareProject);
   $("now-open").addEventListener("click", () => showView("player"));
   $("now-play").addEventListener("click", () => {
     player.unlock();
@@ -1304,19 +1407,12 @@ function wire() {
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && checkForUpdate());
 
   // Files (computer)
-  $("open").addEventListener("click", pickFile);
-  $("open-big").addEventListener("click", pickFile);
-  $("open-input").addEventListener("change", (e) => {
+  $("open-audio").addEventListener("click", () => pickFile("audio"));
+  $("open-project").addEventListener("click", () => pickFile("project"));
+  $("open-input").addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
-    if (file) openSong(file, { source: "file" });
-  });
-  $("recent-button").addEventListener("click", (e) => {
-    e.stopPropagation();
-    toggleMenu();
-  });
-  document.addEventListener("click", (e) => {
-    if (!$("recent-menu").contains(e.target)) closeMenu();
+    if (file && (await confirmLeave())) openSong(file, { source: "file" });
   });
 
   // Transport
@@ -1385,7 +1481,6 @@ function wire() {
 }
 
 function onKey(e) {
-  if (e.key === "Escape") closeMenu();
   if (e.defaultPrevented) return;
   const target = e.target || {};
   const tag = target.tagName || "";
@@ -1440,9 +1535,11 @@ function wireLayoutSwitch() {
   const link = $("layout-switch");
   const other = phone ? "computer" : "phone";
   link.textContent = `Use the ${other} layout`;
-  link.addEventListener("click", (e) => {
+  link.addEventListener("click", async (e) => {
     e.preventDefault();
+    if (!(await confirmLeave())) return;
     rememberSettings();
+    leaving = true;
     try {
       if (other === (detectHandheld() ? "phone" : "computer")) localStorage.removeItem(LAYOUT_KEY);
       else localStorage.setItem(LAYOUT_KEY, other);
@@ -1516,8 +1613,9 @@ window.euteria = {
   renderRecent,
   notice,
   saveSong,
-  shareSong,
+  shareProject,
   saveMode,
+  confirmLeave,
   updateApp,
   VERSION,
 };
