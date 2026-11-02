@@ -1,0 +1,24 @@
+{
+  "name": "EUTERIA",
+  "short_name": "EUTERIA",
+  "description": "Practise with the separated parts of a song: choose the instruments, change tempo and key, loop a passage, export the parts you need as MP3.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e1214",
+  "theme_color": "#0e1214",
+  "icons": [
+    { "src": "app/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "app/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "app/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/x-euteria": [".euteria", ".musicproj"]
+      }
+    }
+  ]
+}

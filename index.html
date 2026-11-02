@@ -4,28 +4,192 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e1214">
-<title>EUTERIA Web</title>
-<style>
-  :root { --bg:#0e1214; --panel:#151a1d; --text:#edf0ec; --muted:#8e9a9a; --gold:#d6a85f; --border:#30383d; }
-  * { box-sizing:border-box; }
-  html, body { margin:0; height:100%; background:var(--bg); color:var(--text);
-    font-family:-apple-system, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
-  main { min-height:100%; display:flex; flex-direction:column; justify-content:center;
-    padding:32px max(16px, env(safe-area-inset-left)); max-width:640px; margin:0 auto; }
-  h1 { font-size:40px; font-weight:800; letter-spacing:.04em; margin:0 0 6px; }
-  p { color:var(--muted); font-size:16px; line-height:1.5; margin:0 0 10px; }
-  .tag { display:inline-block; margin-top:14px; padding:6px 12px; border:1px solid var(--gold);
-    color:var(--gold); border-radius:999px; font-size:13px; font-weight:600; width:max-content; }
-  footer { color:#697471; font-size:12px; margin-top:28px; }
-</style>
+<meta name="description" content="Practise with the separated parts of a song: choose the instruments, change tempo and key, loop a passage, export the parts you need as MP3.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EUTERIA">
+<title>EUTERIA</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="app/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="app/icons/icon-192.png">
+<link rel="apple-touch-icon" href="app/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app/app.css">
+<script>
+  // The layout, chosen before the first paint: "phone" (library inside the
+  // app, number fields) on phones and tablets, "computer" (open files from
+  // any folder, sliders) elsewhere. ?layout= or the choice saved in the
+  // footer overrides it.
+  (function () {
+    var choice = null;
+    try {
+      choice = new URLSearchParams(location.search).get("layout") || localStorage.getItem("euteria.layout");
+    } catch (e) {}
+    var ua = navigator.userAgent;
+    var handheld = (navigator.userAgentData && navigator.userAgentData.mobile) || /iPhone|iPad|iPod|Android|Mobile/.test(ua) ||
+      (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    document.documentElement.dataset.layout = choice === "phone" || choice === "computer" ? choice : handheld ? "phone" : "computer";
+  })();
+</script>
+<script type="module" src="app/app.js"></script>
 </head>
-<body>
+<body data-view="start">
+<header class="appbar">
+  <div class="appbar-inner">
+    <button id="back" class="ghost back" type="button" hidden>‹ Library</button>
+    <div class="brand">EUTERIA</div>
+    <div class="spacer"></div>
+    <div class="computer-only open-group">
+      <button id="open" class="primary" type="button">Open…</button>
+      <div id="recent-menu" class="menu-wrap" hidden>
+        <button id="recent-button" type="button" aria-haspopup="true" aria-expanded="false">Recent</button>
+        <div id="recent-popup" class="menu" role="menu" hidden></div>
+      </div>
+    </div>
+  </div>
+</header>
+
 <main>
-  <h1>EUTERIA</h1>
-  <p>Practise with the separated parts of a song: choose the instruments, change tempo and key, loop a passage, follow the bars and the chords.</p>
-  <span class="tag">In development</span>
-  <p style="margin-top:22px"><a href="lab/" style="color:#6bb7aa;font-weight:600">Open the Phase 0 test page →</a></p>
-  <footer>&copy; 2026 Pierangelo Gobbo. All rights reserved.</footer>
+  <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+  <p id="unsupported" class="notice error" hidden>This browser cannot run EUTERIA: it needs a recent version of Safari, Chrome, Edge or Firefox.</p>
+
+  <!-- Phone layout: the library -->
+  <section id="library-view" class="view" hidden>
+    <div id="now" class="now" hidden>
+      <button id="now-play" class="now-play" type="button" aria-label="Play">▶</button>
+      <button id="now-open" class="now-open" type="button">
+        <span id="now-title" class="title"></span>
+        <span id="now-time" class="meta"></span>
+      </button>
+      <span class="chev" aria-hidden="true">›</span>
+    </div>
+    <div class="lib-head">
+      <h1>Library</h1>
+      <label id="add-label" class="button primary" for="add-input">Add song</label>
+      <input id="add-input" type="file" hidden>
+    </div>
+    <ul id="lib-list" class="lib-list"></ul>
+    <div id="lib-empty" class="empty" hidden>
+      <p>No songs yet.</p>
+      <p>Add a <b>.euteria</b> project exported by EUTERIA (Python), from the Files app, a download or a chat. An audio file (MP3, M4A, WAV…) works too, for tempo, key and loop.</p>
+    </div>
+    <div id="lib-foot" class="lib-foot" hidden>
+      <span id="lib-usage"></span>
+      <button id="lib-clear" class="ghost danger" type="button">Delete all</button>
+    </div>
+    <p id="lib-hint" class="hint" hidden></p>
+    <p id="lib-unsupported" class="hint" hidden>This browser cannot keep songs inside the app: each song is opened from its file and stays open until the next one.</p>
+  </section>
+
+  <!-- Computer layout, no song open yet -->
+  <section id="welcome-view" class="view" hidden>
+    <div class="welcome">
+      <h1>Open a song</h1>
+      <p>A <b>.euteria</b> project exported by EUTERIA (Python), a <b>.musicproj</b>, or an audio file (MP3, WAV, M4A, FLAC…) from the folder where you keep the songs you are studying.</p>
+      <div class="row">
+        <button id="open-big" class="primary big" type="button">Open…</button>
+      </div>
+      <p class="hint">Or drop the file on this window.</p>
+      <div id="recent-block" hidden>
+        <h2>Recent</h2>
+        <ul id="recent-list" class="recent-list"></ul>
+      </div>
+    </div>
+  </section>
+  <input id="open-input" type="file" hidden accept=".euteria,.musicproj,audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.ogg,.opus">
+
+  <!-- The player -->
+  <section id="player-view" class="view" hidden>
+    <div class="song-head">
+      <h1 id="song-title"></h1>
+      <p id="song-meta" class="meta"></p>
+    </div>
+
+    <div id="transport" class="transport">
+      <div class="transport-inner">
+        <span id="time-now" class="times-now">0:00.0</span>
+        <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Position">
+        <span id="time-total" class="times-total">0:00</span>
+        <div class="transport-row">
+          <button id="play" type="button" class="round play" aria-label="Play">▶</button>
+          <button id="stop" type="button" class="round" aria-label="Stop: back to the start">■</button>
+          <button id="back5" type="button" class="round" aria-label="Back 5 seconds">−5s</button>
+          <button id="fwd5" type="button" class="round" aria-label="Forward 5 seconds">+5s</button>
+          <button id="loop-quick" type="button" class="round loop-quick" aria-pressed="false" aria-label="Loop on or off">Loop</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panels">
+      <section class="card tracks-card">
+        <div class="card-head">
+          <h2>Tracks</h2>
+          <div id="quick" class="quick">
+            <button id="all-stems" type="button" class="small">All stems</button>
+            <button id="original-only" type="button" class="small">Original only</button>
+          </div>
+        </div>
+        <div id="tracks" class="tracks"></div>
+        <p id="tracks-note" class="hint" hidden></p>
+      </section>
+
+      <div class="side">
+        <section class="card">
+          <h2>Tempo and key</h2>
+          <div class="field">
+            <span class="label">Tempo</span>
+            <div id="tempo-box" class="control-box"></div>
+          </div>
+          <div class="field">
+            <span class="label">Key</span>
+            <div id="key-box" class="control-box"></div>
+          </div>
+          <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Loop</h2>
+            <button id="loop" type="button" class="small toggle-pill">Off</button>
+          </div>
+          <div class="field">
+            <span class="label">Start</span>
+            <div id="loop-start-box" class="control-box"></div>
+            <button id="set-a" type="button" class="small">Set</button>
+          </div>
+          <div class="field">
+            <span class="label">End</span>
+            <div id="loop-end-box" class="control-box"></div>
+            <button id="set-b" type="button" class="small">Set</button>
+          </div>
+          <p class="hint"><b>Set</b> takes the position being played.</p>
+        </section>
+
+        <section class="card">
+          <h2>Export MP3</h2>
+          <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key).</p>
+          <button id="export" type="button">Export MP3</button>
+          <p id="export-status" class="status"></p>
+          <div id="exports" class="exports"></div>
+          <div id="export-actions" class="row" hidden>
+            <button id="download" type="button" class="primary">Download</button>
+            <button id="share" type="button" class="primary" hidden>Share…</button>
+          </div>
+        </section>
+      </div>
+    </div>
+    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end here · 1 to 7 switch a track on or off. Double-click a slider to bring it back to 100%.</p>
+  </section>
 </main>
+
+<footer class="foot">
+  <span>&copy; 2026 Pierangelo Gobbo. All rights reserved.</span>
+  <span class="links">
+    <a id="layout-switch" href="#"></a>
+    <a href="lab/">Test page</a>
+  </span>
+</footer>
+<div id="drop" class="drop" hidden><div>Drop the song here</div></div>
+<noscript><p class="notice error">EUTERIA needs JavaScript.</p></noscript>
 </body>
 </html>

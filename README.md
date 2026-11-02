@@ -4,11 +4,52 @@ Practise with the separated parts of a song, in the browser: switch instruments 
 and off, change tempo and key in real time, loop a passage, follow the bar grid and
 the chords, and export the parts you need as MP3.
 
-**Status: in development.** Phase 0 (feasibility tests on real devices) is under way;
-the app itself is not usable yet.
+**Status: in development.** Phase 0 (feasibility tests on real devices) is done. Phase 1
+(listening mode) is under way: the first step, the player with the library and the MP3
+export, is online and being tested.
 
-- Live site: https://pierangelogobbo1986.github.io/euteria/
+- The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page: https://pierangelogobbo1986.github.io/euteria/lab/
+
+## Using the app
+
+The app chooses its layout from the device; the link at the bottom of the page switches
+to the other one.
+
+- **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
+  *Add song* copies a `.euteria` project (or an audio file) from the Files app, a
+  download or a chat into the app's private storage and opens it. The library lists
+  every song with its length, number of tracks and size, shows the space they take
+  and the space still available, and deletes songs one at a time (✕, then *Delete*) or
+  all together (*Delete all*, tapped twice). The same file is never copied twice, and a
+  file that is neither a project nor readable audio is refused before it takes any
+  space. Volumes, tempo, key and the loop points are numbers with − and + buttons: a
+  tap on the number brings up the keypad, holding a button repeats it. Play, stop,
+  −5 s, +5 s and the loop stay at the bottom of the screen.
+- **Computer layout**: songs are opened from any folder (*Open…*, or dropped on the
+  window), so the folder where you keep the songs you are studying stays the only copy.
+  In Chrome and Edge, *Recent* opens them again with one click (the browser asks once
+  for permission). Volumes and tempo also have sliders; keyboard: Space play or pause,
+  ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
+  at the current position, 1 to 7 switch a track on or off.
+
+In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
+(+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
+end, and the MP3 export of the stems that are on, downloaded or, on phones, shared
+(WhatsApp, Save to Files). An audio file opens as a single track: tempo, key and loop
+work on the whole song.
+
+Every song reopens as it was left (tracks, volumes, tempo, key, loop, position): the
+settings are kept in the browser. A project opened for the first time starts from the
+practice settings saved by EUTERIA (Python): tempo, transposition (if the project was
+left transposed), loop, volumes and the tracks that are on.
+
+On iPhone and iPad it is best to add EUTERIA to the Home Screen (Share, then *Add to
+Home Screen*) and use it from there: Safari may delete the data of websites that have
+not been opened for a while, never that of Home Screen apps. The Home Screen app has a
+library of its own, separate from Safari's. Once loaded, the app also works without a
+connection (a service worker keeps a copy of it); in Chrome and Edge it can be installed
+as an app, which then opens `.euteria` files directly.
 
 ## How it will work
 
@@ -146,16 +187,39 @@ Graphics cards whose WebGPU lacks 16-bit floats cannot run the half-precision mo
 only, and the worker refuses the half-precision model. Any chunk that comes back
 silent or not finite stops the separation with an error.
 
+## How the app keeps songs and settings
+
+The library of the phone layout (`src/library.js`) uses the origin private file system,
+storage that belongs to the site and that other apps cannot see. A song is copied there
+by a Web Worker (`src/library-worker.js`) a few megabytes at a time, so a large project
+never sits in memory as a whole during the copy; the list with titles, lengths and sizes
+is kept in `localStorage`. At start-up the library drops entries whose file the browser
+has removed, and deletes files left by a copy that was interrupted. The app asks the
+browser to keep its storage (`navigator.storage.persist()`).
+
+Recent files of the computer layout (`src/recent.js`) are the handles that Chrome and
+Edge give for files opened with the system's file picker or dropped on the window, kept
+in IndexedDB. The practice settings of every song (`src/settings.js`) are kept in
+`localStorage`, under the project's id and the file's size (or the name and size of an
+audio file); those of the 300 songs opened most recently are kept.
+
+`src/player.js` holds one audio context and one engine for the whole session. Opening
+a song closes the previous one first, so that two songs are never in memory together.
+
 ## Repository layout
 
-- `index.html`: the app (a placeholder for now).
+- `index.html`, `app/`: the app (page, styles, `app.js`, the number fields in
+  `controls.js`, icons); `manifest.webmanifest` and `sw.js` (service worker) make it
+  installable and usable offline.
 - `lab/`: the Phase 0 test page, and the sync test projects `sync-test.euteria`
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
 - `src/`: shared code: project files (`zip.js`, `project.js`), the alignment of the
-  Original Track (`align.js`), the audio engine (`engine*.js`), the export worker
-  (`render-worker.js`), the separation (`separation.js`, `separate-worker.js`,
-  `stft.js`, `resample.js`, `onnx-rewrite.js`), device checks (`device.js`) and the
-  synthetic test song (`synth.js`).
+  Original Track (`align.js`), the audio engine (`engine*.js`), the player
+  (`player.js`), the export worker (`render-worker.js`), the library (`library.js`,
+  `library-worker.js`), recent files (`recent.js`), per-song settings (`settings.js`),
+  the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
+  `onnx-rewrite.js`), device checks (`device.js`) and the synthetic test song
+  (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
 
 The site is plain HTML, CSS and JavaScript modules: there is no build step, and the
@@ -163,10 +227,14 @@ repository is published as it is by GitHub Pages.
 
 ## Roadmap
 
-- **Phase 0**: feasibility tests on real devices: audio engine on iPhone, opening
-  `.euteria` files with exact alignment, MP3 export and sharing (done), then
-  in-browser separation on a computer (test page online).
-- **Phase 1**: listening mode.
+- **Phase 0** (done): feasibility tests on real devices: audio engine on iPhone,
+  opening `.euteria` files with exact alignment, MP3 export and sharing, in-browser
+  separation on a computer.
+- **Phase 1**: listening mode. Step 1: the player, the library (phone), opening files
+  and recent files (computer), settings kept per song, MP3 export, offline use
+  (online, being tested). Next: the timeline (waveform, bar grid and numbers, chords,
+  loop drawn on it, zoom), editing and saving (grid, chords, loop, `.euteria` export),
+  the metronome with count-in.
 - **Phase 2**: full mode with in-browser separation.
 - **Phase 3**: band features.
 

@@ -133,6 +133,8 @@
       this.out = 0;
       this.feed = 0;
       this.frac = 0;
+      this.startOut = 0; // where playback last (re)started
+      this.sinceStart = 0; // output samples produced since then
       this.rate = 1;
       this.semitones = 0;
       this.loop = { on: false, start: 0, end: 0 };
@@ -217,7 +219,10 @@
       this._restart();
     }
 
+    // Stops where the listener is: the audio still on its way to the output
+    // is dropped, so "out" goes back to the moment being heard.
     pause() {
+      if (this.playing) this.out = Math.round(this.heard() * this.sampleRate);
       this.playing = false;
     }
 
@@ -253,11 +258,17 @@
       return Math.min(Math.max(0, Math.round((+seconds || 0) * this.sampleRate)), this.length);
     }
 
-    // Song seconds being heard right now.
+    // Song seconds being heard right now. Paused, that is "out" itself; just
+    // after playback starts, the start point until its sound reaches the output.
     heard() {
       const sr = this.sampleRate;
-      let t = this.out - this.delay * this.rate;
-      if (this.loop.on && t < this.loopA && this.out >= this.loopA) t += this.loopB - this.loopA;
+      let t;
+      if (!this.playing) t = this.out;
+      else if (this.sinceStart < this.delay) t = this.startOut;
+      else {
+        t = this.out - this.delay * this.rate;
+        if (this.loop.on && t < this.loopA && this.out >= this.loopA) t += this.loopB - this.loopA;
+      }
       return Math.min(Math.max(0, t / sr), this.duration);
     }
 
@@ -268,6 +279,8 @@
     }
 
     _restart() {
+      this.startOut = this.out;
+      this.sinceStart = 0;
       this.frac = 0;
       this.feed = this._advance(this.out, this.inputLatency);
       for (const bus of this.buses) {
@@ -321,6 +334,7 @@
       }
       this.feed = this._advance(this.feed, k);
       this.out = this._advance(this.out, k);
+      this.sinceStart += n;
       if (!this.loop.on && this.out >= this.length + this.delay * this.rate + n) {
         this.playing = false;
         this.ended = true;
