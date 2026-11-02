@@ -71,8 +71,12 @@ Open it on each device (phone, tablet, computer) and go through the cards in ord
    the new stems join the track list next to them ("Vocals · web" and so on) and the
    report gives, for each pair, how close they are (SI-SDR in dB, correlation, level).
    Options: the model at half or full precision, the rate it runs at (44.1 kHz, the
-   rate it was trained at, or 48 kHz, as EUTERIA (Python) runs it), and the ONNX
-   Runtime build.
+   rate it was trained at, or 48 kHz, as EUTERIA (Python) runs it), the ONNX Runtime
+   build (1.24, 1.31, or 1.31 with the graph optimiser), and the overlap between
+   blocks (50% as EUTERIA (Python), or 25%, a third less time). **Compare runtimes**
+   times the first blocks of the open song with each runtime, estimates the time for
+   the whole song, profiles the graphics card with ONNX Runtime 1.24 (time per kind
+   of operation), and selects the fastest runtime.
 
 **Copy report** puts every result in the clipboard, ready to paste back.
 
@@ -119,8 +123,9 @@ browser's private storage (OPFS); it is not part of this repository.
 the jsDelivr CDN. The worker computes the STFT and the inverse STFT itself
 (`src/stft.js`, identical to `torch.stft` / `torch.istft` as the model uses them) and
 cuts the song as `demix_track()` does in EUTERIA (Python): chunks that overlap by
-half, linear fades a tenth of a chunk long, mirrored edges. The inverse STFT of a
-chunk runs while the graphics card computes the next one. Rates are converted with
+half (or by a quarter, which needs a third fewer chunks), linear fades a tenth of a
+chunk long, mirrored edges. The inverse STFT of a chunk runs while the graphics card
+computes the next one. Rates are converted with
 `src/resample.js`, the same filter as `scipy.signal.resample_poly`.
 
 The whole chain was checked against PyTorch with a small model of the same

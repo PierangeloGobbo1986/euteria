@@ -13,18 +13,32 @@ export const MODELS = {
 };
 
 // Two ONNX Runtime Web builds: the one bs-roformer-web validated this model
-// with (WebGPU through JavaScript kernels), and the latest release (native
-// WebGPU kernels).
+// with (WebGPU through JavaScript kernels), and a recent release (native
+// WebGPU kernels), the latter also with the graph optimiser on. `key` names
+// the build: one worker holds one build.
+const ORT_124 = { key: "1.24", base: `${CDN}1.24.0-dev.20251116-b39e144322/dist/`, bundle: "ort.all.min.mjs" };
+const ORT_131 = { key: "1.31", base: `${CDN}1.31.1/dist/`, bundle: "ort.webgpu.min.mjs" };
 export const RUNTIMES = {
-  "1.24": { key: "1.24", base: `${CDN}1.24.0-dev.20251116-b39e144322/dist/`, bundle: "ort.all.min.mjs", label: "ONNX Runtime 1.24, JavaScript kernels" },
-  "1.31": { key: "1.31", base: `${CDN}1.31.1/dist/`, bundle: "ort.webgpu.min.mjs", label: "ONNX Runtime 1.31, native WebGPU kernels" },
+  "1.24": { ...ORT_124, id: "1.24", graph: "disabled", label: "ONNX Runtime 1.24", profile: true },
+  "1.31": { ...ORT_131, id: "1.31", graph: "disabled", label: "ONNX Runtime 1.31" },
+  "1.31-opt": { ...ORT_131, id: "1.31-opt", graph: "all", label: "ONNX Runtime 1.31, graph optimised" },
 };
 
 // Order of the model's output stems.
 export const MODEL_STEMS = ["bass", "drums", "other", "vocals", "guitar", "piano"];
 
-// Settings the automated tests can change (local files, the CPU instead of WebGPU).
-export const config = { models: MODELS, runtimes: RUNTIMES, ep: "webgpu" };
+// Number of chunks a separation of `samples` samples takes.
+export function chunksFor(samples, overlap = 0.5) {
+  const chunk = 512 * 344;
+  const step = Math.round(chunk * (1 - overlap));
+  const border = chunk - step;
+  const total = samples > 2 * border ? samples + 2 * border : samples;
+  return Math.ceil(total / step);
+}
+
+// Settings the automated tests can change (local files, the CPU instead of
+// WebGPU, fewer chunks in the comparison).
+export const config = { models: MODELS, runtimes: RUNTIMES, ep: "webgpu", benchChunks: 6, benchProfileChunk: 2 };
 
 export class Separator {
   constructor() {
@@ -87,13 +101,22 @@ export class Separator {
   }
 
   load(model, runtime, ep) {
-    return this._call({ type: "load", model, runtime, ep }, [], runtime.key);
+    const { key, base, bundle } = runtime;
+    return this._call({ type: "load", model, runtime: { key, base, bundle }, ep, graph: runtime.graph }, [], key);
   }
 
   // Float32 channels at `sampleRate` (handed over to the worker); resolves
   // with {stems: {bass: [left, right], ...}, chunks, wallMs, times, backend}.
-  separate(left, right, sampleRate) {
-    return this._call({ type: "separate", left, right, sampleRate }, [left.buffer, right.buffer]);
+  // `overlap` is the share of each chunk the next one covers again: 0.5 as in
+  // EUTERIA (Python), or 0.25.
+  separate(left, right, sampleRate, overlap = 0.5) {
+    return this._call({ type: "separate", left, right, sampleRate, overlap }, [left.buffer, right.buffer]);
+  }
+
+  // The first `maxChunks` chunks only, timed; chunk `profileChunk` also
+  // profiled on the graphics card when the runtime can do it.
+  benchmark(left, right, sampleRate, { overlap = 0.5, maxChunks = 6, profileChunk = -1 } = {}) {
+    return this._call({ type: "benchmark", left, right, sampleRate, overlap, maxChunks, profileChunk }, [left.buffer, right.buffer]);
   }
 
   terminate() {

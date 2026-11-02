@@ -7,13 +7,16 @@
  * its STFT (bs-roformer-web): it takes the spectrogram of 345 STFT frames and
  * returns the six masked spectrograms. The STFT and the inverse STFT run here
  * (src/stft.js), and the song is cut into overlapping chunks and put back
- * together as demix_track() does in EUTERIA (Python): two chunks over every
- * sample, linear fades a tenth of a chunk long, reflected edges.
+ * together as demix_track() does in EUTERIA (Python): chunks overlapping by
+ * half (or by a quarter, faster), linear fades a tenth of a chunk long,
+ * reflected edges.
  *
  * The model is downloaded once into the browser's private storage (OPFS).
  *
  * Messages: status, download, delete (model files), load (ONNX Runtime and
- * the session), separate. Progress goes out as {type: "progress", phase, ...}.
+ * the session), separate, benchmark (the first chunks only, timed, with an
+ * optional GPU profile of one of them). Progress goes out as
+ * {type: "progress", phase, ...}.
  */
 
 import { Stft } from "./stft.js";
@@ -25,10 +28,7 @@ const HOP = 512;
 const BINS = N_FFT / 2 + 1;
 const FRAMES = 345; // time size the model was converted with
 const CHUNK = HOP * (FRAMES - 1); // 176128 samples, the inverse STFT length of 345 frames
-const OVERLAP = 2; // num_overlap of EUTERIA (Python)
-const STEP = CHUNK / OVERLAP;
 const FADE = Math.floor(CHUNK / 10);
-const BORDER = CHUNK - STEP;
 const MODEL_DIR = "euteria-models";
 const INPUTS = ["spec_real", "spec_imag"];
 const OUTPUTS = ["out_spec_real", "out_spec_imag"];
@@ -47,7 +47,7 @@ self.onmessage = async (event) => {
     else if (msg.type === "download") reply = await download(msg.model);
     else if (msg.type === "delete") reply = await removeModel(msg.model);
     else if (msg.type === "load") reply = await load(msg);
-    else if (msg.type === "separate") {
+    else if (msg.type === "separate" || msg.type === "benchmark") {
       const { result, transfer } = await separate(msg);
       self.postMessage({ type: "reply", id: msg.id, ...result }, transfer);
       return;
@@ -155,7 +155,7 @@ function hex(buffer) {
 
 // ----- ONNX Runtime and the session ---------------------------------------------------
 
-async function load({ model, runtime, ep }) {
+async function load({ model, runtime, ep, graph = "disabled" }) {
   if (ort && runtimeKey !== runtime.key) throw new Error("Another ONNX Runtime is already loaded in this worker.");
   if (!ort) {
     ort = await import(runtime.base + runtime.bundle);
@@ -164,7 +164,7 @@ async function load({ model, runtime, ep }) {
     ort.env.logLevel = "error";
     runtimeKey = runtime.key;
   }
-  const key = `${model.file}|${ep}`;
+  const key = `${model.file}|${ep}|${graph}`;
   if (session && sessionKey === key) return { reused: true, backend };
   if (session) {
     await session.release().catch(() => {});
@@ -191,15 +191,16 @@ async function load({ model, runtime, ep }) {
   const t0 = performance.now();
   session = await ort.InferenceSession.create(bytes, {
     executionProviders: [ep],
-    // As bs-roformer-web found, this graph runs faster on WebGPU unoptimised.
-    graphOptimizationLevel: "disabled",
+    // bs-roformer-web found this graph faster unoptimised with ONNX Runtime
+    // 1.24; newer builds may profit from the optimiser, so it is a choice.
+    graphOptimizationLevel: graph,
     logSeverityLevel: 3, // errors only: the note on shape nodes kept on the CPU is expected
   });
   const createMs = performance.now() - t0;
   for (const name of INPUTS) if (!session.inputNames.includes(name)) throw new Error(`The model has no input "${name}".`);
   for (const name of OUTPUTS) if (!session.outputNames.includes(name)) throw new Error(`The model has no output "${name}".`);
   sessionKey = key;
-  backend = { ep, adapter, ortVersion: ort.env.versions ? ort.env.versions.web || ort.env.versions.common : "" };
+  backend = { ep, adapter, graph, ortVersion: ort.env.versions ? ort.env.versions.web || ort.env.versions.common : "" };
   return { reused: false, createMs, backend };
 }
 
@@ -247,12 +248,48 @@ function reflectPad(x, border) {
   return out;
 }
 
-async function separate({ left, right, sampleRate }) {
+// GPU time per kind of operation, from the profile ONNX Runtime 1.24 gives
+// (WebGPU through JavaScript kernels, with timestamp queries).
+async function profiledRun(feeds) {
+  const kernels = [];
+  ort.env.webgpu.profiling = { mode: "default", ondata: (k) => kernels.push(k) };
+  let out;
+  try {
+    out = await session.run(feeds);
+    // The timings arrive a little after the results.
+    for (let wait = 0; wait < 40; wait++) {
+      const before = kernels.length;
+      await new Promise((r) => setTimeout(r, 50));
+      if (kernels.length === before && wait > 4) break;
+    }
+  } finally {
+    ort.env.webgpu.profiling = { mode: "off" };
+  }
+  if (!kernels.length) return { out, profile: null };
+  const byType = new Map();
+  let gpuNs = 0;
+  for (const k of kernels) {
+    const ns = Math.max(0, k.endTime - k.startTime);
+    gpuNs += ns;
+    const e = byType.get(k.kernelType) || { type: k.kernelType, ns: 0, count: 0 };
+    e.ns += ns;
+    e.count++;
+    byType.set(k.kernelType, e);
+  }
+  const ops = [...byType.values()].sort((a, b) => b.ns - a.ns).map((e) => ({ type: e.type, ms: e.ns / 1e6, count: e.count }));
+  return { out, profile: { gpuMs: gpuNs / 1e6, kernels: kernels.length, ops } };
+}
+
+async function separate({ type, left, right, sampleRate, overlap = 0.5, maxChunks = Infinity, profileChunk = -1 }) {
   if (!session) throw new Error("The model is not loaded.");
+  const benchmark = type === "benchmark";
   const t0 = performance.now();
   const n = left.length;
   if (right.length !== n) throw new Error("The two channels differ in length.");
   if (n < N_FFT) throw new Error("The song is too short.");
+  if (!(overlap > 0.1 && overlap <= 0.5)) throw new Error("Unsupported overlap.");
+  const STEP = Math.round(CHUNK * (1 - overlap));
+  const BORDER = CHUNK - STEP;
   const padded = n > 2 * BORDER;
   const mix = padded ? [reflectPad(left, BORDER), reflectPad(right, BORDER)] : [left, right];
   const total = mix[0].length;
@@ -266,8 +303,9 @@ async function separate({ left, right, sampleRate }) {
   const specIm = new Float32Array(CHANNELS * plane);
   const part = new Float32Array(CHUNK);
   const wave = new Float32Array(CHUNK);
-  const chunks = Math.ceil(total / STEP);
-  const times = { stft: 0, run: 0, istft: 0, firstRun: 0 };
+  const chunks = Math.min(Math.ceil(total / STEP), maxChunks);
+  const times = { stft: 0, run: 0, istft: 0, firstRun: 0, perChunk: [] };
+  let profile = null;
 
   // The chunk starting at `start`, padded to CHUNK samples as demix_track() pads it.
   const fill = (x, start) => {
@@ -317,18 +355,34 @@ async function separate({ left, right, sampleRate }) {
       [INPUTS[0]]: new ort.Tensor("float32", specRe, [1, CHANNELS, BINS, FRAMES]),
       [INPUTS[1]]: new ort.Tensor("float32", specIm, [1, CHANNELS, BINS, FRAMES]),
     };
-    const running = session.run(feeds);
-    // The previous chunk is put together while the graphics card works.
-    if (previous) accumulate(previous.out, previous.start);
-    const out = await running;
+    let out;
+    if (j === profileChunk && ort.env.webgpu) {
+      // Profiled on its own: the timings of this chunk are not counted.
+      if (previous) accumulate(previous.out, previous.start);
+      previous = null;
+      t = performance.now();
+      const profiled = await profiledRun(feeds);
+      out = profiled.out;
+      profile = profiled.profile;
+      times.perChunk.push(null);
+    } else {
+      const running = session.run(feeds);
+      // The previous chunk is put together while the graphics card works.
+      if (previous) accumulate(previous.out, previous.start);
+      out = await running;
+      const runMs = performance.now() - t;
+      times.run += runMs;
+      if (j === 0) times.firstRun = runMs;
+      times.perChunk.push(runMs);
+    }
     checkOutput(out, specRe);
-    const runMs = performance.now() - t;
-    times.run += runMs;
-    if (j === 0) times.firstRun = runMs;
     previous = { out, start };
-    progress("separate", { done: j + 1, total: chunks, ms: performance.now() - t0 });
+    progress(benchmark ? "benchmark" : "separate", { done: j + 1, total: chunks, ms: performance.now() - t0 });
   }
   accumulate(previous.out, previous.start);
+  if (benchmark) {
+    return { result: { chunks, wallMs: performance.now() - t0, times, profile, backend }, transfer: [] };
+  }
 
   const stems = {};
   const transfer = [];
@@ -346,7 +400,7 @@ async function separate({ left, right, sampleRate }) {
   }
   const wallMs = performance.now() - t0;
   return {
-    result: { stems, sampleRate, chunks, wallMs, times, backend },
+    result: { stems, sampleRate, chunks, overlap, wallMs, times, backend },
     transfer,
   };
 }

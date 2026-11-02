@@ -5,7 +5,7 @@ import { openProject, checkAlignment, toInt16, STEM_NAMES, TRACK_TITLES, sliderT
 import { openZip } from "../src/zip.js";
 import { generateSong } from "../src/synth.js";
 import { deviceReport } from "../src/device.js";
-import { Separator, config as sepConfig, MODEL_STEMS, decodeAt, compareStem } from "../src/separation.js";
+import { Separator, config as sepConfig, MODEL_STEMS, decodeAt, compareStem, chunksFor } from "../src/separation.js";
 import { resampleChannels } from "../src/resample.js";
 
 const $ = (id) => document.getElementById(id);
@@ -31,7 +31,7 @@ const state = {
   busy: false,
   exports: [], // {id, file, url, name, seconds, selected, tempo, key}
   crash: null,
-  results: { opened: [], sync: [], stress: [], speed: [], exports: [], downloads: [], shares: [], separations: [], errors: [], wakeLock: null },
+  results: { opened: [], sync: [], stress: [], speed: [], exports: [], downloads: [], shares: [], separations: [], compares: [], errors: [], wakeLock: null },
 };
 
 // ----- small helpers ----------------------------------------------------------
@@ -697,8 +697,11 @@ function sepChoice() {
     model: sepConfig.models[$("sep-model").value],
     runtime: sepConfig.runtimes[$("sep-runtime").value],
     rate: +$("sep-rate").value,
+    overlap: +$("sep-overlap").value,
   };
 }
+
+const BENCH_SECONDS = 45;
 
 function separator() {
   if (!sep.separator) {
@@ -728,8 +731,9 @@ function updateSepUi() {
   const idle = !state.busy && !sep.running;
   $("sep-unavailable").hidden = available || !state.device;
   $("sep-run").disabled = !available || !idle || !state.source;
+  $("sep-compare").disabled = !available || !idle || !state.source;
   $("sep-file-label").classList.toggle("disabled", !available || !idle);
-  for (const id of ["sep-model", "sep-rate", "sep-runtime"]) $(id).disabled = !available || !idle;
+  for (const id of ["sep-model", "sep-rate", "sep-runtime", "sep-overlap"]) $(id).disabled = !available || !idle;
   const model = sepConfig.models[$("sep-model").value];
   const cached = sep.models[model.key] && sep.models[model.key].cached;
   $("sep-delete").disabled = !available || !idle || !cached;
@@ -746,6 +750,8 @@ function sepProgress(m) {
     const speed = ((m.done / m.total) * sep.seconds) / (m.ms / 1000);
     const left = ((m.total - m.done) * m.ms) / m.done / 1000;
     setStatus("sep-status", `Separating: chunk ${m.done} of ${m.total} · ${speed.toFixed(1)}× real time · about ${fmtTime(left)} left`);
+  } else if (m.phase === "benchmark") {
+    setStatus("sep-status", `Comparing runtimes: ${sep.benchLabel}, block ${m.done} of ${m.total}…`);
   }
 }
 
@@ -870,7 +876,7 @@ async function separateSong(file) {
   sep.running = true;
   state.busy = true;
   updateUi();
-  const entry = { model: choice.model.key, rate: choice.rate, runtime: choice.runtime.key, ep: sepConfig.ep };
+  const entry = { model: choice.model.key, rate: choice.rate, runtime: choice.runtime.label, overlap: choice.overlap, ep: sepConfig.ep };
   mark("separation");
   try {
     const context = await ensureAudio();
@@ -879,14 +885,7 @@ async function separateSong(file) {
     if (!state.source) throw new Error("Open a song first (card 1), or choose an audio file.");
     entry.title = state.song.title;
     const worker = separator();
-    let status = await worker.status(choice.model);
-    if (!status.cached) {
-      setStatus("sep-status", `Downloading the model (about ${choice.model.approxMB} MB, only the first time)…`);
-      status = await worker.download(choice.model);
-      entry.download = { mb: status.bytes / 1e6, seconds: status.downloadMs / 1000 };
-    }
-    sep.models[choice.model.key] = status;
-    entry.sha256 = status.sha256;
+    await ensureModel(choice.model, entry);
     setStatus("sep-status", "Preparing the model on the graphics card…");
     const loaded = await worker.load(choice.model, choice.runtime, sepConfig.ep);
     entry.backend = loaded.backend;
@@ -895,7 +894,7 @@ async function separateSong(file) {
     const source = await readSource(choice.rate);
     entry.seconds = sep.seconds = source.seconds;
     setStatus("sep-status", "Separating…");
-    const result = await worker.separate(source.left, source.right, choice.rate);
+    const result = await worker.separate(source.left, source.right, choice.rate, choice.overlap);
     entry.wallSeconds = result.wallMs / 1000;
     entry.speed = entry.seconds / entry.wallSeconds;
     entry.chunks = result.chunks;
@@ -918,6 +917,99 @@ async function separateSong(file) {
     unmark();
     if (error.message === "Stopped.") setStatus("sep-status", "Stopped.", "error");
     else fail("Separation", error, "sep-status");
+  } finally {
+    sep.running = false;
+    state.busy = false;
+    updateUi();
+    updateReport();
+    refreshModelStatus();
+  }
+}
+
+// Downloads the model the first time; records the download in `entry`.
+async function ensureModel(model, entry) {
+  let status = await separator().status(model);
+  if (!status.cached) {
+    setStatus("sep-status", `Downloading the model (about ${model.approxMB} MB, only the first time)…`);
+    status = await separator().download(model);
+    entry.download = { mb: status.bytes / 1e6, seconds: status.downloadMs / 1000 };
+  }
+  sep.models[model.key] = status;
+  entry.sha256 = status.sha256;
+  return status;
+}
+
+// Times the first blocks of the open song with every runtime (the first block
+// also compiles the shaders and is not counted), profiles one block on the
+// graphics card where the runtime can, and selects the fastest runtime.
+async function compareRuntimes() {
+  if (state.busy || sep.running || !sepAvailable()) return;
+  const choice = sepChoice();
+  sep.running = true;
+  state.busy = true;
+  updateUi();
+  const entry = { model: choice.model.key, rate: choice.rate, overlap: choice.overlap, results: [] };
+  mark("runtime comparison");
+  try {
+    await ensureAudio();
+    if (state.playing) await playPause();
+    if (!state.source) throw new Error("Open a song first (card 1).");
+    entry.title = state.song.title;
+    await ensureModel(choice.model, entry);
+    setStatus("sep-status", "Reading the song…");
+    const source = await readSource(choice.rate);
+    entry.samples = source.left.length;
+    const length = Math.min(source.left.length, Math.round(BENCH_SECONDS * choice.rate));
+    for (const id of Object.keys(sepConfig.runtimes)) {
+      const runtime = sepConfig.runtimes[id];
+      sep.benchLabel = runtime.label;
+      try {
+        setStatus("sep-status", `Comparing runtimes: ${runtime.label}, preparing the model…`);
+        const loaded = await separator().load(choice.model, runtime, sepConfig.ep);
+        const res = await separator().benchmark(source.left.slice(0, length), source.right.slice(0, length), choice.rate, {
+          overlap: choice.overlap,
+          maxChunks: sepConfig.benchChunks,
+          profileChunk: runtime.profile ? sepConfig.benchProfileChunk : -1,
+        });
+        const timed = res.times.perChunk.slice(1).filter((x) => x != null);
+        const blockMs = timed.length ? timed.reduce((a, b) => a + b, 0) / timed.length : res.times.perChunk[0];
+        entry.results.push({
+          id,
+          label: runtime.label,
+          ortVersion: res.backend.ortVersion,
+          adapter: res.backend.adapter,
+          sessionMs: loaded.reused ? 0 : loaded.createMs,
+          firstMs: res.times.perChunk[0],
+          blockMs,
+          blocks: res.chunks,
+          profile: res.profile,
+        });
+      } catch (error) {
+        if (error.message === "Stopped.") throw error;
+        entry.results.push({ id, label: runtime.label, error: error.message });
+        // A runtime that failed may leave its worker unusable.
+        if (sep.separator) sep.separator.terminate();
+        sep.separator = null;
+      }
+    }
+    const ok = entry.results.filter((r) => !r.error);
+    if (!ok.length) throw new Error(`No runtime worked: ${entry.results.map((r) => r.error).join("; ")}`);
+    const best = ok.reduce((a, b) => (b.blockMs < a.blockMs ? b : a));
+    entry.best = best.id;
+    $("sep-runtime").value = best.id;
+    const whole = (r, overlap) => fmtTime((chunksFor(entry.samples, overlap) * r.blockMs) / 1000);
+    const lines = entry.results.map((r) =>
+      r.error
+        ? `${r.label}: failed (${r.error})`
+        : `${r.label}: ${(r.blockMs / 1000).toFixed(1)} s per block · whole song about ${whole(r, 0.5)} with 50% overlap, ${whole(r, 0.25)} with 25%`
+    );
+    state.results.compares.push(entry);
+    unmark();
+    setStatus("sep-status", `${lines.join("\n")}\nSelected: ${best.label}.`, "ok");
+  } catch (error) {
+    unmark();
+    if (error.message === "Stopped.") setStatus("sep-status", "Stopped.", "error");
+    else fail("Comparing runtimes", error, "sep-status");
   } finally {
     sep.running = false;
     state.busy = false;
@@ -1019,13 +1111,29 @@ function updateReport() {
   for (const s of r.separations) {
     const b = s.backend || {};
     const t = s.times;
-    lines.push(`Separation: ${s.title} · ${fmtTime(s.seconds)} · model ${s.model} at ${s.rate / 1000} kHz · ONNX Runtime ${s.runtime} (${b.ortVersion || "?"}) · ${b.ep}${b.adapter ? ` on ${b.adapter}` : ""} · ${s.wallSeconds.toFixed(1)} s = ${s.speed.toFixed(2)}× real time`);
+    lines.push(`Separation: ${s.title} · ${fmtTime(s.seconds)} · model ${s.model} at ${s.rate / 1000} kHz · overlap ${Math.round(s.overlap * 100)}% · ${s.runtime} (${b.ortVersion || "?"}) · ${b.ep}${b.adapter ? ` on ${b.adapter}` : ""} · ${s.wallSeconds.toFixed(1)} s = ${s.speed.toFixed(2)}× real time`);
     lines.push(`  ${s.chunks} chunks · first ${(t.firstRun / 1000).toFixed(2)} s, then ${((t.run - t.firstRun) / Math.max(1, s.chunks - 1) / 1000).toFixed(2)} s each · STFT ${(t.stft / 1000).toFixed(1)} s and inverse ${(t.istft / 1000).toFixed(1)} s in all · session ${s.sessionSeconds.toFixed(1)} s${s.download ? ` · downloaded ${s.download.mb.toFixed(0)} MB in ${s.download.seconds.toFixed(0)} s` : ""} · sha256 ${(s.sha256 || "").slice(0, 12)}`);
     if (s.compare && s.compare.length) {
       lines.push(`  vs EUTERIA (Python), SI-SDR dB (correlation, level, lag): ${s.compare.map((c) => `${TRACK_TITLES[c.key]} ${c.siSdr.toFixed(1)} (${c.corr.toFixed(3)}, ${c.levelDb >= 0 ? "+" : ""}${c.levelDb.toFixed(1)} dB, ${c.lag})`).join(" · ")}`);
     }
   }
   if (r.wakeLock) lines.push(`Wake lock: ${r.wakeLock}`);
+  for (const c of r.compares) {
+    lines.push(`Compare runtimes: ${c.title} · model ${c.model} at ${c.rate / 1000} kHz · first ${BENCH_SECONDS} s · fastest: ${c.best}`);
+    for (const x of c.results) {
+      if (x.error) {
+        lines.push(`  ${x.label}: FAILED ${x.error}`);
+        continue;
+      }
+      const est = (overlap) => fmtTime((chunksFor(c.samples, overlap) * x.blockMs) / 1000);
+      lines.push(`  ${x.label} (${x.ortVersion}): first block ${(x.firstMs / 1000).toFixed(2)} s, then ${(x.blockMs / 1000).toFixed(2)} s · session ${(x.sessionMs / 1000).toFixed(1)} s · whole song ≈ ${est(0.5)} (50%) / ${est(0.25)} (25%)`);
+      if (x.profile) {
+        const p = x.profile;
+        const top = p.ops.slice(0, 10).map((o) => `${o.type} ${(o.ms / 1000).toFixed(2)} s ${Math.round((o.ms / p.gpuMs) * 100)}% ×${o.count}`);
+        lines.push(`    GPU profile of one block: ${(p.gpuMs / 1000).toFixed(2)} s in ${p.kernels} kernels · ${top.join(" · ")}`);
+      }
+    }
+  }
   for (const e of r.errors) lines.push(`ERROR ${e}`);
   const notes = $("notes").value.trim();
   if (notes) lines.push(`Notes: ${notes}`);
@@ -1135,6 +1243,7 @@ function wire() {
   $("share-report").addEventListener("click", shareReport);
   $("notes").addEventListener("input", updateReport);
   $("sep-run").addEventListener("click", () => separateSong(null));
+  $("sep-compare").addEventListener("click", compareRuntimes);
   document.querySelector("label[for=sep-file]").addEventListener("click", unlockAudio);
   $("sep-file").addEventListener("change", (e) => {
     const file = e.target.files && e.target.files[0];
@@ -1186,6 +1295,6 @@ async function init() {
 }
 
 // Hooks for the automated tests.
-window.euteriaLab = { state, ensureAudio, openFile, runWorker, lendTracks, restoreTracks, loadIntoEngine, updateReport, sep, sepConfig, separateSong, refreshModelStatus, updateSepUi };
+window.euteriaLab = { state, ensureAudio, openFile, runWorker, lendTracks, restoreTracks, loadIntoEngine, updateReport, sep, sepConfig, separateSong, compareRuntimes, refreshModelStatus, updateSepUi };
 
 init();

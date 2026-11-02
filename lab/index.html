@@ -124,6 +124,14 @@
       <select id="sep-runtime">
         <option value="1.24">ONNX Runtime 1.24 (tested with this model)</option>
         <option value="1.31">ONNX Runtime 1.31 (newer)</option>
+        <option value="1.31-opt">ONNX Runtime 1.31, graph optimised</option>
+      </select>
+    </div>
+    <div class="control">
+      <label for="sep-overlap">Overlap</label>
+      <select id="sep-overlap">
+        <option value="0.5">50% between blocks, as EUTERIA (Python)</option>
+        <option value="0.25">25% between blocks, a third less time</option>
       </select>
     </div>
     <p id="sep-model-status" class="hint"></p>
@@ -131,10 +139,11 @@
       <button id="sep-run" type="button" class="primary" disabled>Separate the open song</button>
       <label id="sep-file-label" class="button" for="sep-file">Separate an audio file…</label>
       <input id="sep-file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg" hidden>
+      <button id="sep-compare" type="button" disabled>Compare runtimes (first 45 s)</button>
       <button id="sep-stop" type="button" hidden>Stop</button>
       <button id="sep-delete" type="button" disabled>Delete model</button>
     </div>
-    <p class="hint">"Separate the open song" uses the Original Track of the song opened in card 1. If that song already has stems from EUTERIA (Python), the new ones join the track list next to them ("Vocals · web" and so on) and the report says how close each pair is.</p>
+    <p class="hint">"Separate the open song" uses the Original Track of the song opened in card 1. If that song already has stems from EUTERIA (Python), the new ones join the track list next to them ("Vocals · web" and so on) and the report says how close each pair is. "Compare runtimes" times the first blocks of the open song with each runtime, estimates how long the whole song would take, profiles the graphics card with ONNX Runtime 1.24, and selects the fastest runtime.</p>
     <p id="sep-status" class="status"></p>
   </section>
 
