@@ -16,6 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="app/icons/icon-192.png">
 <link rel="apple-touch-icon" href="app/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="app/app.css">
+<script src="version.js"></script>
 <script>
   // The layout, chosen before the first paint: "phone" (library inside the
   // app, number fields) on phones and tablets, "computer" (open files from
@@ -40,7 +41,7 @@
     <div class="brand">
       <img class="logo" src="app/icons/logo-96.png" alt="" width="44" height="44">
       <div class="brand-text">
-        <div class="name">EUTERIA</div>
+        <div class="name">EUTERIA <span id="app-version" class="version"></span></div>
         <p class="acronym" title="EUTERIA"><span><b>E</b>nhanced <b>U</b>niversal <b>T</b>ool for <b>E</b>xploring</span> <span><b>R</b>ecordings, <b>I</b>mprovisations &amp; <b>A</b>rrangements</span></p>
         <p class="author">Created by Pierangelo Gobbo</p>
       </div>
@@ -54,6 +55,7 @@
         <div id="recent-popup" class="menu" role="menu" hidden></div>
       </div>
     </div>
+    <button id="update" class="update-btn" type="button">Update</button>
   </div>
 </header>
 
@@ -137,7 +139,7 @@
         </div>
         <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
         <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
-        <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the grid and the chords">Edit</button>
+        <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the bars and the chords">Edit</button>
         <div id="loop-controls" class="loop-controls">
           <div id="position-box" class="position-box"></div>
           <div class="loop-sets">
@@ -145,8 +147,6 @@
             <button id="set-b" type="button" class="small" title="Loop end at the playhead (])">Set end</button>
           </div>
         </div>
-        <div class="spacer"></div>
-        <div id="quick-slot" class="computer-only"></div>
       </div>
       <!-- Editing: the grid (tempo, meter, anchor) and saving -->
       <div id="grid-edit" class="edit-panel grid-edit" hidden>
@@ -182,7 +182,10 @@
         </div>
       </div>
       <div id="tl-wrap" class="tl-wrap">
-        <div id="tl-heads" class="tl-heads computer-only"></div>
+        <div id="tl-heads" class="tl-heads computer-only">
+          <div id="tl-side" class="tl-side"></div>
+          <div id="tl-rows"></div>
+        </div>
         <div id="timeline" class="tl-host"></div>
       </div>
       <p id="tl-hint" class="hint tl-hint"></p>

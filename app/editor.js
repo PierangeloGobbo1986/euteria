@@ -431,7 +431,7 @@ export class Editor {
     toggle.classList.toggle("dirty", !!song && this.dirty);
     setAttr(toggle, "aria-pressed", String(show));
     toggle.disabled = !song;
-    setAttr(toggle, "title", this.dirty ? "Edit the grid and the chords (changes not saved)" : "Edit the grid and the chords");
+    setAttr(toggle, "title", this.dirty ? "Edit the bars and the chords (changes not saved)" : "Edit the bars and the chords");
     $("grid-edit").hidden = !show;
     $("chord-edit").hidden = !show;
     if (!show) return;

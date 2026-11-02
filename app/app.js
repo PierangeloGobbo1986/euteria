@@ -27,6 +27,8 @@ const ua = navigator.userAgent;
 const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const LAYOUT_KEY = "euteria.layout";
+const VERSION = self.EUTERIA_VERSION || ""; // version.js
+const UPDATE_CHECK_MS = 60 * 60 * 1000; // a new version is looked for at start, then at most once an hour
 const MAX_EXPORTS = phone ? 6 : 10; // older exports leave the list, to keep memory free
 const DEFAULT_LOOP_SECONDS = 16; // as EUTERIA (Python)
 const WAVE_COLORS = { original: "#d6a85f", stems: ["#8eaaa5", "#809692"] }; // as EUTERIA (Python)
@@ -556,8 +558,12 @@ function buildControls() {
     $("tl-wrap").after($("grid-edit"));
     $("tl-wrap").after($("chord-edit"));
   } else {
-    // On a computer the tracks are the rows of the timeline.
-    $("quick-slot").append($("quick"));
+    // On a computer the tracks are the rows of the timeline. Beside the bar
+    // numbers and the chords, over the tracks: Bars and Chords (the editor),
+    // then All stems and Original only.
+    const edit = $("edit-toggle");
+    edit.textContent = "Bars and Chords";
+    $("tl-side").append(edit, $("quick"));
     $("tl-hint").before($("tracks-note"));
   }
 }
@@ -667,7 +673,7 @@ function showSongMeta() {
 
 function renderPlayer(view = null) {
   const song = player.song;
-  const box = phone ? $("tracks") : $("tl-heads");
+  const box = phone ? $("tracks") : $("tl-rows");
   box.textContent = "";
   app.rows = [];
   $("song-title").textContent = song ? song.title : "";
@@ -1029,6 +1035,105 @@ async function shareSong() {
   }
 }
 
+// ----- the column beside the bar numbers (computer) ---------------------------------------------
+//
+// Bars and Chords, All stems and Original only sit beside the bar numbers and
+// the chords, over the tracks. Without the chord lane there is less room:
+// the timeline then moves down by what is missing, so that the tracks stay
+// beside their waveforms.
+
+const SIDE_ROW = 28;
+const SIDE_GAP = 6;
+
+function layoutSide() {
+  if (phone || !player.song) return;
+  const rows = 1 + (player.hasStems ? 1 : 0);
+  const need = rows * SIDE_ROW + (rows - 1) * SIDE_GAP + 8;
+  const offset = `${Math.max(0, need - app.timeline.headHeight)}px`;
+  const wrap = $("tl-wrap");
+  if (wrap.style.getPropertyValue("--tl-offset") !== offset) wrap.style.setProperty("--tl-offset", offset);
+}
+
+// ----- the version, updating the app -----------------------------------------------------------
+//
+// The Update button looks for a new version (version.js, fetched again from
+// the site) and switches to it at once: the service worker is renewed, then
+// the page loads again. The edits and the settings of the open song are kept.
+
+let lastCheck = 0;
+
+async function latestVersion() {
+  const response = await fetch("version.js", { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const m = /EUTERIA_VERSION\s*=\s*"([^"]+)"/.exec(await response.text());
+  if (!m) throw new Error("no version in version.js");
+  return m[1];
+}
+
+function showUpdate(latest) {
+  const b = $("update");
+  const newer = !!latest && latest !== VERSION;
+  b.classList.toggle("available", newer);
+  b.title = newer ? `Version ${latest} is available: update now (this is ${VERSION})` : `EUTERIA ${VERSION}: look for a new version and switch to it`;
+}
+
+async function checkForUpdate() {
+  if (!VERSION || Date.now() - lastCheck < UPDATE_CHECK_MS) return;
+  lastCheck = Date.now();
+  try {
+    showUpdate(await latestVersion());
+  } catch (_) {}
+}
+
+// The new service worker, once it has kept the new version (at most 15 s).
+async function renewServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return;
+    await reg.update();
+    if (!reg.installing && !reg.waiting) return;
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 15000);
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+    });
+  } catch (_) {}
+}
+
+async function updateApp() {
+  const button = $("update");
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    let latest;
+    try {
+      latest = await latestVersion();
+    } catch (_) {
+      notice("EUTERIA cannot look for a new version now: there is no connection.", "error", 5000);
+      return;
+    }
+    lastCheck = Date.now();
+    showUpdate(latest);
+    if (latest === VERSION) {
+      notice(`EUTERIA is up to date: version ${VERSION}.`, "ok", 4000);
+      return;
+    }
+    notice(`Updating EUTERIA to version ${latest}…`);
+    rememberSettings();
+    await renewServiceWorker();
+    location.reload();
+  } finally {
+    button.disabled = false;
+  }
+}
+
 // ----- updating the page -------------------------------------------------------------------
 
 let uiQueued = false;
@@ -1085,6 +1190,7 @@ function updateUi() {
   const hint = editor.on && song ? HINTS.edit : HINTS.view;
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
+  layoutSide();
   $("all-stems").disabled = !ready;
   $("original-only").disabled = !ready;
 
@@ -1149,6 +1255,10 @@ function wire() {
     player.unlock();
     player.toggle();
   });
+
+  // Version
+  $("update").addEventListener("click", updateApp);
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && checkForUpdate());
 
   // Files (computer)
   $("open").addEventListener("click", pickFile);
@@ -1321,6 +1431,8 @@ async function init() {
     $("unsupported").hidden = false;
     return;
   }
+  $("app-version").textContent = VERSION ? `v${VERSION}` : "";
+  showUpdate(null);
   buildControls();
   wire();
   trackAppBarHeight();
@@ -1337,6 +1449,7 @@ async function init() {
     renderLibrary();
   }
   updateUi();
+  setTimeout(checkForUpdate, 3000);
 }
 
 // Hooks for the automated tests.
@@ -1358,6 +1471,8 @@ window.euteria = {
   saveSong,
   shareSong,
   saveMode,
+  updateApp,
+  VERSION,
 };
 
 init();

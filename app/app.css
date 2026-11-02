@@ -63,6 +63,7 @@ b { font-weight: 650; }
 .brand .logo { width: 44px; height: 44px; border-radius: 10px; display: block; flex: none; }
 .brand-text { min-width: 0; line-height: 1.25; }
 .brand .name { font-size: 20px; font-weight: 800; letter-spacing: .06em; line-height: 1.1; }
+.brand .version { font-size: 11px; font-weight: 650; letter-spacing: .02em; color: var(--dim); margin-left: 2px; vertical-align: 3px; }
 .brand p { margin: 0; font-size: 11px; color: var(--muted); }
 .brand .acronym { margin-top: 2px; }
 .brand .acronym b { color: var(--gold); font-weight: 750; }
@@ -71,6 +72,10 @@ b { font-weight: 650; }
 .library-btn { flex: none; min-height: 40px; padding: 8px 14px; border-radius: 999px; color: var(--accent); font-weight: 650; border-color: #355a52; background: var(--accent-bg); }
 .spacer { flex: 1; }
 .open-group { display: flex; gap: 8px; align-items: center; }
+.update-btn { flex: none; position: relative; }
+.update-btn.available::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+[data-layout=phone] .update-btn { min-height: 40px; padding: 8px 14px; border-radius: 999px; }
+[data-layout=phone] body:not([data-view=library]) .update-btn { display: none; }
 [data-layout=phone] .computer-only { display: none !important; }
 
 
@@ -337,7 +342,22 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 }
 .tl-main canvas { position: absolute; left: 0; top: 0; display: block; }
 .tl-overview { display: block; margin-top: 8px; border-radius: 6px; touch-action: none; cursor: pointer; }
-.tl-heads { padding-top: var(--tl-head, 70px); }
+[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-head, 70px) + var(--tl-offset, 0px)); }
+[data-layout=computer] .tl-host { margin-top: var(--tl-offset, 0px); }
+.tl-side {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 10px;
+  height: calc(var(--tl-head, 70px) + var(--tl-offset, 0px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+.tl-side > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
+.tl-side .quick { gap: 6px; }
+.tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
 .tl-heads .track {
   height: var(--tl-row, 60px);
   grid-template-columns: minmax(0, 1fr) auto;
@@ -533,6 +553,7 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 @media (max-width: 640px) {
   [data-layout=computer] .transport-inner { grid-template-columns: auto 1fr auto; grid-template-areas: "now . total" "seek seek seek" "buttons buttons buttons"; gap: 4px 10px; }
   [data-layout=computer] .tl-wrap { grid-template-columns: 150px minmax(0, 1fr); }
+  .tl-side > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
   .welcome { padding: 20px; }
 }
 @media (max-width: 900px) {

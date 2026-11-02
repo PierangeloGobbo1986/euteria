@@ -34,7 +34,9 @@ to the other one.
 - **Computer layout**: songs are opened from any folder (*Open…*, or dropped on the
   window), so the folder where you keep the songs you are studying stays the only copy.
   In Chrome and Edge, *Recent* opens them again with one click (the browser asks once
-  for permission). Volumes and tempo also have sliders; keyboard: Space play or pause,
+  for permission). The column of the tracks starts, beside the bar numbers and the
+  chords, with *Bars and Chords* (the editor, see below), then *All stems* and *Original
+  only*. Volumes and tempo also have sliders; keyboard: Space play or pause,
   ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
   at the current position, 1 to 7 switch a track on or off, + and − zoom, 0 the whole
   song, Ctrl+S (⌘S on a Mac) save.
@@ -74,8 +76,9 @@ the playhead, except for a few seconds after it was moved by hand.
 *Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
-**Editing the grid and the chords.** *Edit*, in the timeline's toolbar, opens the
-editor of EUTERIA (Python), on the phone too:
+**Editing the grid and the chords.** *Bars and Chords* (on a computer, at the top of the
+column of the tracks) or *Edit* (on the phone, in the timeline's toolbar) opens the
+editor of EUTERIA (Python), the same in both layouts:
 
 - **The grid**: *BPM* (20-400, by half beats per minute), the meter (4/4, 3/4, 6/8) and
   the anchor, the first beat of a bar: *Set anchor* puts it at the playhead (placed
@@ -100,7 +103,7 @@ editor of EUTERIA (Python), on the phone too:
   bar or a song that starts in the middle.
 
 Every edit is kept in the browser at once, so nothing is lost if the song is closed;
-until it is saved, a dot on *Edit* says so. **Save** writes the grid, the chords and the
+until it is saved, a dot on *Bars and Chords* (*Edit*) says so. **Save** writes the grid, the chords and the
 practice settings (tempo, key, loop, volumes, tracks on) in the song's `manifest.json`,
 in the fields EUTERIA (Python) uses:
 
@@ -127,6 +130,13 @@ not been opened for a while, never that of Home Screen apps. The Home Screen app
 library of its own, separate from Safari's. Once loaded, the app also works without a
 connection (a service worker keeps a copy of it); in Chrome and Edge it can be installed
 as an app, which then opens `.euteria` files directly.
+
+**The version** of the app is shown next to its name. **Update** (at the top right: on a
+computer after *Recent*, on the phone in the library) looks for a new version and, if
+there is one, switches to it at once; the edits and the settings of the open song are
+kept. A gold dot on *Update* says that a newer version is online. When online, the app
+always loads its newest files anyway: the service worker asks the site whether each file
+changed, and uses the copy it keeps only without a connection.
 
 ## How it will work
 
@@ -307,8 +317,8 @@ rebuilt from them.
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
   the editor of the grid and the chords in `editor.js`, the number fields in
-  `controls.js`, icons); `manifest.webmanifest` and `sw.js` (service worker) make it
-  installable and usable offline.
+  `controls.js`, icons); `version.js`, the version of the app; `manifest.webmanifest` and
+  `sw.js` (service worker) make it installable and usable offline.
 - `lab/`: the Phase 0 test page, and the sync test projects `sync-test.euteria`
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
 - `src/`: shared code: project files (`zip.js`, `project.js`; written by `zipwrite.js`
@@ -324,7 +334,8 @@ rebuilt from them.
 - `lib/`: third-party components, unchanged, each with its licence.
 
 The site is plain HTML, CSS and JavaScript modules: there is no build step, and the
-repository is published as it is by GitHub Pages.
+repository is published as it is by GitHub Pages. Every update published raises the
+version in `version.js` (the only place it is written).
 
 ## Roadmap
 

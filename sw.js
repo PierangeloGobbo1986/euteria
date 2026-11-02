@@ -3,18 +3,22 @@
  * (a rehearsal room without signal, say). Requests to this site go to the
  * network first, so that a new version is used as soon as it is online, and
  * fall back to the copy kept here; if the network is slow, the kept copy is
- * used after a few seconds. Requests to other sites (the separation model and
- * its runtime, in the test page) are left alone. The songs themselves never
- * pass through here: they are files on the device.
+ * used after a few seconds. The network is asked whether each file changed
+ * (the browser's own cache could hold an older copy for minutes after an
+ * update). Requests to other sites (the separation model and its runtime, in
+ * the test page) and requests that must bypass every cache (the Update
+ * button's check) are left alone. The songs themselves never pass through
+ * here: they are files on the device.
  */
 "use strict";
 
-const CACHE = "euteria-app-v4";
+const CACHE = "euteria-app-v5";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
   "index.html",
   "manifest.webmanifest",
+  "version.js",
   "app/app.css",
   "app/app.js",
   "app/controls.js",
@@ -68,7 +72,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET" || request.headers.has("range")) return;
+  if (request.method !== "GET" || request.headers.has("range") || request.cache === "no-store") return;
   if (new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(networkFirst(event));
 });
@@ -76,7 +80,11 @@ self.addEventListener("fetch", (event) => {
 async function networkFirst(event) {
   const request = event.request;
   const cache = await caches.open(CACHE);
-  const network = fetch(request).then((response) => {
+  let fresh = request;
+  try {
+    fresh = new Request(request, { cache: "no-cache" });
+  } catch (_) {}
+  const network = fetch(fresh).then((response) => {
     if (response.ok && response.type === "basic") event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
     return response;
   });
