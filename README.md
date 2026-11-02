@@ -13,7 +13,7 @@ and saving the grid and the chords) are done and tested on iPhone and Mac. Phase
 separation of the instruments in the app, on a computer) is online and being tested.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
-- Phase 0 test page: https://pierangelogobbo1986.github.io/euteria/lab/
+- Phase 0 test page (not linked from the app): https://pierangelogobbo1986.github.io/euteria/lab/
 
 ## Using the app
 
@@ -192,6 +192,9 @@ travel as files (for example over WhatsApp).
   WAV audio.
 
 ## Phase 0 test page (`lab/`)
+
+The app no longer links to it; it stays at its address for checks on a new device or
+browser.
 
 Open it on each device (phone, tablet, computer) and go through the cards in order:
 
