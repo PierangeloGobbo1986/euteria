@@ -28,7 +28,8 @@ to the other one.
   file that is neither a project nor readable audio is refused before it takes any
   space. Volumes, tempo, key and the loop points are numbers with − and + buttons: a
   tap on the number brings up the keypad, holding a button repeats it. Play, stop,
-  −5 s, +5 s and the loop stay at the bottom of the screen.
+  −5 s, +5 s and the loop stay at the bottom of the screen; *Library*, at the top right,
+  goes back to the library.
 - **Computer layout**: songs are opened from any folder (*Open…*, or dropped on the
   window), so the folder where you keep the songs you are studying stays the only copy.
   In Chrome and Edge, *Recent* opens them again with one click (the browser asks once
@@ -52,10 +53,15 @@ ctrl+wheel (a trackpad pinch) or the zoom buttons go from the whole song (100%) 
 about 100 pixels per second, and a tap on the percentage goes back to the whole song.
 The overview under the timeline shows the whole song and the part in view, which can
 be dragged. The edges of the loop are dragged on the timeline and snap to the bars and
-beats (Alt or Option places them freely); with a mouse the whole loop can be dragged
-too. A loop switched on starts at the bar being played (or in the middle of the view if
-the playhead is elsewhere) and lasts 16 seconds, at most half of what is in view, in
-whole bars; a loop already placed and in view stays where it is. While the song plays,
+beats (Alt or Option places them freely); dragging the loop itself moves it and keeps
+its length (a drag that starts on the bar numbers always scrolls). The start and the
+end of the loop sit in the timeline's toolbar on a computer and right under the
+timeline on the phone: *Set start* and *Set end* take the position of the playhead
+(place it with a tap, after zooming in if needed), *Set end* also switches the loop on,
+and − and + move them by a tenth of a second. A loop switched on with *Loop* starts at
+the bar being played (or in the middle of the view if the playhead is elsewhere) and
+lasts 16 seconds, at most half of what is in view, in whole bars; a loop already placed
+and in view stays where it is. While the song plays,
 the view follows the playhead, except for a few seconds after it was moved by hand.
 *Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.

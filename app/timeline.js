@@ -6,8 +6,9 @@
 // A tap moves the playhead; dragging pans (with momentum on touch screens);
 // pinching, ctrl+wheel (a trackpad pinch) or the zoom buttons zoom from the
 // whole song (100%) to about 100 pixels per second. The loop's edges are
-// dragged, snapping to the bars and beats (Alt or Option turns snapping off);
-// with a mouse the whole loop can be dragged too. The overview under the
+// dragged, snapping to the bars and beats (Alt or Option turns snapping off),
+// and the loop itself is dragged to move it, keeping its length (a drag that
+// starts on the bar numbers always scrolls). The overview under the
 // timeline shows the whole song and the part in view, which can be dragged.
 // While the song plays the view follows the playhead, except for a few
 // seconds after the user moved it.
@@ -81,7 +82,7 @@ export class Timeline {
     this.onLoop = onLoop || (() => {});
     this.onView = onView || (() => {});
     this.onChange = onChange || (() => {});
-    this.dims = compact ? { ruler: 32, chords: 22, row: 64, overview: 24 } : { ruler: 46, chords: 24, row: 56, overview: 26 };
+    this.dims = compact ? { ruler: 32, chords: 22, row: 64, overview: 24 } : { ruler: 46, chords: 24, row: 60, overview: 26 };
     this.duration = 0;
     this.sampleRate = 48000;
     this.rows = [];
@@ -507,8 +508,8 @@ export class Timeline {
     const R = this.dims.ruler;
     const lp = this.dragLoop || this.loop;
     if (lp.on && lp.end > lp.start) {
-      const x1 = this.x(lp.start);
-      const x2 = this.x(lp.end);
+      const x1 = Math.round(this.x(lp.start));
+      const x2 = Math.round(this.x(lp.end));
       if (x2 >= -10 && x1 <= this.width + 10) {
         ctx.fillStyle = C.loopFill;
         ctx.fillRect(x1, R, x2 - x1, H - R);
@@ -524,7 +525,7 @@ export class Timeline {
         }
       }
     }
-    const x = this.x(this.position);
+    const x = Math.round(this.x(this.position));
     if (x >= -4 && x <= this.width + 4) {
       ctx.fillStyle = "rgba(231, 189, 109, 0.18)";
       ctx.fillRect(x - 2.5, 0, 5, H);
@@ -706,7 +707,7 @@ export class Timeline {
     }
     const zone = this._hit(p.x, p.y, e.pointerType);
     if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId };
-    else if (zone === "body" && e.pointerType === "mouse") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, moved: false };
+    else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, moved: false };
     else this.gesture = { kind: "press", id: e.pointerId, x0: p.x, y0: p.y, start0: this.start, samples: [{ x: p.x, t: e.timeStamp }] };
     if (e.pointerType === "mouse" && this.gesture.kind !== "press") this.main.style.cursor = zone === "body" ? "grabbing" : "ew-resize";
   }

@@ -37,19 +37,22 @@
 <body data-view="start">
 <header class="appbar">
   <div class="appbar-inner">
-    <button id="back" class="ghost back" type="button" hidden>‹ Library</button>
-    <div class="brand"><img class="logo" src="app/icons/logo-96.png" alt="" width="34" height="34"><span>EUTERIA</span></div>
+    <div class="brand">
+      <img class="logo" src="app/icons/logo-96.png" alt="" width="44" height="44">
+      <div class="brand-text">
+        <div class="name">EUTERIA</div>
+        <p class="acronym" title="EUTERIA"><span><b>E</b>nhanced <b>U</b>niversal <b>T</b>ool for <b>E</b>xploring</span> <span><b>R</b>ecordings, <b>I</b>mprovisations &amp; <b>A</b>rrangements</span></p>
+        <p class="author">Created by Pierangelo Gobbo</p>
+      </div>
+    </div>
     <div class="spacer"></div>
+    <button id="back" class="library-btn" type="button" hidden>Library</button>
     <div class="computer-only open-group">
       <button id="open" class="primary" type="button">Open…</button>
       <div id="recent-menu" class="menu-wrap" hidden>
         <button id="recent-button" type="button" aria-haspopup="true" aria-expanded="false">Recent</button>
         <div id="recent-popup" class="menu" role="menu" hidden></div>
       </div>
-    </div>
-    <div class="credit">
-      <p class="acronym" title="EUTERIA"><span><b>E</b>nhanced <b>U</b>niversal <b>T</b>ool for <b>E</b>xploring</span> <span><b>R</b>ecordings, <b>I</b>mprovisations &amp; <b>A</b>rrangements</span></p>
-      <p class="author">Created by Pierangelo Gobbo</p>
     </div>
   </div>
 </header>
@@ -133,7 +136,17 @@
           <button id="zoom-in" type="button" class="small" aria-label="Zoom in">+</button>
         </div>
         <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
-        <span id="tl-hint" class="tl-hint"></span>
+        <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
+        <div id="loop-controls" class="loop-controls">
+          <div class="loop-point">
+            <div id="loop-start-box" class="control-box"></div>
+            <button id="set-a" type="button" class="small" title="Loop start at the playhead ([)">Set start</button>
+          </div>
+          <div class="loop-point">
+            <div id="loop-end-box" class="control-box"></div>
+            <button id="set-b" type="button" class="small" title="Loop end at the playhead (])">Set end</button>
+          </div>
+        </div>
         <div class="spacer"></div>
         <div id="quick-slot" class="computer-only"></div>
       </div>
@@ -141,6 +154,7 @@
         <div id="tl-heads" class="tl-heads computer-only"></div>
         <div id="timeline" class="tl-host"></div>
       </div>
+      <p id="tl-hint" class="hint tl-hint"></p>
     </section>
 
     <section class="card tracks-card phone-only">
@@ -170,24 +184,6 @@
       </section>
 
       <section class="card">
-        <div class="card-head">
-          <h2>Loop</h2>
-          <button id="loop" type="button" class="small toggle-pill">Off</button>
-        </div>
-        <div class="field">
-          <span class="label">Start</span>
-          <div id="loop-start-box" class="control-box"></div>
-          <button id="set-a" type="button" class="small">Set</button>
-        </div>
-        <div class="field">
-          <span class="label">End</span>
-          <div id="loop-end-box" class="control-box"></div>
-          <button id="set-b" type="button" class="small">Set</button>
-        </div>
-        <p class="hint"><b>Set</b> takes the position being played. On the timeline, drag the edges of the loop: they snap to the bars.</p>
-      </section>
-
-      <section class="card">
         <h2>Export MP3</h2>
         <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key).</p>
         <button id="export" type="button">Export MP3</button>
@@ -199,7 +195,7 @@
         </div>
       </section>
     </div>
-    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end here · 1 to 7 switch a track on or off · + and − zoom, 0 the whole song. On the timeline: click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom, drag the loop or its edges (Alt: without snapping). Double-click a slider to bring it back to 100%.</p>
+    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · 1 to 7 switch a track on or off · + and − zoom, 0 the whole song. Double-click a slider to bring it back to 100%.</p>
   </section>
 </main>
 

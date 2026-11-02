@@ -487,11 +487,16 @@ function buildControls() {
     onView: settingsChanged,
     onChange: updateZoom,
   });
-  $("tl-hint").textContent = phone ? "Pinch to zoom, drag to scroll" : "Drag to scroll, pinch or ctrl+wheel to zoom";
-  if (!phone) {
+  $("tl-hint").textContent = phone
+    ? "Tap to move the playhead, pinch to zoom, drag to scroll. Drag the loop to move it, or its edges to change it: they snap to the bars."
+    : "Click to move the playhead, drag to scroll, pinch or ctrl+wheel to zoom. Drag the loop to move it, or its edges to change it: they snap to the bars (Alt: freely).";
+  if (phone) {
+    // Under the timeline: place the playhead, then set the loop right there.
+    $("tl-wrap").after($("loop-controls"));
+  } else {
     // On a computer the tracks are the rows of the timeline.
     $("quick-slot").append($("quick"));
-    $("timeline").closest(".card").append($("tracks-note"));
+    $("tl-hint").before($("tracks-note"));
   }
 }
 
@@ -548,6 +553,18 @@ function toggleLoop() {
   if (!player.song) return;
   if (player.loop.on) player.setLoop({ ...player.loop, on: false });
   else player.setLoop({ on: true, ...loopInView() });
+}
+
+// Set start moves the start of the loop to the playhead; Set end moves its
+// end there and switches the loop on: start, then end, and the loop plays.
+function setLoopStartHere() {
+  if (player.song) player.setLoopStart(player.position);
+}
+
+function setLoopEndHere() {
+  if (!player.song) return;
+  player.setLoopEnd(player.position);
+  if (!player.loop.on) player.setLoop({ ...player.loop, on: true });
 }
 
 // After a jump made with a button or a key, the timeline shows the playhead.
@@ -764,7 +781,6 @@ function updateUi() {
 
   const lp = player.loop;
   const loop = $("loop");
-  loop.textContent = lp.on ? "On" : "Off";
   loop.classList.toggle("on", lp.on);
   loop.setAttribute("aria-pressed", String(lp.on));
   loop.disabled = !song;
@@ -878,8 +894,8 @@ function wire() {
     settingsChanged();
     scheduleUi();
   });
-  $("set-a").addEventListener("click", () => player.setLoopStart(player.position));
-  $("set-b").addEventListener("click", () => player.setLoopEnd(player.position));
+  $("set-a").addEventListener("click", setLoopStartHere);
+  $("set-b").addEventListener("click", setLoopEndHere);
   $("export").addEventListener("click", exportMp3);
   $("download").addEventListener("click", downloadSelected);
   $("share").addEventListener("click", shareSelected);
@@ -922,9 +938,9 @@ function onKey(e) {
   } else if ((e.key === "l" || e.key === "L") && !e.repeat) {
     toggleLoop();
   } else if (e.key === "[") {
-    player.setLoopStart(player.position);
+    setLoopStartHere();
   } else if (e.key === "]") {
-    player.setLoopEnd(player.position);
+    setLoopEndHere();
   } else if (/^[1-9]$/.test(e.key) && !e.repeat) {
     const t = player.tracks[+e.key - 1];
     if (t) player.setTrackOn(t.key, !t.on);
@@ -955,6 +971,13 @@ function wireLayoutSwitch() {
   });
 }
 
+function trackAppBarHeight() {
+  const bar = document.querySelector(".appbar");
+  const set = () => document.documentElement.style.setProperty("--appbar-h", `${Math.round(bar.getBoundingClientRect().height)}px`);
+  new ResizeObserver(set).observe(bar);
+  set();
+}
+
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   const local = ["localhost", "127.0.0.1"].includes(location.hostname);
@@ -971,6 +994,7 @@ async function init() {
   }
   buildControls();
   wire();
+  trackAppBarHeight();
   showView(homeView());
   registerServiceWorker();
   if (library) {
