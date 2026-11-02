@@ -108,8 +108,15 @@ export class Editor {
     const input = (this.chord = $("chord-input"));
     input.addEventListener("focus", () => {
       // The whole chord selected, to type over it (not when a key started it).
-      if (this.keepCaret) this.keepCaret = false;
-      else setTimeout(() => input.select(), 0);
+      // Some browsers place the caret after the focus: selected again then,
+      // unless something was typed already.
+      if (this.keepCaret) {
+        this.keepCaret = false;
+        return;
+      }
+      const value = input.value;
+      input.select();
+      setTimeout(() => document.activeElement === input && input.value === value && input.select(), 0);
     });
     input.addEventListener("blur", () => this.commitInput());
     input.addEventListener("keydown", (e) => this._inputKey(e));

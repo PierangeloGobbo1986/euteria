@@ -95,7 +95,7 @@
   <section id="welcome-view" class="view" hidden>
     <div class="welcome">
       <h1>Open a song</h1>
-      <p>A <b>.euteria</b> project exported by EUTERIA (Python), a <b>.musicproj</b>, or an audio file (MP3, WAV, M4A, FLAC…) from the folder where you keep the songs you are studying.</p>
+      <p>A <b>.euteria</b> project exported by EUTERIA (Python), a <b>.musicproj</b>, or an audio file (MP3, WAV, M4A, FLAC…) from the folder where you keep the songs you are studying. In Chrome and Edge, EUTERIA separates the instruments of an audio file too.</p>
       <div class="row">
         <button id="open-big" class="primary big" type="button">Open…</button>
       </div>
@@ -148,6 +148,13 @@
           </div>
         </div>
       </div>
+      <!-- Separating the instruments (computer) -->
+      <div id="sep-panel" class="sep-panel computer-only" hidden>
+        <div id="sep-bar" class="sep-bar"><div id="sep-fill" class="sep-fill"></div></div>
+        <p id="sep-text" class="sep-text" role="status" aria-live="polite"></p>
+        <button id="sep-stop" type="button" class="small ghost danger">Stop</button>
+        <button id="sep-close" type="button" class="small ghost" aria-label="Close this message" hidden>✕</button>
+      </div>
       <!-- Editing: the grid (tempo, meter, anchor) and saving -->
       <div id="grid-edit" class="edit-panel grid-edit" hidden>
         <div class="edit-row grid-row">
@@ -183,7 +190,9 @@
       </div>
       <div id="tl-wrap" class="tl-wrap">
         <div id="tl-heads" class="tl-heads computer-only">
-          <div id="tl-side" class="tl-side"></div>
+          <div id="tl-side" class="tl-side">
+            <button id="separate" type="button" class="small" hidden>Separate instruments</button>
+          </div>
           <div id="tl-rows"></div>
         </div>
         <div id="timeline" class="tl-host"></div>

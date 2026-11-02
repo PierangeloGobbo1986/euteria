@@ -7,10 +7,10 @@ Practise with the separated parts of a song, in the browser: switch instruments 
 and off, change tempo and key in real time, loop a passage, follow the bar grid and
 the chords, and export the parts you need as MP3.
 
-**Status: in development.** Phase 0 (feasibility tests on real devices) is done. Phase 1
-(listening mode) is under way: the player with the library and the MP3 export, and the
-timeline, are online and tested on iPhone and Mac; editing and saving the grid and the
-chords (step 3) is online and being tested.
+**Status: in development.** Phase 0 (feasibility tests on real devices) and Phase 1
+(listening mode: the player with the library and the MP3 export, the timeline, editing
+and saving the grid and the chords) are done and tested on iPhone and Mac. Phase 2 (the
+separation of the instruments in the app, on a computer) is online and being tested.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page: https://pierangelogobbo1986.github.io/euteria/lab/
@@ -131,6 +131,21 @@ library of its own, separate from Safari's. Once loaded, the app also works with
 connection (a service worker keeps a copy of it); in Chrome and Edge it can be installed
 as an app, which then opens `.euteria` files directly.
 
+**Separating the instruments** (computer, Chrome or Edge). A song without stems (an
+audio file, or a project holding only the Original Track) shows *Separate instruments*
+in the column of the tracks, under *Bars and Chords*. It first asks where to save the
+EUTERIA project (`.euteria`) it is going to make, so that a separation left to run on
+its own is saved when it ends. The first time, it downloads the separation model (336
+MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
+browser. A bar under the timeline's toolbar shows the progress, the speed and the time
+left; *Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps,
+with the Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3
+too), the grid, the chords and the practice settings, and the project opens in the
+player with every stem on. The song keeps playing while it is separated; another song
+opens once the separation is over. A 4-minute song makes a project of about 70 MB,
+light enough to send over WhatsApp and to keep on a phone. On a phone, and in browsers
+that cannot separate, a note under the tracks says what is needed.
+
 **The version** of the app is shown next to its name. **Update** (at the top right: on a
 computer after *Recent*, on the phone in the library) looks for a new version and, if
 there is one, switches to it at once; the edits and the settings of the open song are
@@ -138,16 +153,16 @@ kept. A gold dot on *Update* says that a newer version is online. When online, t
 always loads its newest files anyway: the service worker asks the site whether each file
 changed, and uses the copy it keeps only without a connection.
 
-## How it will work
+## Modes
 
 Two modes, chosen from what the device can do:
 
-- **Full mode** (computer with Chrome or Edge and WebGPU): import songs and separate
-  them into six stems (vocals, drums, bass, guitar, piano, other) inside the browser,
-  plus everything in listening mode.
+- **Full mode** (computer with Chrome or Edge and WebGPU): separate songs into six
+  stems (vocals, drums, bass, guitar, piano, other) inside the browser, plus everything
+  in listening mode.
 - **Listening mode** (phones, tablets, Safari, Firefox): open a project, choose the
-  stems, set volumes, change tempo and key, loop, bar grid, metronome, chords, MP3
-  export and sharing. A banner explains how to reach the full mode.
+  stems, set volumes, change tempo and key, loop, bar grid, chords, MP3 export and
+  sharing. A note under the tracks of a song without stems says how to separate it.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
@@ -274,6 +289,21 @@ Graphics cards whose WebGPU lacks 16-bit floats cannot run the half-precision mo
 only, and the worker refuses the half-precision model. Any chunk that comes back
 silent or not finite stops the separation with an error.
 
+**In the app** (`app/separate.js`) the separation uses the choices measured on the test
+page: ONNX Runtime 1.31 with the graph optimiser, the model at half precision (full
+precision without 16-bit floats), at 44.1 kHz, the rate it was trained at, with chunks
+overlapping by half, as EUTERIA (Python). The graphics card is asked for only when a
+separation starts, so that the app does not wake the discrete graphics card of a laptop
+that has two. The song is read at 44.1 kHz and trimmed as the player trims it; the stems
+come back from the worker without being copied, so a long song does not need twice the
+memory. A few Web Workers (`src/encode-worker.js`) encode them to MP3 with LAME, 320
+kbps CBR. This LAME writes no gapless tag, so, as for the projects of EUTERIA (Python),
+the manifest gives every MP3 its exact length, the encoder delay (576 samples) and the
+padding (from the number of frames written); the player trims both when the project
+opens, whatever the browser's decoder does, and the stems line up with the song to the
+sample. The project is assembled in memory (stored zip members) and written at once to
+the file chosen, read back, then opened.
+
 ## How the app keeps songs and settings
 
 The library of the phone layout (`src/library.js`) uses the origin private file system,
@@ -316,8 +346,8 @@ rebuilt from them.
 ## Repository layout
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
-  the editor of the grid and the chords in `editor.js`, the number fields in
-  `controls.js`, icons); `version.js`, the version of the app; `manifest.webmanifest` and
+  the editor of the grid and the chords in `editor.js`, the separation in `separate.js`,
+  the number fields in `controls.js`, icons); `version.js`, the version of the app; `manifest.webmanifest` and
   `sw.js` (service worker) make it installable and usable offline.
 - `lab/`: the Phase 0 test page, and the sync test projects `sync-test.euteria`
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
@@ -329,7 +359,8 @@ rebuilt from them.
   the grid and chords of a project, and their editing (`grid.js`), waveform envelopes
   (`peaks.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
-  `onnx-rewrite.js`), device checks (`device.js`) and the synthetic test song
+  `onnx-rewrite.js`), MP3 encoding of the stems (`encode-worker.js`), device checks
+  (`device.js`) and the synthetic test song
   (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
 
@@ -342,13 +373,14 @@ version in `version.js` (the only place it is written).
 - **Phase 0** (done): feasibility tests on real devices: audio engine on iPhone,
   opening `.euteria` files with exact alignment, MP3 export and sharing, in-browser
   separation on a computer.
-- **Phase 1**: listening mode. Step 1: the player, the library (phone), opening files
-  and recent files (computer), settings kept per song, MP3 export, offline use (done,
-  tested on iPhone and Mac). Step 2: the timeline (waveforms, bar grid and numbers,
-  chords, loop dragged on it, zoom, overview; done, tested on iPhone and Mac). Step 3:
-  editing the grid, the bar numbers and the chords, saved in the `.euteria` file
-  (online, being tested). Next: the metronome with count-in.
-- **Phase 2**: full mode with in-browser separation.
+- **Phase 1** (done): listening mode. Step 1: the player, the library (phone), opening
+  files and recent files (computer), settings kept per song, MP3 export, offline use.
+  Step 2: the timeline (waveforms, bar grid and numbers, chords, loop dragged on it,
+  zoom, overview). Step 3: editing the grid, the bar numbers and the chords, saved in the
+  `.euteria` file. All tested on iPhone and Mac. The metronome is left out: recordings,
+  live ones above all, do not keep a mathematical tempo.
+- **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
+  saving them in a project (online, being tested).
 - **Phase 3**: band features.
 
 ## Licence

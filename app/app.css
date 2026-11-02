@@ -440,6 +440,16 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 [data-layout=phone] .anchor-item .num .value { flex: 1; }
 [data-layout=phone] .save-row .edit-status { order: 9; flex: 1 1 100%; }
 
+/* ----- separating the instruments ----- */
+.sep-panel { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 8px 10px; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; }
+.sep-bar { flex: 0 0 180px; height: 8px; border-radius: 4px; background: #262e32; overflow: hidden; }
+.sep-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.sep-text { flex: 1; margin: 0; font-size: 14px; color: var(--muted); }
+.sep-text.ok { color: var(--ok); }
+.sep-text.error { color: var(--danger); }
+.sep-panel button { flex: none; }
+#separate.running { border-color: var(--accent); color: #d8fff3; }
+
 /* ----- tracks ----- */
 .tracks { display: flex; flex-direction: column; gap: 8px; }
 .track { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }

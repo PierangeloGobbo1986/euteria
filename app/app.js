@@ -20,6 +20,7 @@ import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, parseTime, numberField, keyField, confirmTap } from "./controls.js";
 import { Timeline } from "./timeline.js";
 import { Editor } from "./editor.js";
+import { SeparationFlow } from "./separate.js";
 
 const $ = (id) => document.getElementById(id);
 const phone = document.documentElement.dataset.layout === "phone";
@@ -67,6 +68,7 @@ const app = {
   saving: false,
 };
 let editor = null; // app/editor.js, made with the timeline
+let separation = null; // app/separate.js
 
 // ----- messages -------------------------------------------------------------------
 
@@ -126,6 +128,10 @@ document.addEventListener("visibilitychange", () => {
 // not be opened (the reason is shown).
 async function openSong(file, origin) {
   if (player.busy) return null;
+  if (separation && separation.running) {
+    notice("The separation is still running: wait for it to finish, or stop it, before opening another song.", "error", 6000);
+    return null;
+  }
   rememberSettings();
   app.current = null;
   setExportStatus("");
@@ -540,6 +546,22 @@ function buildControls() {
     onChange: updateZoom,
     onSelect: (sel, info) => editor.onSelect(sel, info),
   });
+  separation = new SeparationFlow({
+    app,
+    player,
+    phone,
+    notice,
+    practiceState,
+    refreshPage: scheduleUi,
+    openFile: async (file, handle) => {
+      const song = await openSong(file, { source: "file", handle });
+      if (song) {
+        await addRecent(handle, { title: song.title, size: file.size });
+        renderRecent();
+      }
+      return song;
+    },
+  });
   editor = new Editor({
     app,
     player,
@@ -563,7 +585,7 @@ function buildControls() {
     // then All stems and Original only.
     const edit = $("edit-toggle");
     edit.textContent = "Bars and Chords";
-    $("tl-side").append(edit, $("quick"));
+    $("tl-side").prepend(edit, $("quick"));
     $("tl-hint").before($("tracks-note"));
   }
 }
@@ -692,7 +714,6 @@ function renderPlayer(view = null) {
   }
   $("quick").hidden = !player.hasStems;
   $("tracks-note").hidden = player.hasStems;
-  $("tracks-note").textContent = player.hasStems ? "" : "An audio file has no separate instruments: tempo, key and loop work on the whole song.";
   app.fields.position.setRange(0, song.duration);
   app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
   app.timeline.setLoop(player.loop);
@@ -1047,7 +1068,7 @@ const SIDE_GAP = 6;
 
 function layoutSide() {
   if (phone || !player.song) return;
-  const rows = 1 + (player.hasStems ? 1 : 0);
+  const rows = 1 + (player.hasStems || !$("separate").hidden ? 1 : 0);
   const need = rows * SIDE_ROW + (rows - 1) * SIDE_GAP + 8;
   const offset = `${Math.max(0, need - app.timeline.headHeight)}px`;
   const wrap = $("tl-wrap");
@@ -1190,6 +1211,27 @@ function updateUi() {
   const hint = editor.on && song ? HINTS.edit : HINTS.view;
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
+  // Separating the instruments (a song without stems, on a computer).
+  const sep = $("separate");
+  const separable = !phone && !!song && separation.applicable;
+  sep.hidden = !separable;
+  if (separable) {
+    sep.disabled = !separation.supported || separation.running || busy;
+    sep.classList.toggle("running", separation.running);
+    const label = separation.running ? "Separating…" : "Separate instruments";
+    if (sep.textContent !== label) sep.textContent = label;
+    const title = separation.supported ? "Separate the six instruments of this song and save them with it in an EUTERIA project (.euteria)" : separation.reason;
+    if (sep.title !== title) sep.title = title;
+  }
+  if (song && !player.hasStems) {
+    const note = phone
+      ? "This song has no separate instruments: tempo, key and loop work on the whole song. To separate them, open it in EUTERIA on a computer, with Chrome or Edge."
+      : separation.supported
+        ? "This song has no separate instruments yet: Separate instruments makes the six stems, and saves them with the song in an EUTERIA project (.euteria)."
+        : `This song has no separate instruments: tempo, key and loop work on the whole song. ${separation.reason}`.trim();
+    if ($("tracks-note").textContent !== note) $("tracks-note").textContent = note;
+  }
+  separation.refresh();
   layoutSide();
   $("all-stems").disabled = !ready;
   $("original-only").disabled = !ready;
@@ -1258,6 +1300,7 @@ function wire() {
 
   // Version
   $("update").addEventListener("click", updateApp);
+  $("separate").addEventListener("click", () => separation.start());
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && checkForUpdate());
 
   // Files (computer)
@@ -1449,6 +1492,7 @@ async function init() {
     renderLibrary();
   }
   updateUi();
+  separation.init();
   setTimeout(checkForUpdate, 3000);
 }
 
@@ -1459,6 +1503,9 @@ window.euteria = {
   library,
   get editor() {
     return editor;
+  },
+  get separation() {
+    return separation;
   },
   openSong,
   addSong,

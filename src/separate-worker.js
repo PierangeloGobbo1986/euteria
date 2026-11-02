@@ -389,6 +389,9 @@ async function separate({ type, left, right, sampleRate, overlap = 0.5, maxChunk
     return { result: { chunks, wallMs: performance.now() - t0, times, profile, backend }, transfer: [] };
   }
 
+  // Each stem channel is a view of its own buffer, without the reflected
+  // borders: no copy, so a long song does not need twice the memory. The
+  // song itself goes back too (the page may need it, it was lent).
   const stems = {};
   const transfer = [];
   for (let s = 0; s < STEMS.length; s++) {
@@ -397,15 +400,15 @@ async function separate({ type, left, right, sampleRate, overlap = 0.5, maxChunk
         const w = counter[k];
         acc[k] = w > 0 ? acc[k] / w : 0;
       }
-      const channel = padded ? acc.slice(BORDER, BORDER + n) : acc;
-      transfer.push(channel.buffer);
-      return channel;
+      transfer.push(acc.buffer);
+      return padded ? acc.subarray(BORDER, BORDER + n) : acc;
     });
     result[s] = null;
   }
+  transfer.push(left.buffer, right.buffer);
   const wallMs = performance.now() - t0;
   return {
-    result: { stems, sampleRate, chunks, overlap, wallMs, times, backend },
+    result: { stems, input: [left, right], sampleRate, chunks, overlap, wallMs, times, backend },
     transfer,
   };
 }

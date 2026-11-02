@@ -12,7 +12,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v5";
+const CACHE = "euteria-app-v6";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -23,6 +23,7 @@ const SHELL = [
   "app/app.js",
   "app/controls.js",
   "app/editor.js",
+  "app/separate.js",
   "app/timeline.js",
   "app/icons/favicon-32.png",
   "app/icons/icon-192.png",
@@ -32,6 +33,7 @@ const SHELL = [
   "app/icons/logo-96.png",
   "src/align.js",
   "src/device.js",
+  "src/encode-worker.js",
   "src/engine.js",
   "src/engine-core.js",
   "src/engine-processor.js",
@@ -39,12 +41,16 @@ const SHELL = [
   "src/library.js",
   "src/library-worker.js",
   "src/manifest.js",
+  "src/onnx-rewrite.js",
   "src/peaks.js",
   "src/player.js",
   "src/project.js",
   "src/recent.js",
   "src/render-worker.js",
+  "src/separate-worker.js",
+  "src/separation.js",
   "src/settings.js",
+  "src/stft.js",
   "src/zip.js",
   "src/zipwrite.js",
   "lib/signalsmith-stretch/signalsmith-module.js",
