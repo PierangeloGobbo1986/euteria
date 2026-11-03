@@ -187,7 +187,7 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .lib-del.confirm { min-width: 84px; font-size: 14px; font-weight: 650; }
 .empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--border); border-radius: 12px; padding: 6px 16px; }
 .lib-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; color: var(--muted); font-size: 14px; }
-.lib-foot .ghost { padding-right: 0; }
+.lib-foot .ghost:not(.confirm) { padding-right: 0; }
 
 .now {
   display: flex;
@@ -540,21 +540,32 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .leave-dialog .hint { margin: 8px 0 16px; }
 
 /* ----- exports ----- */
-.exports { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.exports-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 13px; }
+.exports-head .ghost:not(.confirm) { padding-right: 0; }
+.exports { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .export-item {
+  display: flex;
+  align-items: stretch;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.export-pick {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: 28px 1fr;
   gap: 2px 8px;
   align-items: center;
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  border-radius: 10px;
   padding: 8px 10px;
   cursor: pointer;
 }
-.export-item input { grid-row: span 2; width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
-.export-item .name { font-weight: 600; overflow-wrap: anywhere; }
-.export-item .meta { color: var(--dim); font-size: 12px; }
+.export-pick input { grid-row: span 2; width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
+.export-pick .name { font-weight: 600; overflow-wrap: anywhere; }
+.export-pick .meta { color: var(--dim); font-size: 12px; }
+.export-del { background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; color: #e85d5d; min-width: 48px; min-height: 0; padding: 0 12px; font-size: 17px; font-weight: 700; }
+.export-del:hover:not(:disabled) { background: rgba(232, 93, 93, .12); }
 #export-actions { margin-top: 10px; }
 
 .keys { margin-top: 16px; }

@@ -10,7 +10,7 @@
 import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
 import { openZip } from "../src/zip.js";
-import { manifestPatch, withManifest, buildProject } from "../src/zipwrite.js";
+import { manifestPatch, withManifest, buildProject, zipLayout, composeWithManifest, composeProject, crc32Blob } from "../src/zipwrite.js";
 import { savedManifest, newProjectManifest, newProjectId, manifestBytes } from "../src/manifest.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
@@ -53,10 +53,11 @@ const app = {
   view: null,
   // The open song: {key (of its settings), source: "library" | "file",
   // entryId (library), name, file (as it is now), handle (a file Chrome and
-  // Edge may write to)}.
+  // Edge may write to), ready (what Share project needs, read from file)}.
   current: null,
   adding: false,
-  exports: [], // {id, file, url, name, seconds, tempo, key, selected}
+  exports: [], // {id, file, url, name, seconds, tempo, key, selected}: in memory only, until the page closes
+  exportShown: null, // the export the status under Export MP3 is about
   rows: [],
   fields: {},
   seeking: false,
@@ -66,6 +67,7 @@ const app = {
   grid: emptyGrid(),
   gridVisible: true,
   saving: false,
+  sharing: false, // the share sheet is open
 };
 let editor = null; // app/editor.js, made with the timeline
 let separation = null; // app/separate.js
@@ -83,6 +85,7 @@ function notice(text, kind = "", ms = 0) {
 }
 
 function setExportStatus(text, kind = "") {
+  app.exportShown = null;
   const el = $("export-status");
   el.textContent = text;
   el.className = `status ${kind}`.trim();
@@ -207,6 +210,7 @@ async function openSong(file, origin) {
     showView("player");
     renderPlayer(saved && saved.view);
     editor.songOpened({ differs: !!edits, built: !!(edits && edits.built), dirty: !!(saved && saved.dirty) });
+    prepareSoon();
     window.scrollTo(0, 0);
     const warning = trackWarning();
     if (warning) notice(warning, "error");
@@ -772,6 +776,7 @@ async function exportMp3() {
     const lowered = r.reductionDb >= 0.1 ? ` · lowered ${r.reductionDb.toFixed(1)} dB to avoid clipping` : "";
     const full = r.fullOn ? " · Original Track not included" : "";
     setExportStatus(`Ready: ${r.name}\n${fmtTime(r.seconds)} · ${fmtSize(r.file.size)}${lowered}${full}`, "ok");
+    app.exportShown = app.exports[0].id;
     renderExports();
   } catch (error) {
     setExportStatus(error.notice ? error.message : `The export failed: ${(error && error.message) || error}`, "error");
@@ -781,6 +786,7 @@ async function exportMp3() {
   }
 }
 
+const EXPORT_HINT = "The stems that are on, as they sound now (volumes, tempo, key). The MP3 files stay here until EUTERIA closes: they are not saved in the project.";
 const selectedExports = () => app.exports.filter((e) => e.selected);
 
 function canShareFiles(files) {
@@ -802,13 +808,35 @@ function renderExports() {
       updateExportActions();
     });
     const meta = `${fmtTime(e.seconds)} · ${fmtSize(e.file.size)} · tempo ${e.tempo}% · key ${e.key > 0 ? "+" : ""}${e.key}`;
-    box.append(h("label", { class: "export-item" }, tick, h("span", { class: "name", text: e.name }), h("span", { class: "meta", text: meta })));
+    const del = h("button", { type: "button", class: "export-del", title: "Delete", "aria-label": `Delete ${e.name}`, text: "✕" });
+    del.addEventListener("click", () => deleteExports([e]));
+    box.append(
+      h("div", { class: "export-item" }, h("label", { class: "export-pick" }, tick, h("span", { class: "name", text: e.name }), h("span", { class: "meta", text: meta })), del)
+    );
   }
   updateExportActions();
 }
 
+// The exports live in memory only (never in the song's file, nor on the
+// device): deleting one frees its memory at once.
+function deleteExports(list) {
+  for (const e of list) URL.revokeObjectURL(e.url);
+  app.exports = app.exports.filter((e) => !list.includes(e));
+  if (list.some((e) => e.id === app.exportShown)) {
+    app.exportShown = null;
+    setExportStatus("");
+  }
+  renderExports();
+}
+
 function updateExportActions() {
   const chosen = selectedExports();
+  const count = app.exports.length;
+  $("exports-head").hidden = !count;
+  if (count) {
+    const size = app.exports.reduce((sum, e) => sum + e.file.size, 0);
+    $("exports-count").textContent = `${count} ${count === 1 ? "file" : "files"} · ${fmtSize(size)}`;
+  }
   $("export-actions").hidden = !app.exports.length;
   const n = chosen.length;
   $("download").disabled = !n;
@@ -877,19 +905,19 @@ function saveMode() {
   return cur.handle && typeof cur.handle.createWritable === "function" ? "file" : "copy";
 }
 
-let sharing = null;
+let shareSheet = null;
 // Whether this browser shares project files with the share sheet (Safari,
 // on iPhone, iPad and Mac). Chrome and Edge share only some kinds of file:
 // there a phone downloads the project, a computer has it in its folder.
 function shareMode() {
-  if (sharing === null) {
+  if (shareSheet === null) {
     try {
-      sharing = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "song.euteria", { type: "application/zip" })] }));
+      shareSheet = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "song.euteria", { type: "application/zip" })] }));
     } catch (_) {
-      sharing = false;
+      shareSheet = false;
     }
   }
-  return sharing ? "share" : "download";
+  return shareSheet ? "share" : "download";
 }
 
 // What Save does for the open song, said in its tooltip.
@@ -946,6 +974,7 @@ function savedInPlace(file, manifest) {
   cur.file = file;
   cur.name = file.name;
   cur.key = settingsKey(player.song, file);
+  prepareSoon();
   editor.saved(true);
   rememberSettings();
   if (cur.source === "library") {
@@ -956,8 +985,10 @@ function savedInPlace(file, manifest) {
   showSongMeta();
 }
 
-// Resolves with true once saved. quiet: no message when it worked.
-async function saveSong({ quiet = false } = {}) {
+// Resolves with how it was saved ("library", "file", "new-file", "copy"),
+// or false. quiet: no message when it worked. made: the project just shared
+// (projectNow()), saved as it is.
+async function saveSong({ quiet = false, made = null } = {}) {
   const song = player.song;
   const cur = app.current;
   if (!song || !cur || player.busy || app.saving) return false;
@@ -988,13 +1019,12 @@ async function saveSong({ quiet = false } = {}) {
     const file = cur.file;
     if (song.kind === "audio" || !song.manifest) {
       // An audio file: a new project around it.
-      const id = newProjectId();
-      const ext = extensionOf(file.name);
-      const member = `audio/original.${AUDIO_EXTENSIONS.includes(ext) ? ext : "audio"}`;
-      const manifest = newProjectManifest({ id, title: song.title, fileName: file.name, member, grid: app.grid, state: practiceState() });
-      const blob = await buildProject([
+      const member = audioMember(file);
+      const manifest = made ? made.manifest : newProjectManifest({ id: newProjectId(), title: song.title, fileName: file.name, member, grid: app.grid, state: practiceState() });
+      const id = manifest.project_id;
+      const blob = made ? made.blob : await buildProject([
         { name: "manifest.json", data: manifestBytes(manifest) },
-        { name: member, data: file },
+        { name: member, data: file, crc: cur.ready && cur.ready.file === file ? cur.ready.crc : null },
       ]);
       const name = `${safeName(song.title)}.euteria`;
       if (mode === "library") {
@@ -1004,6 +1034,7 @@ async function saveSong({ quiet = false } = {}) {
         await checkSaved(saved, id);
         savedInPlace(saved, manifest);
         say("Saved: the song is now an EUTERIA project, with its bars and chords.", "ok");
+        return mode;
       } else if (mode === "new-file") {
         const w = await target.createWritable();
         try {
@@ -1021,16 +1052,16 @@ async function saveSong({ quiet = false } = {}) {
         await addRecent(target, { title: song.title, size: saved.size });
         renderRecent();
         say(`Saved in ${saved.name}.`, "ok");
-      } else {
-        downloadBlob(blob, name);
-        editor.saved(false);
-        rememberSettings();
-        say(`Downloaded: ${name}.`, "ok");
+        return mode;
       }
-      return true;
+      downloadBlob(blob, name);
+      editor.saved(false);
+      rememberSettings();
+      say(`Downloaded: ${name}.`, "ok");
+      return "copy";
     }
     // A project: its manifest.json rewritten.
-    const manifest = savedManifest(song.manifest, app.grid, practiceState());
+    const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState());
     const bytes = manifestBytes(manifest);
     const zip = await openZip(file);
     if (mode === "library") {
@@ -1064,7 +1095,7 @@ async function saveSong({ quiet = false } = {}) {
       rememberSettings();
       say(`Downloaded a copy with the changes: ${cur.name}.`, "ok");
     }
-    return true;
+    return mode;
   } catch (error) {
     const changed = error && error.name === "NotReadableError";
     reportSave(
@@ -1081,50 +1112,205 @@ async function saveSong({ quiet = false } = {}) {
   }
 }
 
-// The project as it is now, as a new file in memory (a song not in the
-// library: its file is left as it is).
-async function projectFile() {
-  const song = player.song;
+// ----- sharing the project ---------------------------------------------------------------------
+//
+// Share project sends the song's file as it is now (bars, chords, practice
+// settings) with the share sheet: email, WhatsApp, Files, AirDrop. Safari
+// opens the share sheet only while the tap is being handled, so the file is
+// put together at once, from slices of the song's file (src/zipwrite.js),
+// with what that needs read beforehand, when the song opens or is saved:
+// where the members of a project lie, the CRC-32 of an audio file. A song of
+// the library is saved after. Where the browser cannot share project files
+// (Chrome, Edge), a phone downloads the project, a computer saves it in its
+// file and says to attach that.
+
+const audioMember = (file) => {
+  const ext = extensionOf(file.name);
+  return `audio/original.${AUDIO_EXTENSIONS.includes(ext) ? ext : "audio"}`;
+};
+const isAudioSong = (song) => song.kind === "audio" || !song.manifest;
+
+// Reads what projectNow() needs from the song's file as it is now.
+async function prepareShare() {
   const cur = app.current;
-  if (song.kind === "audio" || !song.manifest) {
-    const ext = extensionOf(cur.file.name);
-    const member = `audio/original.${AUDIO_EXTENSIONS.includes(ext) ? ext : "audio"}`;
-    const manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: cur.file.name, member, grid: app.grid, state: practiceState() });
-    const blob = await buildProject([
-      { name: "manifest.json", data: manifestBytes(manifest) },
-      { name: member, data: cur.file },
-    ]);
-    return new File([blob], `${safeName(song.title)}.euteria`, { type: "application/zip" });
-  }
-  const zip = await openZip(cur.file);
-  const blob = await withManifest(cur.file, zip, manifestBytes(savedManifest(song.manifest, app.grid, practiceState())));
-  return new File([blob], cur.name, { type: "application/zip" });
+  const song = player.song;
+  if (!cur || !song) return null;
+  const file = cur.file;
+  if (cur.ready && cur.ready.file === file) return cur.ready;
+  if (cur.preparing && cur.preparing.file === file) return cur.preparing.promise;
+  const audio = isAudioSong(song);
+  const promise = (async () => {
+    // An audio file is read 1 MB at a time, the page kept responsive.
+    const ready = audio ? { file, crc: await crc32Blob(file, 1 << 20) } : { file, layout: await zipLayout(await openZip(file)) };
+    if (cur.file === file) cur.ready = ready;
+    return ready;
+  })().catch(() => null);
+  cur.preparing = { file, promise };
+  const ready = await promise;
+  if (cur.preparing && cur.preparing.promise === promise) cur.preparing = null;
+  return ready;
 }
 
-// Share project: the song's file, its bars, chords and practice settings
-// saved in it first, to the share sheet (email, WhatsApp, Files, AirDrop).
-// A phone whose browser cannot share it downloads it.
-async function shareProject() {
+// After the song opens or is saved. The CRC-32 of an audio file only where
+// the share sheet takes projects; elsewhere it is computed when needed.
+function prepareSoon() {
+  const cur = app.current;
+  const song = player.song;
+  if (!cur || !song) return;
+  const audio = isAudioSong(song);
+  if (audio && shareMode() !== "share") return;
+  setTimeout(() => app.current === cur && prepareShare(), audio ? 300 : 0);
+}
+
+// The project as it is now, put together at once: {file, manifest, blob},
+// or null while prepareShare() has not read what it needs.
+function projectNow() {
   const song = player.song;
   const cur = app.current;
-  if (!song || !cur || app.saving || player.busy) return;
+  const ready = cur && cur.ready;
+  if (!song || !ready || ready.file !== cur.file) return null;
+  if (isAudioSong(song)) {
+    if (ready.crc == null) return null;
+    const member = audioMember(cur.file);
+    const manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: cur.file.name, member, grid: app.grid, state: practiceState() });
+    const blob = composeProject([
+      { name: "manifest.json", data: manifestBytes(manifest) },
+      { name: member, data: cur.file, crc: ready.crc },
+    ]);
+    return { manifest, blob, file: new File([blob], `${safeName(song.title)}.euteria`, { type: "application/zip" }) };
+  }
+  if (!ready.layout) return null;
+  const manifest = savedManifest(song.manifest, app.grid, practiceState());
+  const blob = composeWithManifest(cur.file, ready.layout, manifestBytes(manifest));
+  return { manifest, blob, file: new File([blob], cur.name, { type: "application/zip" }) };
+}
+
+// The same, waiting for what it needs.
+async function projectFile() {
+  await prepareShare();
+  const made = projectNow();
+  if (!made) throw new Error("Its file could not be read: open the song again.");
+  return made.file;
+}
+
+function shareProject() {
+  const song = player.song;
+  const cur = app.current;
+  if (!song || !cur || app.saving || app.sharing || player.busy) return;
   editor.commitInput();
-  let file;
+  if (shareMode() !== "share") {
+    if (phone) downloadProject();
+    else explainSharing();
+    return;
+  }
+  let made = null;
+  try {
+    made = projectNow();
+  } catch (_) {
+    made = null;
+  }
+  if (made) sendProject(made); // the share sheet opens during this tap
+  else sendWhenReady();
+}
+
+// The share sheet, then the song of the library saved. The share sheet
+// copies the file as it opens: should it stay open long (or never answer,
+// as on older iPhones), the song is saved all the same after a while. late:
+// the tap may no longer count (Safari then asks for another one).
+const SHARE_SAVE_MS = 15000;
+async function sendProject(made, late = false) {
+  const cur = app.current;
+  const inLibrary = cur.source === "library" && !!library;
+  app.sharing = true;
+  scheduleUi();
+  let settled = false;
+  const shared = navigator.share({ files: [made.file], title: player.song.title }).then(
+    () => ((settled = true), null),
+    (e) => ((settled = true), e || new Error("unknown error"))
+  );
+  let error = await Promise.race([shared, new Promise((r) => setTimeout(() => r(null), SHARE_SAVE_MS))]);
+  app.sharing = false;
+  scheduleUi();
+  if (late && settled && error && error.name === "NotAllowedError") {
+    reportSave("The project is ready: tap Share project again to send it.");
+    return;
+  }
+  let saved = false;
+  if (inLibrary && app.current === cur) {
+    saved = !!(await saveSong({ quiet: true, made }));
+    if (!saved) return; // saveSong says why
+    if (!settled) reportSave("Saved.", "ok"); // the share sheet still open
+  }
+  if (!settled) error = await shared;
+  reportShare(error, saved);
+}
+
+function reportShare(error, saved) {
+  const again = !!error && error.name === "NotAllowedError"; // the tap no longer counted
+  const failed = !!error && !again && error.name !== "AbortError"; // AbortError: closed without sending
+  let text = again ? "Tap Share project again to send it." : failed ? `The project could not be shared. ${error.message || error}` : error ? "" : "Shared.";
+  if (saved) text = text === "Shared." ? "Saved and shared." : `Saved. ${text}`.trim();
+  if (text) reportSave(text, failed ? "error" : again ? "" : "ok", failed ? 0 : 6000);
+}
+
+// Tapped before the song's file was read (just opened): read it, then try.
+async function sendWhenReady() {
+  app.sharing = true;
+  scheduleUi();
+  let made = null;
+  try {
+    await prepareShare();
+    made = projectNow();
+  } catch (_) {
+    made = null;
+  }
+  app.sharing = false;
+  scheduleUi();
+  if (!made) {
+    reportSave("The project could not be put together: its file could not be read. Open the song again.", "error", 0);
+    return;
+  }
+  sendProject(made, true);
+}
+
+// A phone whose browser cannot share project files: the project downloaded.
+async function downloadProject() {
+  const cur = app.current;
   try {
     if (cur.source === "library" && library) {
       if (!(await saveSong({ quiet: true }))) return;
       const entry = library.get(cur.entryId);
       if (!entry) return;
-      file = new File([await library.file(entry)], entry.name, { type: "application/zip" });
-    } else {
-      file = await projectFile();
+      downloadBlob(new File([await library.file(entry)], entry.name, { type: "application/zip" }), entry.name);
+      reportSave(`Saved and downloaded: ${entry.name}.`, "ok");
+      return;
     }
-    if (shareMode() === "share") await navigator.share({ files: [file], title: song.title });
-    else downloadBlob(file, file.name);
+    const file = await projectFile();
+    downloadBlob(file, file.name);
+    reportSave(`Downloaded: ${file.name}.`, "ok");
   } catch (error) {
-    if (error && error.name === "NotAllowedError") reportSave("Saved. Tap Share project again to send it.");
-    else if (!error || error.name !== "AbortError") reportSave(`The project could not be shared. ${(error && error.message) || error}`, "error", 0);
+    reportSave(`The project could not be downloaded. ${(error && error.message) || error}`, "error", 0);
   }
+}
+
+// A computer whose browser cannot share project files: the project saved in
+// its file, and where it is said.
+const NO_SHARE = "This browser cannot hand project files to the share sheet (Safari can)";
+async function explainSharing() {
+  const song = player.song;
+  const cur = app.current;
+  const show = (text) => reportSave(text, "", 20000);
+  if (saveMode() === "file") {
+    const how = await saveSong({ quiet: true });
+    if (how === "file") show(`Saved in ${cur.name}. ${NO_SHARE}: attach ${cur.name}, from its folder, to an email or a WhatsApp message.`);
+    else if (how === "copy") show(`${NO_SHARE}: attach the copy just downloaded (${cur.name}) to an email or a WhatsApp message.`);
+    return;
+  }
+  show(
+    isAudioSong(song)
+      ? `${NO_SHARE}. Save the song first (Save, at the top right): it becomes an EUTERIA project (.euteria). Then attach that file, from its folder, to an email or a WhatsApp message.`
+      : `${NO_SHARE}. Save, at the top right, downloads the song with its changes (.euteria): attach that file to an email or a WhatsApp message.`
+  );
 }
 
 // ----- the column beside the bar numbers (computer) ---------------------------------------------
@@ -1337,7 +1523,8 @@ function updateUi() {
   const stems = player.hasStems;
   $("export").disabled = !ready || !stems;
   $("export").textContent = player.busy === "exporting" ? "Exporting…" : "Export MP3";
-  $("export-hint").textContent = !song || stems ? "The stems that are on, as they sound now (volumes, tempo, key)." : "The export combines stems: an audio file has none.";
+  const exportHint = !song || stems ? EXPORT_HINT : "The export combines stems: an audio file has none.";
+  if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
   $("key-hint").hidden = !!song && !stems;
 
   // Save, at the top right, and Share project.
@@ -1349,16 +1536,20 @@ function updateUi() {
   const saveTip = song ? saveTitle() : "Save";
   if (save.title !== saveTip) save.title = saveTip;
   const shareProj = $("share-song");
-  const canSend = shareMode() === "share" || (phone && !!library);
-  const shareText = shareMode() === "share" ? "Share project…" : phone ? "Download project" : "Share project…";
+  const sends = shareMode() === "share";
+  const inLibrary = !!app.current && app.current.source === "library";
+  const shareText = app.sharing ? "Sharing…" : sends || !phone ? "Share project…" : "Download project";
   if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
-  shareProj.disabled = !song || busy || app.saving || !canSend;
-  const projectHint =
-    shareMode() === "share"
-      ? "Sends the song's file (.euteria) by email, WhatsApp and so on, as it is now: its bars, chords and practice settings are saved in it first."
-      : canSend
-        ? "Downloads the song's file (.euteria) as it is now, its bars, chords and practice settings saved in it first: this browser cannot share it."
-        : "This browser cannot share project files: attach the song's .euteria file from its folder to an email or a message (an audio file becomes a project with Save).";
+  shareProj.disabled = !song || busy || app.saving || app.sharing;
+  const projectHint = sends
+    ? inLibrary
+      ? "Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on."
+      : "Sends the song's file (.euteria) as it is now, with its bars, chords and practice settings, by email, WhatsApp and so on."
+    : phone
+      ? "Saves the song and downloads its file (.euteria), with its bars, chords and practice settings: this browser cannot share it."
+      : `This browser cannot hand project files to the share sheet: attach the song's .euteria file, from its folder, to an email or a message.${
+          !song ? "" : isAudioSong(song) ? " An audio file becomes a project with Save, at the top right." : saveMode() === "file" ? " Share project saves it first." : " Save, at the top right, downloads it with its changes."
+        }`;
   if ($("project-hint").textContent !== projectHint) $("project-hint").textContent = projectHint;
   const m = app.projectMessage && performance.now() < app.projectMessage.until ? app.projectMessage : null;
   const status = $("project-status");
@@ -1392,6 +1583,7 @@ function wire() {
     });
   }
   if (library) confirmTap($("lib-clear"), "Tap again to delete every song", deleteAll);
+  confirmTap($("exports-clear"), phone ? "Tap again to delete all" : "Click again to delete all", () => deleteExports([...app.exports]));
   $("back").addEventListener("click", goHome);
   $("save-top").addEventListener("click", () => saveSong());
   $("share-song").addEventListener("click", shareProject);

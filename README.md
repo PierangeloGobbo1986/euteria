@@ -47,13 +47,19 @@ under it, *Save* (gold) sit at the top right.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
-end. The card *File export and sharing* has *Share project*, which sends the song's file
-(its bars, chords and practice settings saved in it first) with the share sheet: email,
-WhatsApp, Files, AirDrop; and the MP3 export of the stems that are on, downloaded or
-shared, where the browser can share files (Safari, and Chrome and Edge on some
-systems). Chrome and Edge cannot share project files: there a phone downloads the
-project, and a computer has it in its folder, to attach to an email or a message. An
-audio file opens as a single track: tempo, key and loop work on the whole song.
+end. The card *File export and sharing* has *Share project*, which with one tap sends
+the song's file, with its bars, chords and practice settings, with the share sheet:
+email, WhatsApp, Files, AirDrop. A song of the phone's library is saved too, so the
+library and the file sent are the same project. Chrome and Edge cannot share project
+files: there a phone downloads the project, and on a computer *Share project* saves it
+in its file and says to attach that file, from its folder, to an email or a message
+(an audio file becomes a project with *Save* first). The card has the MP3 export of the
+stems that are on, too, downloaded or shared where the browser can share files
+(Safari, and Chrome and Edge on some systems). The MP3 files exported stay in the app
+only until it closes: they are not saved in the project and take no space on the
+device. Each has a red ✕ that deletes it, and *Delete all* above the list deletes them
+all (after a second tap). An audio file opens as a single track: tempo, key and loop
+work on the whole song.
 
 **The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
@@ -342,16 +348,21 @@ redrawn as the song plays; only the part of the song in view is drawn. The grid
 (`src/grid.js`) is read from the project as EUTERIA (Python) saves it: the times of the
 beats and of the bars, the bar number offset and the chords, keyed by bar.
 
-Saving (`src/zipwrite.js`, `src/manifest.js`) rewrites only `manifest.json`: the audio is
-never read into memory. In place (the library, or a file Chrome and Edge may write), the
-new manifest and a new zip directory replace the end of the file, a few kilobytes: the
-manifest saved before as well when it is the last member, so that saving again and
+Saving (`src/zipwrite.js`, `src/manifest.js`) rewrites only `manifest.json`: the audio
+is never read into memory. In place (the library, or a file Chrome and Edge may write),
+the new manifest and a new zip directory replace the end of the file, a few kilobytes:
+the manifest saved before as well when it is the last member, so that saving again and
 again does not make the file grow (the first time, the manifest written by EUTERIA
 (Python) at the start of the file stays there, unlisted). A copy is assembled by the
 browser from slices of the file as it is downloaded. The file written is read back
-before the app says it is saved. Edits not saved yet are kept with the song's settings
-as the tempo, meter, anchor, bar number offset and chords: the beats and bars are
-rebuilt from them.
+before the app says it is saved. Safari opens the share sheet only while the tap that
+asks for it is being handled, so *Share project* puts the file together at once, without
+waiting for the file to be read: where the members of a project lie, and the CRC-32 of
+an audio file, are read beforehand, when the song opens or is saved. A song of the
+library is saved after the share sheet has taken the file (at the latest after 15
+seconds, should the share sheet stay open). Edits not saved yet are kept with the song's
+settings as the tempo, meter, anchor, bar number offset and chords: the beats and bars
+are rebuilt from them.
 
 ## Repository layout
 

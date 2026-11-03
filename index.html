@@ -227,12 +227,16 @@
         <div class="row">
           <button id="share-song" type="button" class="primary">Share project…</button>
         </div>
-        <p id="project-hint" class="hint">Sends the song's file (.euteria) by email, WhatsApp and so on, as it is now: its bars, chords and practice settings are saved in it first.</p>
+        <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
         <p id="project-status" class="status" role="status" aria-live="polite"></p>
         <h3 class="sub">Export MP3</h3>
-        <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key).</p>
+        <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key). The MP3 files stay here until EUTERIA closes: they are not saved in the project.</p>
         <button id="export" type="button">Export MP3</button>
         <p id="export-status" class="status"></p>
+        <div id="exports-head" class="exports-head" hidden>
+          <span id="exports-count"></span>
+          <button id="exports-clear" type="button" class="ghost danger small">Delete all</button>
+        </div>
         <div id="exports" class="exports"></div>
         <div id="export-actions" class="row" hidden>
           <button id="download" type="button" class="primary">Download</button>

@@ -10,7 +10,10 @@
 //   the old manifest stays inside the file, unlisted, as zip readers ignore
 //   it;
 // - as a new file (a download, a share): a Blob made of slices of the old
-//   file, assembled by the browser only when it is written.
+//   file, assembled by the browser only when it is written. Share project
+//   puts it together during the tap (Safari opens the share sheet only
+//   then): composeWithManifest() and composeProject() are synchronous, with
+//   what they need read beforehand (zipLayout(), crc32Blob()).
 
 const SIG_LOCAL = 0x04034b50;
 const SIG_CENTRAL = 0x02014b50;
@@ -35,10 +38,10 @@ export function crc32(bytes, crc = 0) {
   return ~c >>> 0;
 }
 
-export async function crc32Blob(blob) {
-  const STEP = 8 * 1024 * 1024;
+// CRC-32 of a Blob, read `step` bytes at a time.
+export async function crc32Blob(blob, step = 8 * 1024 * 1024) {
   let crc = 0;
-  for (let at = 0; at < blob.size; at += STEP) crc = crc32(new Uint8Array(await blob.slice(at, at + STEP).arrayBuffer()), crc);
+  for (let at = 0; at < blob.size; at += step) crc = crc32(new Uint8Array(await blob.slice(at, at + step).arrayBuffer()), crc);
   return crc;
 }
 
@@ -132,20 +135,30 @@ export async function manifestPatch(zip, manifestBytes) {
   return { at, bytes: join([local, manifestBytes, central, endRecord(others.length + 1, central.length, cdOffset)]) };
 }
 
-// A new file: the members of `file` (openZip() result `zip`) with the new
-// manifest, as a Blob of slices of `file`.
-export async function withManifest(file, zip, manifestBytes) {
+// Where each member's data lies in the file (`zip` is openZip() of it), in
+// the file's order: what composeWithManifest() needs.
+export async function zipLayout(zip) {
+  const layout = [];
+  for (const entry of [...zip.directory.entries].sort((a, b) => a.localOffset - b.localOffset)) {
+    const [start, end] = await zip.dataRange(entry);
+    layout.push({ entry, start, end });
+  }
+  return layout;
+}
+
+// A new file: the members of `file` (where zipLayout() found them) with the
+// new manifest, as a Blob of slices of `file`.
+export function composeWithManifest(file, layout, manifestBytes) {
   const when = dosTime();
   const parts = [];
   const records = [];
   let offset = 0;
-  const others = zip.directory.entries.filter((e) => e.name !== MANIFEST).sort((a, b) => a.localOffset - b.localOffset);
-  for (const e of others) {
-    const [a, b] = await zip.dataRange(e);
-    const head = localHeader(e, when);
-    parts.push(head, file.slice(a, b));
-    records.push(centralRecord(e, offset, when));
-    offset += head.length + (b - a);
+  for (const { entry, start, end } of layout) {
+    if (entry.name === MANIFEST) continue;
+    const head = localHeader(entry, when);
+    parts.push(head, file.slice(start, end));
+    records.push(centralRecord(entry, offset, when));
+    offset += head.length + (end - start);
   }
   const entry = manifestEntry(manifestBytes);
   const head = localHeader(entry, when);
@@ -157,8 +170,13 @@ export async function withManifest(file, zip, manifestBytes) {
   return new Blob(parts, { type: "application/zip" });
 }
 
-// A new project from members [{name, data: Blob | Uint8Array}] (stored).
-export async function buildProject(members) {
+export async function withManifest(file, zip, manifestBytes) {
+  return composeWithManifest(file, await zipLayout(zip), manifestBytes);
+}
+
+// A new project from members [{name, data: Blob | Uint8Array, crc}]
+// (stored). A Blob member needs its CRC-32 given (crc32Blob()).
+export function composeProject(members) {
   const when = dosTime();
   const parts = [];
   const records = [];
@@ -167,7 +185,8 @@ export async function buildProject(members) {
     const data = m.data;
     const bytes = data instanceof Uint8Array;
     const size = bytes ? data.length : data.size;
-    const crc = bytes ? crc32(data) : await crc32Blob(data);
+    const crc = m.crc != null ? m.crc : bytes ? crc32(data) : null;
+    if (crc === null) throw new Error(`The CRC-32 of ${m.name} is not known.`);
     const entry = { name: m.name, crc, compressedSize: size, size };
     const head = localHeader(entry, when);
     parts.push(head, data);
@@ -177,4 +196,11 @@ export async function buildProject(members) {
   const central = join(records);
   parts.push(central, endRecord(records.length, central.length, offset));
   return new Blob(parts, { type: "application/zip" });
+}
+
+// The same, the CRC-32 of the Blob members computed first.
+export async function buildProject(members) {
+  const ready = [];
+  for (const m of members) ready.push(m.crc != null || m.data instanceof Uint8Array ? m : { ...m, crc: await crc32Blob(m.data) });
+  return composeProject(ready);
 }
