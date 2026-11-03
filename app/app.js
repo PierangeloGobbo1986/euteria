@@ -373,9 +373,20 @@ async function updateUsage(entries) {
   $("lib-usage").textContent = `${text} · ${fmtSize(Math.max(0, estimate.quota - estimate.usage))} available`;
 }
 
+// A Home Screen app added before version 0.4.5 still runs under the status
+// bar (the old "black-translucent" style), where iOS 26 draws its dark fade:
+// the system reads that style only when the app is added.
+function underStatusBar() {
+  if (!ios || !standalone() || !window.matchMedia("(orientation: portrait)").matches) return false;
+  return parseFloat(getComputedStyle(document.querySelector(".appbar")).paddingTop) > 12;
+}
+
 function updateLibraryHint() {
   let text = "";
-  if (library && ios && !standalone()) {
+  if (library && underStatusBar()) {
+    text =
+      "To remove the dark band at the top of the screen, delete EUTERIA from the Home Screen and add it again from Safari (Share, then Add to Home Screen): the system reads that setting only when the app is added. The songs of this library are deleted with it: first save the projects you changed (Share project, then Save to Files), then add them again.";
+  } else if (library && ios && !standalone()) {
     text =
       "Tip: add EUTERIA to the Home Screen (Share, then Add to Home Screen) and open it from there. Safari may delete the data of websites not opened for a while, never that of Home Screen apps. The Home Screen app has a library of its own: add your songs there.";
   } else if (library && !ios && app.persisted === false) {
@@ -1758,11 +1769,16 @@ function wireLayoutSwitch() {
   });
 }
 
+// --appbar-h: the height of the bar at the top; --app-h: the window's.
 function trackAppBarHeight() {
   const bar = document.querySelector(".appbar");
-  const set = () => document.documentElement.style.setProperty("--appbar-h", `${Math.round(bar.getBoundingClientRect().height)}px`);
+  const root = document.documentElement.style;
+  const set = () => root.setProperty("--appbar-h", `${Math.round(bar.getBoundingClientRect().height)}px`);
+  const setApp = () => root.setProperty("--app-h", `${window.innerHeight}px`);
   new ResizeObserver(set).observe(bar);
+  window.addEventListener("resize", setApp);
   set();
+  setApp();
 }
 
 function registerServiceWorker() {

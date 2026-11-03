@@ -30,7 +30,8 @@ html, body {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
-body { min-height: 100vh; display: flex; flex-direction: column; }
+/* --app-h: the window's height (app.js); 100vh may count the status bar of a Home Screen app. */
+body { min-height: var(--app-h, 100vh); display: flex; flex-direction: column; }
 main { flex: 1; }
 
 h1 { font-size: 24px; line-height: 1.2; margin: 0; font-weight: 750; overflow-wrap: anywhere; }

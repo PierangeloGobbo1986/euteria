@@ -20,9 +20,7 @@ being tested.
 
 The app chooses its layout from the device; the link at the bottom of the page switches
 to the other one. In both, the home screen is the **Library**; in a song, *Library* and,
-under it, *Save* (gold) sit at the top right. The bar at the top is opaque, without a
-backdrop blur: Safari (iOS 26) then extends its colour under the status bar instead of
-drawing its dark fade over it.
+under it, *Save* (gold) sit at the top right.
 
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
   *Open MP3 / audio* and *Open EUTERIA project* copy an audio file or a `.euteria`
@@ -147,7 +145,13 @@ Share, then *Add to Home Screen*; in Chrome: the menu, then *Add to Home screen*
 not been opened for a while, never that of Home Screen apps. The Home Screen app has a
 library of its own, separate from the browser's. Once loaded, the app also works without
 a connection (a service worker keeps a copy of it); in Chrome and Edge it can be
-installed as an app, which then opens `.euteria` files directly.
+installed as an app, which then opens `.euteria` files directly. The Home Screen app
+keeps the status bar above the page, opaque (no `black-translucent` style): iOS 26 draws
+a dark fade over the top of an app that runs under the status bar. An app added to the
+Home Screen before version 0.4.5 keeps the old style, as the system reads it only when
+the app is added: its Library then says to delete it from the Home Screen and add it
+again. Its library is deleted with it, so first save the projects changed on the phone
+(*Share project*, then *Save to Files*).
 
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*

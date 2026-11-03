@@ -8,7 +8,9 @@
 <meta name="author" content="Pierangelo Gobbo">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- No apple-mobile-web-app-status-bar-style "black-translucent": with it, iOS 26 draws a
+     dark fade over the top of the Home Screen app (the page runs under the status bar);
+     without it the status bar is opaque, coloured by theme-color, and the page starts below. -->
 <meta name="apple-mobile-web-app-title" content="EUTERIA">
 <title>EUTERIA</title>
 <link rel="manifest" href="manifest.webmanifest">
