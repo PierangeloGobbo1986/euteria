@@ -9,8 +9,9 @@ the chords, and export the parts you need as MP3.
 
 **Status: in development.** Phase 0 (feasibility tests on real devices) and Phase 1
 (listening mode: the player with the library and the MP3 export, the timeline, editing
-and saving the grid and the chords) are done and tested on iPhone and Mac. Phase 2 (the
-separation of the instruments in the app, on a computer) is online and being tested.
+and saving the grid and the chords) are done and tested on smartphone and computer.
+Phase 2 (the separation of the instruments in the app, on a computer) is online and
+being tested.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page (not linked from the app): https://pierangelogobbo1986.github.io/euteria/lab/
@@ -19,21 +20,23 @@ separation of the instruments in the app, on a computer) is online and being tes
 
 The app chooses its layout from the device; the link at the bottom of the page switches
 to the other one. In both, the home screen is the **Library**; in a song, *Library* and,
-under it, *Save* (gold) sit at the top right.
+under it, *Save* (gold) sit at the top right. The bar at the top is opaque, without a
+backdrop blur: Safari (iOS 26) then extends its colour under the status bar instead of
+drawing its dark fade over it.
 
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
   *Open MP3 / audio* and *Open EUTERIA project* copy an audio file or a `.euteria`
   project from the Files app, a download or a chat into the app's private storage and
-  open it. The library lists
-  every song with its length, number of tracks and size, shows the space they take
-  and the space still available, and deletes songs one at a time (✕, then *Delete*) or
-  all together (*Delete all*, tapped twice). The same file is never copied twice, and a
-  file that is neither a project nor readable audio is refused before it takes any
-  space. Volumes, tempo, key and the playhead are numbers with − and + buttons: a
-  tap on the number brings up the keypad, holding a button repeats it. Play, stop,
-  −5 s, +5 s and the loop stay at the bottom of the screen. Deleting a song frees the
-  space of the app's copy; the file it was added from (in Files, in a chat) is not
-  touched, as a web app cannot reach it.
+  open it. The library lists every song with its length, number of tracks and size,
+  shows the space they take and the space still available, and deletes songs one at a
+  time (✕, then *Delete*) or all together (*Delete all*, tapped twice). The same file is
+  never copied twice, and a file that is neither a project nor readable audio is refused
+  before it takes any space. Volumes, tempo, key and the playhead are numbers with
+  − and + buttons: a tap on the number brings up the keypad, holding a button repeats
+  it. In a song, play, stop, −5 s, +5 s, the loop and the position join the bar at the
+  top, with the name and *Library* and *Save*: one banner that stays in view as the page
+  scrolls. Deleting a song frees the space of the app's copy; the file it was added from
+  (in Files, in a chat) is not touched, as a web app cannot reach it.
 - **Computer layout**: songs are opened from any folder (*Open MP3 / audio*, *Open
   EUTERIA project*, or dropped on the window), so the folder where you keep the songs
   you are studying stays the only copy. In Chrome and Edge the Library lists the songs
@@ -47,19 +50,19 @@ under it, *Save* (gold) sit at the top right.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
-end. The card *File export and sharing* has *Share project*, which with one tap sends
-the song's file, with its bars, chords and practice settings, with the share sheet:
-email, WhatsApp, Files, AirDrop. A song of the phone's library is saved too, so the
+end. The card *File export and sharing* has *Share project*, for smartphones: with one
+tap it sends the song's file, with its bars, chords and practice settings, with the
+share sheet (email, WhatsApp, Files, AirDrop), and saves the song in the library, so the
 library and the file sent are the same project. Chrome and Edge cannot share project
-files: there a phone downloads the project, and on a computer *Share project* saves it
-in its file and says to attach that file, from its folder, to an email or a message
-(an audio file becomes a project with *Save* first). The card has the MP3 export of the
-stems that are on, too, downloaded or shared where the browser can share files
-(Safari, and Chrome and Edge on some systems). The MP3 files exported stay in the app
-only until it closes: they are not saved in the project and take no space on the
-device. Each has a red ✕ that deletes it, and *Delete all* above the list deletes them
-all (after a second tap). An audio file opens as a single track: tempo, key and loop
-work on the whole song.
+files (they share only images, audio, video, PDF and text): there a smartphone downloads
+the project instead. On a computer *Share project* says that it works on smartphones:
+there the project file saved with *Save* is shared with the app wanted, by attaching it
+to an email or a message. The card has the MP3 export of the stems that are on, too,
+downloaded or shared where the browser can share files (Safari, and Chrome and Edge on
+some systems). The MP3 files exported stay in the app only until it closes: they are not
+saved in the project and take no space on the device. Each has a red ✕ that deletes it,
+and *Delete all* above the list deletes them all (after a second tap). An audio file
+opens as a single track: tempo, key and loop work on the whole song.
 
 **The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
@@ -138,12 +141,13 @@ kept in the browser. A project opened for the first time starts from the practic
 settings saved in it: tempo, transposition (if the project was left transposed), loop,
 volumes and the tracks that are on.
 
-On iPhone and iPad it is best to add EUTERIA to the Home Screen (Share, then *Add to
-Home Screen*) and use it from there: Safari may delete the data of websites that have
+On a smartphone or a tablet it is best to add EUTERIA to the Home Screen (in Safari:
+Share, then *Add to Home Screen*; in Chrome: the menu, then *Add to Home screen* or
+*Install app*) and use it from there: Safari may delete the data of websites that have
 not been opened for a while, never that of Home Screen apps. The Home Screen app has a
-library of its own, separate from Safari's. Once loaded, the app also works without a
-connection (a service worker keeps a copy of it); in Chrome and Edge it can be installed
-as an app, which then opens `.euteria` files directly.
+library of its own, separate from the browser's. Once loaded, the app also works without
+a connection (a service worker keeps a copy of it); in Chrome and Edge it can be
+installed as an app, which then opens `.euteria` files directly.
 
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*
@@ -355,14 +359,16 @@ the manifest saved before as well when it is the last member, so that saving aga
 again does not make the file grow (the first time, the manifest written by EUTERIA
 (Python) at the start of the file stays there, unlisted). A copy is assembled by the
 browser from slices of the file as it is downloaded. The file written is read back
-before the app says it is saved. Safari opens the share sheet only while the tap that
-asks for it is being handled, so *Share project* puts the file together at once, without
-waiting for the file to be read: where the members of a project lie, and the CRC-32 of
-an audio file, are read beforehand, when the song opens or is saved. A song of the
-library is saved after the share sheet has taken the file (at the latest after 15
-seconds, should the share sheet stay open). Edits not saved yet are kept with the song's
-settings as the tempo, meter, anchor, bar number offset and chords: the beats and bars
-are rebuilt from them.
+before the app says it is saved. Chrome, Edge and the other Chromium browsers answer yes
+to `navigator.canShare()` for any file but then refuse to share a project
+(`NotAllowedError`): the app recognises them and offers *Download project* instead.
+Safari opens the share sheet only while the tap that asks for it is being handled, so
+*Share project* puts the file together at once, without waiting for the file to be read:
+where the members of a project lie, and the CRC-32 of an audio file, are read
+beforehand, when the song opens or is saved. A song of the library is saved after the
+share sheet has taken the file (at the latest after 15 seconds, should the share sheet
+stay open). Edits not saved yet are kept with the song's settings as the tempo, meter,
+anchor, bar number offset and chords: the beats and bars are rebuilt from them.
 
 ## Repository layout
 
@@ -391,15 +397,15 @@ version in `version.js` (the only place it is written).
 
 ## Roadmap
 
-- **Phase 0** (done): feasibility tests on real devices: audio engine on iPhone,
+- **Phase 0** (done): feasibility tests on real devices: audio engine on smartphone,
   opening `.euteria` files with exact alignment, MP3 export and sharing, in-browser
   separation on a computer.
 - **Phase 1** (done): listening mode. Step 1: the player, the library (phone), opening
   files and recent files (computer), settings kept per song, MP3 export, offline use.
   Step 2: the timeline (waveforms, bar grid and numbers, chords, loop dragged on it,
-  zoom, overview). Step 3: editing the grid, the bar numbers and the chords, saved in the
-  `.euteria` file. All tested on iPhone and Mac. The metronome is left out: recordings,
-  live ones above all, do not keep a mathematical tempo.
+  zoom, overview). Step 3: editing the grid, the bar numbers and the chords, saved in
+  the `.euteria` file. All tested on smartphone and computer. The metronome is left out:
+  recordings, live ones above all, do not keep a mathematical tempo.
 - **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
   saving them in a project (online, being tested).
 - **Phase 3**: band features.

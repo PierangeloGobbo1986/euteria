@@ -615,6 +615,8 @@ function buildControls() {
     refreshPage: scheduleUi,
   });
   if (phone) {
+    // The transport joins the app bar: one banner at the top, always in view.
+    document.querySelector(".appbar").append($("transport"));
     // Under the timeline: the editing tools (the chord of the bars selected
     // in it, then the grid), then the playhead and the loop.
     $("tl-wrap").after($("loop-controls"));
@@ -906,16 +908,24 @@ function saveMode() {
 }
 
 let shareSheet = null;
-// Whether this browser shares project files with the share sheet (Safari,
-// on iPhone, iPad and Mac). Chrome and Edge share only some kinds of file:
-// there a phone downloads the project, a computer has it in its folder.
+// How Share project works: "share" (the share sheet takes project files:
+// Safari, and every browser on iPhone and iPad, Safari underneath),
+// "download" (a smartphone whose browser cannot share them: Chrome, Edge and
+// the other Chromium browsers answer yes to canShare() for any file, then
+// refuse to share anything but images, audio, video, PDF and text),
+// "explain" (a computer: the project file saved is shared with the app
+// wanted).
 function shareMode() {
+  if (!phone) return "explain";
   if (shareSheet === null) {
+    let can = false;
     try {
-      shareSheet = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "song.euteria", { type: "application/zip" })] }));
+      can = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "song.euteria", { type: "application/zip" })] }));
     } catch (_) {
-      shareSheet = false;
+      can = false;
     }
+    const chromium = !ios && (!!navigator.userAgentData || /\b(Chrome|Chromium|Edg|EdgA|OPR|SamsungBrowser)\//.test(ua));
+    shareSheet = can && !chromium;
   }
   return shareSheet ? "share" : "download";
 }
@@ -1151,15 +1161,13 @@ async function prepareShare() {
   return ready;
 }
 
-// After the song opens or is saved. The CRC-32 of an audio file only where
-// the share sheet takes projects; elsewhere it is computed when needed.
+// After the song opens or is saved, where the share sheet takes projects;
+// elsewhere what is needed is read when needed.
 function prepareSoon() {
   const cur = app.current;
   const song = player.song;
-  if (!cur || !song) return;
-  const audio = isAudioSong(song);
-  if (audio && shareMode() !== "share") return;
-  setTimeout(() => app.current === cur && prepareShare(), audio ? 300 : 0);
+  if (!cur || !song || shareMode() !== "share") return;
+  setTimeout(() => app.current === cur && prepareShare(), isAudioSong(song) ? 300 : 0);
 }
 
 // The project as it is now, put together at once: {file, manifest, blob},
@@ -1198,9 +1206,13 @@ function shareProject() {
   const cur = app.current;
   if (!song || !cur || app.saving || app.sharing || player.busy) return;
   editor.commitInput();
-  if (shareMode() !== "share") {
-    if (phone) downloadProject();
-    else explainSharing();
+  const mode = shareMode();
+  if (mode === "explain") {
+    explainSharing();
+    return;
+  }
+  if (mode === "download") {
+    downloadProject();
     return;
   }
   let made = null;
@@ -1230,11 +1242,16 @@ async function sendProject(made, late = false) {
   );
   let error = await Promise.race([shared, new Promise((r) => setTimeout(() => r(null), SHARE_SAVE_MS))]);
   app.sharing = false;
-  scheduleUi();
   if (late && settled && error && error.name === "NotAllowedError") {
+    scheduleUi();
     reportSave("The project is ready: tap Share project again to send it.");
     return;
   }
+  // Refused although asked during the tap: a browser that cannot share
+  // project files (as Chrome, should one pass for another): Download project.
+  const refused = !late && !ios && !!error && error.name === "NotAllowedError";
+  if (refused) shareSheet = false;
+  scheduleUi();
   let saved = false;
   if (inLibrary && app.current === cur) {
     saved = !!(await saveSong({ quiet: true, made }));
@@ -1242,13 +1259,21 @@ async function sendProject(made, late = false) {
     if (!settled) reportSave("Saved.", "ok"); // the share sheet still open
   }
   if (!settled) error = await shared;
-  reportShare(error, saved);
+  reportShare(error, saved, refused);
 }
 
-function reportShare(error, saved) {
-  const again = !!error && error.name === "NotAllowedError"; // the tap no longer counted
+function reportShare(error, saved, refused = false) {
+  const again = !refused && !!error && error.name === "NotAllowedError"; // the tap no longer counted
   const failed = !!error && !again && error.name !== "AbortError"; // AbortError: closed without sending
-  let text = again ? "Tap Share project again to send it." : failed ? `The project could not be shared. ${error.message || error}` : error ? "" : "Shared.";
+  let text = refused
+    ? "This browser cannot share project files: Download project saves the song's file instead."
+    : again
+      ? "Tap Share project again to send it."
+      : failed
+        ? `The project could not be shared. ${error.message || error}`
+        : error
+          ? ""
+          : "Shared.";
   if (saved) text = text === "Shared." ? "Saved and shared." : `Saved. ${text}`.trim();
   if (text) reportSave(text, failed ? "error" : again ? "" : "ok", failed ? 0 : 6000);
 }
@@ -1293,24 +1318,16 @@ async function downloadProject() {
   }
 }
 
-// A computer whose browser cannot share project files: the project saved in
-// its file, and where it is said.
-const NO_SHARE = "This browser cannot hand project files to the share sheet (Safari can)";
-async function explainSharing() {
+// A computer: Share project is for smartphones; here the project file saved
+// is shared with the app wanted.
+function explainSharing() {
   const song = player.song;
-  const cur = app.current;
-  const show = (text) => reportSave(text, "", 20000);
-  if (saveMode() === "file") {
-    const how = await saveSong({ quiet: true });
-    if (how === "file") show(`Saved in ${cur.name}. ${NO_SHARE}: attach ${cur.name}, from its folder, to an email or a WhatsApp message.`);
-    else if (how === "copy") show(`${NO_SHARE}: attach the copy just downloaded (${cur.name}) to an email or a WhatsApp message.`);
-    return;
-  }
-  show(
-    isAudioSong(song)
-      ? `${NO_SHARE}. Save the song first (Save, at the top right): it becomes an EUTERIA project (.euteria). Then attach that file, from its folder, to an email or a WhatsApp message.`
-      : `${NO_SHARE}. Save, at the top right, downloads the song with its changes (.euteria): attach that file to an email or a WhatsApp message.`
-  );
+  const text = isAudioSong(song)
+    ? "Share project works on smartphones. On a computer, save the song with Save, at the top right (it becomes an EUTERIA project, .euteria), then share that file with the app you want: email, WhatsApp and so on."
+    : `Share project works on smartphones. On a computer, share the project file you saved (${app.current.name}) with the app you want: email, WhatsApp and so on.${
+        editor.dirty ? " Save first, at the top right: the changes to the bars and chords are not in the file yet." : ""
+      }`;
+  reportSave(text, "", 15000);
 }
 
 // ----- the column beside the bar numbers (computer) ---------------------------------------------
@@ -1536,20 +1553,19 @@ function updateUi() {
   const saveTip = song ? saveTitle() : "Save";
   if (save.title !== saveTip) save.title = saveTip;
   const shareProj = $("share-song");
-  const sends = shareMode() === "share";
+  const shareWay = shareMode();
   const inLibrary = !!app.current && app.current.source === "library";
-  const shareText = app.sharing ? "Sharing…" : sends || !phone ? "Share project…" : "Download project";
+  const shareText = app.sharing ? "Sharing…" : shareWay === "download" ? "Download project" : "Share project…";
   if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
   shareProj.disabled = !song || busy || app.saving || app.sharing;
-  const projectHint = sends
-    ? inLibrary
-      ? "Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on."
-      : "Sends the song's file (.euteria) as it is now, with its bars, chords and practice settings, by email, WhatsApp and so on."
-    : phone
-      ? "Saves the song and downloads its file (.euteria), with its bars, chords and practice settings: this browser cannot share it."
-      : `This browser cannot hand project files to the share sheet: attach the song's .euteria file, from its folder, to an email or a message.${
-          !song ? "" : isAudioSong(song) ? " An audio file becomes a project with Save, at the top right." : saveMode() === "file" ? " Share project saves it first." : " Save, at the top right, downloads it with its changes."
-        }`;
+  const projectHint =
+    shareWay === "share"
+      ? inLibrary
+        ? "Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on."
+        : "Sends the song's file (.euteria) as it is now, with its bars, chords and practice settings, by email, WhatsApp and so on."
+      : shareWay === "download"
+        ? "Saves the song and downloads its file (.euteria), with its bars, chords and practice settings: this browser cannot share it."
+        : "Share project works on smartphones. On a computer, share the project file you saved (Save, at the top right) with the app you want: email, WhatsApp and so on.";
   if ($("project-hint").textContent !== projectHint) $("project-hint").textContent = projectHint;
   const m = app.projectMessage && performance.now() < app.projectMessage.until ? app.projectMessage : null;
   const status = $("project-status");
