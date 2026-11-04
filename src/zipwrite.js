@@ -9,11 +9,13 @@
 //   project saved here before), else the old central directory only, and
 //   the old manifest stays inside the file, unlisted, as zip readers ignore
 //   it;
-// - as a new file (a download, a share): a Blob made of slices of the old
-//   file, assembled by the browser only when it is written. Share project
-//   puts it together during the tap (Safari opens the share sheet only
-//   then): composeWithManifest() and composeProject() are synchronous, with
-//   what they need read beforehand (zipLayout(), crc32Blob()).
+// - as a new file (a download, a share, a song whose takes changed): a Blob
+//   made of slices of the old file and of the takes recorded since, which
+//   the browser assembles only when it is written. Share project puts it
+//   together during the tap (Safari opens the share sheet only then):
+//   composeEdited() and composeProject() are synchronous, with what they
+//   need read beforehand (zipLayout(), crc32Blob(), the CRC-32 of each take
+//   computed when it was encoded).
 
 const SIG_LOCAL = 0x04034b50;
 const SIG_CENTRAL = 0x02014b50;
@@ -149,16 +151,36 @@ export async function zipLayout(zip) {
 // A new file: the members of `file` (where zipLayout() found them) with the
 // new manifest, as a Blob of slices of `file`.
 export function composeWithManifest(file, layout, manifestBytes) {
+  return composeEdited(file, layout, { manifestBytes });
+}
+
+// The same, without the members named in `drop`, with the members of `add`
+// ([{name, data: Uint8Array | Blob, crc}], as composeProject()) after the
+// others: the takes deleted and recorded since the song was saved.
+export function composeEdited(file, layout, { manifestBytes, drop = [], add = [] }) {
   const when = dosTime();
   const parts = [];
   const records = [];
+  const skip = new Set([MANIFEST, ...drop, ...add.map((m) => m.name)]);
   let offset = 0;
   for (const { entry, start, end } of layout) {
-    if (entry.name === MANIFEST) continue;
+    if (skip.has(entry.name)) continue;
     const head = localHeader(entry, when);
     parts.push(head, file.slice(start, end));
     records.push(centralRecord(entry, offset, when));
     offset += head.length + (end - start);
+  }
+  for (const m of add) {
+    const data = m.data;
+    const bytes = data instanceof Uint8Array;
+    const size = bytes ? data.length : data.size;
+    const crc = m.crc != null ? m.crc : bytes ? crc32(data) : null;
+    if (crc === null) throw new Error(`The CRC-32 of ${m.name} is not known.`);
+    const e = { name: m.name, crc, compressedSize: size, size };
+    const head = localHeader(e, when);
+    parts.push(head, data);
+    records.push(centralRecord(e, offset, when));
+    offset += head.length + size;
   }
   const entry = manifestEntry(manifestBytes);
   const head = localHeader(entry, when);

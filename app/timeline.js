@@ -140,7 +140,9 @@ export class Timeline {
 
   // ----- content ------------------------------------------------------------
 
-  // rows: [{key, color, peaks: {min, max} | null, on}], grid as readGrid().
+  // rows: [{key, color, peaks: {min, max} | null, on, offset (the song time
+  // where the track begins, a take), height (null: the usual)}], grid as
+  // readGrid().
   setSong({ duration, sampleRate, rows, grid, gridVisible = true, view = null }) {
     this.duration = duration;
     this.sampleRate = sampleRate || 48000;
@@ -166,6 +168,19 @@ export class Timeline {
       row.on = on;
       this.requestDraw();
     }
+  }
+
+  // A take moved in time (its Sync).
+  setRowOffset(key, offset) {
+    const row = this.rows.find((r) => r.key === key);
+    if (row && Math.abs((row.offset || 0) - offset) > 1e-6) {
+      row.offset = offset;
+      this.requestDraw();
+    }
+  }
+
+  rowHeight(row) {
+    return row.height || this.dims.row;
   }
 
   setGridVisible(on) {
@@ -231,7 +246,7 @@ export class Timeline {
   }
 
   get height() {
-    return this.headHeight + this.rows.length * this.dims.row;
+    return this.headHeight + this.rows.reduce((sum, r) => sum + this.rowHeight(r), 0);
   }
 
   get pps() {
@@ -370,8 +385,11 @@ export class Timeline {
     }
     this._ruler(ctx);
     if (this.showChords) this._chords(ctx);
-    const y0 = this.headHeight;
-    this.rows.forEach((row, i) => this._row(ctx, row, y0 + i * this.dims.row));
+    let y = this.headHeight;
+    for (const row of this.rows) {
+      this._row(ctx, row, y);
+      y += this.rowHeight(row);
+    }
     this.drawTop();
     this.drawOverview();
     this.onChange();
@@ -550,10 +568,10 @@ export class Timeline {
   }
 
   _row(ctx, row, y0) {
-    const h = this.dims.row;
+    const h = this.rowHeight(row);
     ctx.fillStyle = C.row;
     ctx.fillRect(0, y0, this.width, h);
-    this._wave(ctx, row.peaks, row.color, row.on || this.compact ? 0.9 : 0.3, y0, h, this.start, this.pps, this.width);
+    this._wave(ctx, row.peaks, row.color, row.on || this.compact ? 0.9 : 0.3, y0, h, this.start - (row.offset || 0), this.pps, this.width);
     this._gridLines(ctx, y0, h);
     ctx.fillStyle = C.border;
     ctx.fillRect(0, y0 + h - 1, this.width, 1);

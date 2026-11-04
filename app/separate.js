@@ -7,14 +7,15 @@
 // EUTERIA project (.euteria), which then opens in the player.
 //
 // Where the project goes is asked first, so that a separation left to run on
-// its own is saved when it ends. The model (336 MB, or 669 MB at full
+// its own is saved when it ends. The takes recorded over the song go into the
+// new project with it. The model (336 MB, or 669 MB at full
 // precision for graphics cards without 16-bit floats) is downloaded the first
 // time and kept in the browser.
 
 import { Separator, config, decodeAt } from "../src/separation.js";
 import { openZip } from "../src/zip.js";
 import { buildProject } from "../src/zipwrite.js";
-import { newProjectManifest, newProjectId, savedManifest, manifestBytes } from "../src/manifest.js";
+import { newProjectManifest, newProjectId, savedManifest, manifestBytes, withTakes } from "../src/manifest.js";
 import { STEM_NAMES, TRACK_TITLES, checkAlignment } from "../src/project.js";
 import { detectBrowser, detectHandheld, webgpuInfo } from "../src/device.js";
 import { fmtTime } from "./controls.js";
@@ -103,7 +104,9 @@ function encodeAll(jobs, onDone, signal) {
 
 export class SeparationFlow {
   // ctx: {app, player, phone, notice(text, kind, ms), openFile(file, handle)
-  // (resolves with the song), practiceState(), refreshPage()}.
+  // (resolves with the song), practiceState(), refreshPage(), takes()
+  // (resolves with {takes, members}: the takes of the song, for the new
+  // project)}.
   constructor(ctx) {
     this.ctx = ctx;
     this.support = null;
@@ -176,6 +179,7 @@ export class SeparationFlow {
     this.keepAwake(true);
     this.say("Reading the song…", "", 0);
     try {
+      const carried = await this.ctx.takes();
       // The Original Track as a file: the audio file itself, or the member
       // of the project.
       let original;
@@ -251,7 +255,11 @@ export class SeparationFlow {
       const state = this.ctx.practiceState();
       // Every stem is on, the Original Track off, as after a separation in
       // EUTERIA (Python).
-      state.tracks = [{ key: "original", on: false, gain: 1 }, ...STEM_NAMES.map((k) => ({ key: k, on: true, gain: 1 }))];
+      state.tracks = [
+        { key: "original", on: false, gain: 1 },
+        ...STEM_NAMES.map((k) => ({ key: k, on: true, gain: 1 })),
+        ...player.takes.map((t) => ({ key: t.key, on: t.on, gain: t.gain })),
+      ];
       const grid = app.grid;
       let manifest;
       if (song.kind === "audio" || !song.manifest) {
@@ -262,6 +270,7 @@ export class SeparationFlow {
         manifest.variant = "web";
       }
       manifest.audio = { ...(manifest.audio || {}), original_filename: originalName, original_member: originalMember, stems: Object.fromEntries(STEM_NAMES.map((k) => [k, stems[k]])), transposed_member: null, transposed_stems: {}, tracks };
+      withTakes(manifest, carried.takes);
       manifest.separation = {
         status: "done",
         model: model.file,
@@ -272,7 +281,12 @@ export class SeparationFlow {
         sample_rate: rate,
         overlap: SEPARATION.overlap,
       };
-      const blob = await buildProject([{ name: "manifest.json", data: manifestBytes(manifest) }, ...members.filter((m) => m.name === originalMember), ...members.filter((m) => m.name !== originalMember)]);
+      const blob = await buildProject([
+        { name: "manifest.json", data: manifestBytes(manifest) },
+        ...members.filter((m) => m.name === originalMember),
+        ...members.filter((m) => m.name !== originalMember),
+        ...carried.members,
+      ]);
       const w = await target.createWritable();
       try {
         await w.write(blob);

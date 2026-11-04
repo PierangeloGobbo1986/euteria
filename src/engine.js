@@ -19,11 +19,12 @@ export function loadEngine(context) {
 }
 
 export class Engine {
-  // Creates the engine node; resolves once its WebAssembly is ready.
+  // Creates the engine node; resolves once its WebAssembly is ready. Its
+  // input is what a recording takes (src/recorder.js connects it).
   static async create(context) {
     await loadEngine(context);
     const node = new AudioWorkletNode(context, "euteria-engine", {
-      numberOfInputs: 0,
+      numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
@@ -39,6 +40,7 @@ export class Engine {
     this.playing = false;
     this.onposition = null;
     this.onended = null;
+    this.onrecord = null; // recording messages: rec-begin, rec-data, rec-end, level
     this.requests = new Map();
     this.nextId = 1;
     this.ready = new Promise((resolve, reject) => {
@@ -65,6 +67,12 @@ export class Engine {
         this.playing = false;
         if (this.onended) this.onended();
         break;
+      case "rec-begin":
+      case "rec-data":
+      case "rec-end":
+      case "level":
+        if (this.onrecord) this.onrecord(m);
+        break;
       case "reply": {
         const resolve = this.requests.get(m.id);
         if (resolve) {
@@ -88,12 +96,13 @@ export class Engine {
     });
   }
 
-  // track: {key, bus: "pitched"|"drums", channels: Int16Array[], length, gain, on}.
-  // The channel arrays are handed over to the audio thread (they become empty here).
+  // track: {key, bus: "pitched"|"drums", channels: Int16Array[], length, gain,
+  // on, start (the song sample where it begins, 0 if missing)}. The channel
+  // arrays are handed over to the audio thread (they become empty here).
   addTrack(track) {
     const channels = track.channels.map((a) => a.buffer);
     this.send(
-      { type: "track", key: track.key, bus: track.bus, channels, length: track.length, gain: track.gain ?? 1, on: track.on ?? true },
+      { type: "track", key: track.key, bus: track.bus, channels, length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start: track.start || 0 },
       channels
     );
   }
@@ -135,6 +144,21 @@ export class Engine {
 
   setLoop(on, start, end) {
     this.send({ type: "loop", on, start, end });
+  }
+
+  // Recording (see src/engine-processor.js): params {id, play, latency,
+  // takes, minFirst, tail}.
+  recStart(params) {
+    this.send({ type: "rec-start", ...params });
+  }
+
+  recStop(id) {
+    this.send({ type: "rec-stop", id });
+  }
+
+  // The level of the input, reported about 20 times a second.
+  setMeter(on) {
+    this.send({ type: "meter", on: !!on });
   }
 
   // Resolves once every message sent before it has been handled.

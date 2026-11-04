@@ -1,6 +1,7 @@
 /*
  * Web Worker that runs the EUTERIA engine faster than real time, away from
- * the page: MP3 export, and the speed test of the Phase 0 lab page.
+ * the page: MP3 export, a take brought back to the song's own tempo and key,
+ * and the speed test of the Phase 0 lab page.
  *
  * The tracks are lent by the page (their memory is transferred, not copied)
  * and handed back in every reply.
@@ -27,6 +28,7 @@ self.onmessage = async (event) => {
     if (msg.type === "speed") await speedTest(msg);
     else if (msg.type === "export") await exportSong(msg);
     else if (msg.type === "render") await renderSong(msg);
+    else if (msg.type === "convert") await convertTake(msg);
   } catch (error) {
     // Hand the tracks back even when something failed.
     const transfer = [];
@@ -42,7 +44,7 @@ self.onmessage = async (event) => {
 async function buildCore(msg) {
   const core = await self.EuteriaEngineCore.create(msg.sampleRate);
   for (const t of msg.tracks) {
-    core.addTrack(t.key, t.bus, t.channels.map((b) => new Int16Array(b)), t.length, t.gain, t.on);
+    core.addTrack(t.key, t.bus, t.channels.map((b) => new Int16Array(b)), t.length, t.gain, t.on, t.start);
   }
   core.setRate(msg.rate || 1);
   core.setSemitones(msg.semitones || 0);
@@ -56,7 +58,7 @@ function returnTracks(core) {
   const tracks = core.takeTracks().map((t) => {
     const channels = t.ch.map((a) => a.buffer);
     transfer.push(...channels);
-    return { key: t.key, bus: t.bus, channels, length: t.length, gain: t.gain, on: t.on };
+    return { key: t.key, bus: t.bus, channels, length: t.length, gain: t.gain, on: t.on, start: t.start };
   });
   return { tracks, transfer };
 }
@@ -148,6 +150,34 @@ async function renderSong(msg) {
     { type: "render", id: msg.id, left: left.buffer, right: right.buffer, peak, delay: core.delay, tracks: back.tracks },
     [left.buffer, right.buffer, ...back.transfer]
   );
+}
+
+// A take recorded while the song played at another tempo or key, brought back
+// to the song's own: played through the engine at the inverse rate and
+// transposed back, so that it then follows tempo and key as the stems do.
+// msg: {channels (16-bit, one or two), length, sampleRate, rate (1 / the
+// tempo it was recorded at), semitones (minus the key it was recorded in)}.
+async function convertTake(msg) {
+  const core = await self.EuteriaEngineCore.create(msg.sampleRate);
+  core.masterLimit = false;
+  const channels = msg.channels.map((b) => new Int16Array(b));
+  core.addTrack("take", "pitched", channels, msg.length, 1, true, 0);
+  core.setRate(msg.rate);
+  core.setSemitones(msg.semitones);
+  const outLength = Math.max(1, Math.round(msg.length / core.rate));
+  const out = channels.map(() => new Int16Array(outLength));
+  const toInt16 = (v) => (v < -1 ? -32768 : v > 1 ? 32767 : v < 0 ? v * 32768 : v * 32767);
+  renderPass(core, 0, outLength, (b0, b1, from, to, at) => {
+    const o0 = out[0];
+    const o1 = out[1] || null;
+    for (let i = from, o = at; i < to; i++, o++) {
+      o0[o] = toInt16(b0[i]);
+      if (o1) o1[o] = toInt16(b1[i]);
+    }
+  });
+  core.takeTracks();
+  const buffers = out.map((c) => c.buffer);
+  self.postMessage({ type: "convert", id: msg.id, channels: buffers, length: outLength }, buffers);
 }
 
 // The song as it sounds with the given volumes, tempo and key, as MP3. Two

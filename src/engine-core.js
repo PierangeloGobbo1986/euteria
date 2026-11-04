@@ -22,6 +22,10 @@
  * Positions are song samples at the output sample rate. "out" is the moment of
  * the song the stretcher is producing now; it is heard `delay` output samples
  * later. "feed" runs `inputLatency` samples ahead of "out" along the same path.
+ *
+ * A track may start later than the song (a take recorded over it): `start`
+ * is the song sample of its first sample, negative if it begins before the
+ * song.
  */
 (function () {
   "use strict";
@@ -150,7 +154,7 @@
 
     // ----- tracks -----------------------------------------------------------
 
-    addTrack(key, bus, channels, length, gain, on) {
+    addTrack(key, bus, channels, length, gain, on, start) {
       this.tracks.set(key, {
         key,
         bus: bus === "drums" ? "drums" : "pitched",
@@ -158,6 +162,7 @@
         length,
         gain: gain === undefined ? 1 : gain,
         on: on === undefined ? true : !!on,
+        start: Math.round(+start || 0),
       });
       this._lengthChanged();
     }
@@ -193,12 +198,17 @@
       if (!t) return;
       if (params.gain !== undefined) t.gain = Math.max(0, +params.gain);
       if (params.on !== undefined) t.on = !!params.on;
+      if (params.start !== undefined) {
+        t.start = Math.round(+params.start || 0);
+        this._lengthChanged();
+        return;
+      }
       this._tracksChanged();
     }
 
     _lengthChanged() {
       let n = 0;
-      for (const t of this.tracks.values()) n = Math.max(n, t.length);
+      for (const t of this.tracks.values()) n = Math.max(n, t.start + t.length);
       this.length = n;
       this._tracksChanged();
     }
@@ -270,6 +280,17 @@
         if (this.loop.on && t < this.loopA && this.out >= this.loopA) t += this.loopB - this.loopA;
       }
       return Math.min(Math.max(0, t / sr), this.duration);
+    }
+
+    // The song sample coming out now, along the playback path and not clamped:
+    // before the start point while the first `delay` samples come out, still
+    // at the end of the loop just after "out" went back to its start. A
+    // recording lines up with the song from it.
+    emission() {
+      if (this.sinceStart < this.delay) return this.startOut - (this.delay - this.sinceStart) * this.rate;
+      let e = this.out - this.delay * this.rate;
+      if (this.loop.on && e < this.loopA && this.out >= this.loopA) e += this.loopB - this.loopA;
+      return e;
     }
 
     // `x` moved forward by d samples along the playback path (loop included).
@@ -364,20 +385,23 @@
       for (let j = 0; j < list.length; j++) {
         const t = list[j];
         if (t.bus !== bus.name || !t.on || t.gain <= 0) continue;
-        const a = Math.max(x, 0);
-        const b = Math.min(x + len, t.length);
+        // Song samples a..b, the track's own samples a - start..b - start.
+        const s = t.start;
+        const a = Math.max(x, s);
+        const b = Math.min(x + len, s + t.length);
         if (b <= a) continue;
         const L = t.ch[0];
         const R = t.ch[1] || t.ch[0];
         const g = t.gain / 32768;
         let o = offset + (a - x);
+        const e = b - s;
         if (t.gain <= 1) {
-          for (let i = a; i < b; i++, o++) {
+          for (let i = a - s; i < e; i++, o++) {
             dst0[o] += L[i] * g;
             dst1[o] += R[i] * g;
           }
         } else {
-          for (let i = a; i < b; i++, o++) {
+          for (let i = a - s; i < e; i++, o++) {
             dst0[o] += softLimit(L[i] * g);
             dst1[o] += softLimit(R[i] * g);
           }

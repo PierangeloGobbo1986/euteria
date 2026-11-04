@@ -1,7 +1,8 @@
 /*
- * Web Worker that encodes stereo audio to MP3, 320 kbps CBR, with LAME
- * compiled to WebAssembly: the stems of a song separated in the app, and its
- * Original Track when the file it came from is not an MP3 or AAC file.
+ * Web Worker that encodes audio to MP3, CBR, with LAME compiled to
+ * WebAssembly: the stems of a song separated in the app (stereo, 320 kbps),
+ * its Original Track when the file it came from is not an MP3 or AAC file,
+ * and the takes recorded in the app (mono or stereo).
  *
  * This build of LAME writes no LAME tag, so the gapless information goes in
  * the project's manifest instead (audio.tracks, as EUTERIA (Python) writes
@@ -9,8 +10,9 @@
  * of 1152 samples; src/project.js trims both when the song opens, whatever
  * the browser's decoder does with them.
  *
- * Message: {id, left, right, sampleRate, bitrate}; replies {type: "done", id,
- * bytes, info} and gives the channels back (their memory was lent).
+ * Message: {id, left, right (null: mono), sampleRate, bitrate}, the channels
+ * as Float32Array or Int16Array; replies {type: "done", id, bytes, info, crc}
+ * and gives the channels back (their memory was lent).
  */
 "use strict";
 
@@ -22,12 +24,38 @@ const STEP = FRAME * 32;
 const KBPS = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
 const RATES = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
 
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = ~0 >>> 0;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return ~c >>> 0;
+}
+
+// A slice of a channel as floats (16-bit samples are scaled).
+function floats(channel, from, to, scratch) {
+  if (channel instanceof Float32Array) return channel.subarray(from, to);
+  const n = to - from;
+  const out = scratch.subarray(0, n);
+  for (let i = 0; i < n; i++) out[i] = channel[from + i] / 32768;
+  return out;
+}
+
 self.onmessage = async (event) => {
-  const { id, left, right, sampleRate, bitrate = 320 } = event.data;
+  const { id, left, right = null, sampleRate, bitrate = 320 } = event.data;
   try {
     const wasm = new URL("../lib/wasm-media-encoders/mp3.wasm", self.location.href).href;
     const encoder = await self.WasmMediaEncoder.createEncoder("audio/mpeg", wasm);
-    encoder.configure({ sampleRate, channels: 2, bitrate });
+    const channels = right ? 2 : 1;
+    encoder.configure({ sampleRate, channels, bitrate });
     const parts = [];
     let size = 0;
     const keep = (data) => {
@@ -37,13 +65,17 @@ self.onmessage = async (event) => {
       }
     };
     const n = left.length;
+    const scratch = [new Float32Array(STEP), new Float32Array(STEP)];
     let reported = 0;
     for (let i = 0; i < n; i += STEP) {
-      keep(encoder.encode([left.subarray(i, i + STEP), right.subarray(i, i + STEP)]));
+      const end = Math.min(n, i + STEP);
+      const block = [floats(left, i, end, scratch[0])];
+      if (right) block.push(floats(right, i, end, scratch[1]));
+      keep(encoder.encode(block));
       const now = performance.now();
       if (now - reported > 200) {
         reported = now;
-        self.postMessage({ type: "progress", id, done: Math.min(n, i + STEP), total: n });
+        self.postMessage({ type: "progress", id, done: end, total: n });
       }
     }
     keep(encoder.finalize());
@@ -58,12 +90,14 @@ self.onmessage = async (event) => {
       codec: "mp3",
       bitrate_kbps: bitrate,
       sample_rate: sampleRate,
-      channels: 2,
+      channels,
       frames: n,
       encoder_delay: ENCODER_DELAY,
       padding: frames * FRAME - ENCODER_DELAY - n,
     };
-    self.postMessage({ type: "done", id, bytes, info, left, right }, [bytes.buffer, left.buffer, right.buffer]);
+    const transfer = [bytes.buffer, left.buffer];
+    if (right) transfer.push(right.buffer);
+    self.postMessage({ type: "done", id, bytes, info, crc: crc32(bytes), left, right }, transfer);
   } catch (error) {
     self.postMessage({ type: "error", id, message: String((error && error.message) || error) });
   }

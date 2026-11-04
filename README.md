@@ -5,13 +5,13 @@
 
 Practise with the separated parts of a song, in the browser: switch instruments on
 and off, change tempo and key in real time, loop a passage, follow the bar grid and
-the chords, and export the parts you need as MP3.
+the chords, record yourself over the song, and export the parts you need as MP3.
 
 **Status: in development.** Phase 0 (feasibility tests on real devices) and Phase 1
 (listening mode: the player with the library and the MP3 export, the timeline, editing
 and saving the grid and the chords) are done and tested on smartphone and computer.
-Phase 2 (the separation of the instruments in the app, on a computer) is online and
-being tested.
+Phase 2 (the separation of the instruments in the app, on a computer) and the recording
+of takes over a song (version 0.5) are online and being tested.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page (not linked from the app): https://pierangelogobbo1986.github.io/euteria/lab/
@@ -29,9 +29,9 @@ under it, *Save* (gold) sit at the top right.
   shows the space they take and the space still available, and deletes songs one at a
   time (✕, then *Delete*) or all together (*Delete all*, tapped twice). The same file is
   never copied twice, and a file that is neither a project nor readable audio is refused
-  before it takes any space. Volumes, tempo, key and the playhead are numbers with
-  − and + buttons: a tap on the number brings up the keypad, holding a button repeats
-  it. In a song, play, stop, −5 s, +5 s, the loop and the position join the bar at the
+  before it takes any space. Volumes, tempo, key and the playhead are numbers with − and
+  + buttons: a tap on the number brings up the keypad, holding a button repeats it. In a
+  song, play, stop, −5 s, +5 s, the loop, Record and the position join the bar at the
   top, with the name and *Library* and *Save*: one banner that stays in view as the page
   scrolls. Deleting a song frees the space of the app's copy; the file it was added from
   (in Files, in a chat) is not touched, as a web app cannot reach it.
@@ -43,24 +43,25 @@ under it, *Save* (gold) sit at the top right.
   chords, with *Bars and Chords* (the editor, see below), then *All stems* and *Original
   only*. Volumes and tempo also have sliders; keyboard: Space play or pause,
   ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
-  at the current position, 1 to 7 switch a track on or off, + and − zoom, 0 the whole
-  song, Ctrl+S (⌘S on a Mac) save.
+  at the current position, R record a take (again: stop), 1 to 9 switch a track on or
+  off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on a Mac) save.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
-(+20 dB), tempo 50-200%, key ±12 semitones (drums excluded), a loop with its start and
-end. The card *File export and sharing* has *Share project*, for smartphones: with one
-tap it sends the song's file, with its bars, chords and practice settings, with the
-share sheet (email, WhatsApp, Files, AirDrop), and saves the song in the library, so the
-library and the file sent are the same project. Chrome and Edge cannot share project
-files (they share only images, audio, video, PDF and text): there a smartphone downloads
-the project instead. On a computer *Share project* says that it works on smartphones:
-there the project file saved with *Save* is shared with the app wanted, by attaching it
-to an email or a message. The card has the MP3 export of the stems that are on, too,
-downloaded or shared where the browser can share files (Safari, and Chrome and Edge on
-some systems). The MP3 files exported stay in the app only until it closes: they are not
-saved in the project and take no space on the device. Each has a red ✕ that deletes it,
-and *Delete all* above the list deletes them all (after a second tap). An audio file
-opens as a single track: tempo, key and loop work on the whole song.
+(+20 dB, − and + by 5%, as the tempo), tempo 50-200%, key ±12 semitones (drums
+excluded), a loop with its start and end. The card *File export and sharing* has *Share
+project*, for smartphones: with one tap it sends the song's file, with its bars, chords
+and practice settings, with the share sheet (email, WhatsApp, Files, AirDrop), and saves
+the song in the library, so the library and the file sent are the same project. Chrome
+and Edge cannot share project files (they share only images, audio, video, PDF and
+text): there a smartphone downloads the project instead. On a computer *Share project*
+says that it works on smartphones: there the project file saved with *Save* is shared
+with the app wanted, by attaching it to an email or a message. The card has the MP3
+export of the stems and the takes that are on, too (with no stem on, the Original Track
+goes with the takes), downloaded or shared where the browser can share files (Safari,
+and Chrome and Edge on some systems). The MP3 files exported stay in the app only until
+it closes: they are not saved in the project and take no space on the device. Each has a
+red ✕ that deletes it, and *Delete all* above the list deletes them all (after a second
+tap). An audio file opens as a single track: tempo, key and loop work on the whole song.
 
 **The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
@@ -70,8 +71,9 @@ finger work alike on the waveforms: a tap or a click places the playhead (the ye
 line), dragging from inside the loop moves the loop and keeps its length, dragging
 from anywhere else drags the playhead, to place it exactly. Dragging the bar numbers
 scrolls (with momentum on a touch screen); pinching, ctrl+wheel (a trackpad pinch) or
-the zoom buttons go from the whole song (100%) to about 100 pixels per second, and a
-tap on the percentage goes back to the whole song. The overview under the timeline
+the buttons of *Zoom* (at the right of the timeline's toolbar) go from the whole song
+(100%) to about 100 pixels per second, and a tap on the percentage goes back to the
+whole song. The overview under the timeline
 shows the whole song, the part in view and the loop: dragging the frame of the view or
 of the loop moves it (the loop snaps to the bars), a tap elsewhere brings the view
 there.
@@ -122,7 +124,8 @@ it is saved, a dot on *Bars and Chords* (*Edit*) and on *Save* says so. Leaving 
 for the Library or another song then asks, as EUTERIA (Python) does: *Save*, *Don't
 save* (the song goes back to what its file has) or *Cancel*. **Save** (top right, Ctrl+S
 or ⌘S) writes the grid, the chords and the practice settings (tempo, key, loop, volumes,
-tracks on) in the song's `manifest.json`, in the fields EUTERIA (Python) uses:
+tracks on) in the song's `manifest.json`, in the fields EUTERIA (Python) uses, and the
+takes recorded (see below) in the project:
 
 - phone: the song in the library is updated;
 - computer, Chrome and Edge: the file itself is updated (the browser asks once for
@@ -153,6 +156,48 @@ the app is added: its Library then says to delete it from the Home Screen and ad
 again. Its library is deleted with it, so first save the projects changed on the phone
 (*Share project*, then *Save to Files*).
 
+**Recording takes** (every device and browser). *Record*, the red dot beside *Loop*,
+records what you play over the song: if the song is paused it starts it from the
+playhead, and *Record* again ends the take while the song goes on (*Pause* or *Stop* end
+both). The input is chosen under **Input**, in the timeline's toolbar: the menu lists
+the microphone of the phone or the computer and the audio interfaces connected, such as
+a guitar processor on USB-C. The browser names them only once the page may use the
+microphone, so the first time ↻ asks for that permission, then lists them; the list
+follows what is plugged in and out, the choice is kept, and the bar beside the menu
+shows the level of the input chosen for a few seconds, then while recording. The sound
+is recorded as it is (no echo cancellation, noise suppression or automatic gain, made
+for calls) and is not played back through the app while recording: you hear yourself
+from the instrument, the amp or the processor, which has no delay.
+
+Every take is a track at the bottom of the tracks (a row of its own in the timeline on a
+computer, drawn in red), with its switch, its volume, a red ✕ that deletes it (a second
+tap confirms) and **Sync**. The take is lined up with the song from what the engine was
+playing while each sample came in, minus the delay of the devices that the browser
+reports (the sound on its way to the ears, the input on its way to the page). What it
+does not report, as the delay of Bluetooth headphones or speakers (a few hundred
+milliseconds), is corrected with *Sync*: it moves the take earlier (−) or later (+), in
+milliseconds, and the next takes from the same input get the same *Sync*, so it is set
+once per setup. Wired headphones, or the outputs of an audio interface, keep the delay
+small and known.
+
+With the loop on, each pass is a take: after the third one the song stops, back at the
+start of the loop (a first pass shorter than a second, when *Record* is pressed near the
+end of the loop, does not count). While recording, jumps, tempo, key and the loop wait,
+as they would move the song under the take; volumes and tracks on stay free. A take can
+be recorded with the song slower or transposed: it is then brought back to the song's
+own tempo and key, so that it follows tempo and key afterwards as the stems do, and
+stays with them (with the light colouring of a stretched sound). Takes recorded, deleted
+or moved are changes to the song, as the bars and chords: *Save* writes them in the
+project, *Share project* sends them, and leaving the song asks first. A phone keeps
+about 15 minutes of takes per song in memory, a computer much more; when there is no
+more room the take ends and the app says so.
+
+On an iPhone the audio session plays and records while the input is open, and plays only
+once it is closed (some seconds after the last take). Chrome and the other browsers of
+the iPhone use Safari's engine, so they behave as Safari. With Bluetooth headphones, iOS
+may switch them to their call mode while the microphone is open: wired headphones or an
+audio interface sound better. EUTERIA (Python) does not show the takes.
+
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*
 in the column of the tracks, under *Bars and Chords*. It first asks where to save the
@@ -162,17 +207,19 @@ MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
 browser. A bar under the timeline's toolbar shows the progress, the speed and the time
 left; *Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps,
 with the Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3
-too), the grid, the chords and the practice settings, and the project opens in the
-player with every stem on. The song keeps playing while it is separated; another song
-opens once the separation is over. A 4-minute song makes a project of about 70 MB,
-light enough to send over WhatsApp and to keep on a phone. On a phone, and in browsers
-that cannot separate, a note under the tracks says what is needed.
+too), the grid, the chords, the practice settings and the takes recorded over the song,
+and the project opens in the player with every stem on. The song keeps playing while it
+is separated; another song opens once the separation is over. A 4-minute song makes a
+project of about 70 MB, light enough to send over WhatsApp and to keep on a phone. On a
+phone, and in browsers that cannot separate, a note under the tracks says what is
+needed.
 
-**The version** of the app is shown next to its name. **Update** (at the top right of the
-Library) looks for a new version and, if there is one, switches to it at once; the
-settings of the open song are kept, and changes not saved are asked about first. A gold dot on *Update* says that a newer version is online. When online, the app
-always loads its newest files anyway: the service worker asks the site whether each file
-changed, and uses the copy it keeps only without a connection.
+**The version** of the app is shown next to its name. **Update** (at the top right of
+the Library) looks for a new version and, if there is one, switches to it at once; the
+settings of the open song are kept, and changes not saved are asked about first. A gold
+dot on *Update* says that a newer version is online. When online, the app always loads
+its newest files anyway: the service worker asks the site whether each file changed, and
+uses the copy it keeps only without a connection.
 
 ## Modes
 
@@ -182,8 +229,9 @@ Two modes, chosen from what the device can do:
   stems (vocals, drums, bass, guitar, piano, other) inside the browser, plus everything
   in listening mode.
 - **Listening mode** (phones, tablets, Safari, Firefox): open a project, choose the
-  stems, set volumes, change tempo and key, loop, bar grid, chords, MP3 export and
-  sharing. A note under the tracks of a song without stems says how to separate it.
+  stems, set volumes, change tempo and key, loop, bar grid, chords, record takes, MP3
+  export and sharing. A note under the tracks of a song without stems says how to
+  separate it.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
@@ -204,6 +252,12 @@ travel as files (for example over WhatsApp).
   Original Track up with the stems (see below).
 - **`.musicproj`**: full project written by EUTERIA (Python), same layout with 16-bit
   WAV audio.
+- **Takes** recorded in EUTERIA Web go in the same zip as `audio/takes/<id>.mp3` (320
+  kbps stereo, or 160 kbps mono for a mono input), listed in `manifest.audio.takes` with
+  their title, the moment of the song where they begin (`start`, seconds), `sync_ms`,
+  the input, the date, and the tempo and key they were recorded at; `audio.tracks` gives
+  their exact length, delay and padding as for the stems, and `practice` their volume
+  and switch (keys `take-<id>`). EUTERIA (Python) ignores them.
 
 ## Phase 0 test page (`lab/`)
 
@@ -270,6 +324,26 @@ the first pass finds the peak, the second lowers the whole song under -1 dBFS if
 needed and encodes it, as EUTERIA (Python) does, so memory stays flat whatever the
 length. The PCM of the tracks is lent to the worker during an export (moved, not
 copied), so an export does not double the memory in use.
+
+**Recording** (`src/recorder.js`, `app/recording.js`): the input (a
+`MediaStreamAudioSourceNode` of the microphone or interface chosen, opened with
+`getUserMedia()`) goes into the engine's AudioWorklet, which keeps each block of input
+with the moment of the song it sends out in the same block (`emission()`, the same
+mapping as the playhead, the stretcher's delay included). The input travels to the page
+as 16-bit PCM in chunks of 16384 samples. Lined up on the song from that moment minus
+the delay of the devices (the context's `baseLatency` and `outputLatency`, and the
+track's `latency` where the browser gives it), the take is split into loop passes and
+trimmed to where playback started with it (what the stretcher sends out before is its
+priming). With the loop on, the worklet itself stops playback at the end of the last
+pass, to the block, then keeps the input a little longer, the sound still on its way. A
+take recorded at another tempo or key goes through the engine once more in
+`src/render-worker.js`, at the inverse rate and transposed back. A stereo input whose
+channels are equal is kept mono. Each take is encoded to MP3 at once in a worker, with
+its CRC-32, so that *Share project* can put the file together during the tap. A take
+starts at its own moment of the song: the engine mixes it from there (`start`), and
+*Sync* only changes that moment. The alignment was checked with the engine's output fed
+back to its input through a known delay: the takes land on the song to the sample, at
+any tempo and key within a millisecond, and again once saved as MP3 and opened.
 
 When a project opens, `src/align.js` compares the Original Track with the sum of the
 stems (cross-correlation of their energy envelopes, as `measure_alignment_offset()`
@@ -356,15 +430,17 @@ redrawn as the song plays; only the part of the song in view is drawn. The grid
 (`src/grid.js`) is read from the project as EUTERIA (Python) saves it: the times of the
 beats and of the bars, the bar number offset and the chords, keyed by bar.
 
-Saving (`src/zipwrite.js`, `src/manifest.js`) rewrites only `manifest.json`: the audio
-is never read into memory. In place (the library, or a file Chrome and Edge may write),
-the new manifest and a new zip directory replace the end of the file, a few kilobytes:
-the manifest saved before as well when it is the last member, so that saving again and
-again does not make the file grow (the first time, the manifest written by EUTERIA
-(Python) at the start of the file stays there, unlisted). A copy is assembled by the
-browser from slices of the file as it is downloaded. The file written is read back
-before the app says it is saved. Chrome, Edge and the other Chromium browsers answer yes
-to `navigator.canShare()` for any file but then refuse to share a project
+Saving (`src/zipwrite.js`, `src/manifest.js`) rewrites only `manifest.json`, unless
+takes were recorded or deleted: the audio is never read into memory. In place (the
+library, or a file Chrome and Edge may write), the new manifest and a new zip directory
+replace the end of the file, a few kilobytes: the manifest saved before as well when it
+is the last member, so that saving again and again does not make the file grow (the
+first time, the manifest written by EUTERIA (Python) at the start of the file stays
+there, unlisted). A copy, or a song whose takes changed, is assembled by the browser
+from slices of the file (and the MP3 files of the new takes) as it is written, so the
+file shrinks again when a take is deleted. The file written is read back before the app
+says it is saved. Chrome, Edge and the other Chromium browsers answer yes to
+`navigator.canShare()` for any file but then refuse to share a project
 (`NotAllowedError`): the app recognises them and offers *Download project* instead.
 Safari opens the share sheet only while the tap that asks for it is being handled, so
 *Share project* puts the file together at once, without waiting for the file to be read:
@@ -378,21 +454,20 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
   the editor of the grid and the chords in `editor.js`, the separation in `separate.js`,
-  the number fields in `controls.js`, icons); `version.js`, the version of the app; `manifest.webmanifest` and
-  `sw.js` (service worker) make it installable and usable offline.
+  the recording of takes in `recording.js`, the number fields in `controls.js`, icons);
+  `version.js`, the version of the app; `manifest.webmanifest` and `sw.js` (service
+  worker) make it installable and usable offline.
 - `lab/`: the Phase 0 test page, and the sync test projects `sync-test.euteria`
   (EUTERIA 4.3 format) and `sync-test-old.euteria` (4.2 format).
 - `src/`: shared code: project files (`zip.js`, `project.js`; written by `zipwrite.js`
-  and `manifest.js`), the alignment of the
-  Original Track (`align.js`), the audio engine (`engine*.js`), the player
-  (`player.js`), the export worker (`render-worker.js`), the library (`library.js`,
-  `library-worker.js`), recent files (`recent.js`), per-song settings (`settings.js`),
-  the grid and chords of a project, and their editing (`grid.js`), waveform envelopes
-  (`peaks.js`),
+  and `manifest.js`), the alignment of the Original Track (`align.js`), the audio engine
+  (`engine*.js`), the player (`player.js`), the export worker (`render-worker.js`), the
+  library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
+  settings (`settings.js`), the grid and chords of a project, and their editing
+  (`grid.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
-  `onnx-rewrite.js`), MP3 encoding of the stems (`encode-worker.js`), device checks
-  (`device.js`) and the synthetic test song
-  (`synth.js`).
+  `onnx-rewrite.js`), MP3 encoding of the stems and takes (`encode-worker.js`), device
+  checks (`device.js`) and the synthetic test song (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
 
 The site is plain HTML, CSS and JavaScript modules: there is no build step, and the
@@ -411,7 +486,8 @@ version in `version.js` (the only place it is written).
   the `.euteria` file. All tested on smartphone and computer. The metronome is left out:
   recordings, live ones above all, do not keep a mathematical tempo.
 - **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
-  saving them in a project (online, being tested).
+  saving them in a project (online, being tested). Step 2: recording takes over a song,
+  on every device, saved in the project (version 0.5, online, being tested).
 - **Phase 3**: band features.
 
 ## Licence

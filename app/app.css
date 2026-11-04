@@ -275,6 +275,13 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 #stop { font-size: 15px; }
 .round.loop-quick { font-size: 13px; }
 .round.on { background: var(--accent-bg); border-color: var(--accent); color: #d8fff3; }
+/* Record: a red dot; while recording the button glows red. */
+.round.rec .rec-dot { display: block; width: 16px; height: 16px; border-radius: 50%; background: #e04f4f; }
+.round.rec.recording { background: #5a1f1f; border-color: #e85d5d; animation: rec-pulse 1.1s ease-in-out infinite; }
+.round.rec.recording .rec-dot { background: #ff6b6b; border-radius: 4px; }
+.round.rec.waiting .rec-dot { opacity: .45; }
+@keyframes rec-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(232, 93, 93, .55); } 50% { box-shadow: 0 0 0 7px rgba(232, 93, 93, 0); } }
+@media (prefers-reduced-motion: reduce) { .round.rec.recording { animation: none; } }
 
 /* Phone: the transport is part of the app bar, one banner at the top that
    stays in view (app.js moves it there). */
@@ -289,6 +296,8 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 [data-layout=phone] #play { order: 3; }
 [data-layout=phone] #fwd5 { order: 4; }
 [data-layout=phone] #loop-quick { order: 5; }
+[data-layout=phone] #record { order: 6; }
+[data-layout=phone] .transport-row { gap: 8px; }
 
 [data-layout=computer] .transport {
   position: sticky;
@@ -319,8 +328,37 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 
 /* ----- timeline ----- */
 .timeline-card { padding: 12px; }
-.tl-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.tl-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; margin-bottom: 10px; }
 .tl-toolbar .spacer { flex: 1; }
+/* Groups with their name over them: Input, Zoom. */
+.tool-group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tool-label { font-size: 12px; line-height: 1; color: var(--muted); padding-left: 2px; }
+.input-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.input-refresh { min-width: 36px; padding: 0; font-size: 18px; }
+.select-wrap { position: relative; display: inline-flex; min-width: 0; }
+.select-wrap::after { content: "▾"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
+.select-wrap select {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 36px;
+  min-width: 120px;
+  max-width: 260px;
+  padding: 0 28px 0 10px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.select-wrap select:disabled { opacity: .55; cursor: default; }
+.select-wrap select option { background: var(--panel); color: var(--text); }
+.input-meter { flex: none; width: 8px; height: 36px; border: 1px solid var(--border); border-radius: 4px; background: #1b2124; overflow: hidden; display: flex; align-items: flex-end; opacity: .45; }
+.input-meter.open { opacity: 1; }
+.input-level { display: block; width: 100%; height: 100%; background: var(--ok); transform-origin: bottom; transform: scaleY(0); transition: transform 60ms linear; }
+.input-level.hot { background: var(--danger); }
 .zoom { display: inline-flex; }
 .zoom button { border-radius: 0; min-width: 40px; font-variant-numeric: tabular-nums; }
 .zoom button:first-child { border-radius: 9px 0 0 9px; font-size: 18px; }
@@ -385,6 +423,19 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .tl-heads .track .num .value { min-width: 0; padding: 0 5px 0 2px; }
 .tl-heads .track .num input { font-size: 12px; width: 2.2em; }
 .tl-heads .track .num .unit { font-size: 11px; margin-left: 1px; }
+.tl-heads .track .num .step { width: 18px; font-size: 14px; }
+.tl-heads .track .num .step:first-child { border-radius: 5px 0 0 5px; }
+.tl-heads .track .num .step:last-child { border-radius: 0 5px 5px 0; }
+/* A take: ✕ beside its name, Sync under its volume. */
+.tl-heads .track.take { height: 84px; grid-template-rows: 28px 22px 22px; }
+.tl-heads .track.take .toggle { grid-column: 1; grid-row: 1; }
+.tl-heads .track.take .take-del { grid-column: 2; grid-row: 1; width: 28px; height: 28px; min-height: 0; border-radius: 8px; font-size: 13px; }
+.tl-heads .track.take .take-del.confirm { width: auto; padding: 0 8px; font-size: 12px; }
+.tl-heads .track.take input[type=range] { grid-column: 1; grid-row: 2; }
+.tl-heads .track.take .num:not(.sync) { grid-column: 2; grid-row: 2; }
+.tl-heads .track.take .sync-row { grid-column: 1 / -1; grid-row: 3; justify-content: flex-end; }
+.tl-heads .track .sync-row .mini-label { font-size: 11px; }
+.tl-heads .track .num.sync input { width: 3em; }
 
 /* ----- editing the grid and the chords ----- */
 #edit-toggle.dirty::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex: none; }
@@ -437,6 +488,13 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 [data-layout=computer] .chord-input { height: 36px; font-size: 15px; flex: 0 1 18em; }
 [data-layout=computer] .bar-nav > button { min-width: 34px; font-size: 20px; }
 [data-layout=phone] .tl-toolbar { gap: 8px; }
+[data-layout=phone] .tl-toolbar .spacer { display: none; }
+[data-layout=phone] .zoom-group { order: 5; margin-left: auto; }
+[data-layout=phone] .input-group { order: 6; flex: 1 1 100%; }
+[data-layout=phone] .input-row .select-wrap { flex: 1; }
+[data-layout=phone] .select-wrap select { width: 100%; max-width: none; height: 44px; font-size: 16px; /* 16px or more: iOS does not zoom into it */ }
+[data-layout=phone] .input-refresh { min-width: 44px; min-height: 44px; }
+[data-layout=phone] .input-meter { height: 44px; }
 [data-layout=phone] .zoom button { min-width: 36px; }
 [data-layout=phone] .zoom #zoom-level { min-width: 52px; }
 [data-layout=phone] .tl-toolbar .toggle-pill { padding-left: 10px; padding-right: 10px; }
@@ -471,6 +529,18 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .track .toggle.on { background: var(--accent-bg); border-color: #3f6d63; color: var(--text); }
 .track .toggle.on .dot { background: var(--accent); border-color: var(--accent); }
 .track .toggle .name { font-weight: 600; }
+.take-del { background: transparent; border: 1px solid var(--border); color: #e85d5d; font-weight: 700; padding: 0; }
+.take-del:hover:not(:disabled) { background: rgba(232, 93, 93, .12); }
+.take-del.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d9; }
+.sync-row { display: flex; align-items: center; gap: 6px; }
+.num.sync input { width: 3.2em; text-align: right; }
+[data-layout=phone] .track.take { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 6px; }
+[data-layout=phone] .track.take .toggle { grid-column: 1; grid-row: 1; }
+[data-layout=phone] .track.take .num:not(.sync) { grid-column: 2; grid-row: 1; }
+[data-layout=phone] .track.take .take-del { grid-column: 3; grid-row: 1; min-width: 44px; height: 44px; border-radius: 10px; font-size: 16px; }
+[data-layout=phone] .track.take .take-del.confirm { padding: 0 10px; font-size: 14px; }
+[data-layout=phone] .track.take .sync-row { grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
+[data-layout=phone] .num.sync { height: 40px; }
 
 /* ----- number fields ----- */
 .num {
@@ -614,4 +684,12 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
   [data-layout=phone] .num .step { width: 38px; }
   .num .value { min-width: 58px; }
   .round { width: 48px; height: 48px; min-height: 48px; }
+  [data-layout=phone] .transport .round { width: 44px; height: 44px; min-height: 44px; }
+  [data-layout=phone] .transport .round.play { width: 52px; height: 52px; }
+  [data-layout=phone] .transport-row { gap: 6px; }
+}
+@media (max-width: 340px) {
+  [data-layout=phone] .transport .round { width: 40px; height: 40px; min-height: 40px; font-size: 13px; }
+  [data-layout=phone] .transport .round.play { width: 48px; height: 48px; }
+  [data-layout=phone] .transport-row { gap: 5px; }
 }

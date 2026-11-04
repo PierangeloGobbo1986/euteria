@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e1214">
-<meta name="description" content="EUTERIA, Enhanced Universal Tool for Exploring Recordings, Improvisations &amp; Arrangements: practise with the separated parts of a song, choose the instruments, change tempo and key, loop a passage, export the parts you need as MP3.">
+<meta name="description" content="EUTERIA, Enhanced Universal Tool for Exploring Recordings, Improvisations &amp; Arrangements: practise with the separated parts of a song, choose the instruments, change tempo and key, loop a passage, record yourself over it, export the parts you need as MP3.">
 <meta name="author" content="Pierangelo Gobbo">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -126,17 +126,13 @@
           <button id="back5" type="button" class="round" aria-label="Back 5 seconds">−5s</button>
           <button id="fwd5" type="button" class="round" aria-label="Forward 5 seconds">+5s</button>
           <button id="loop-quick" type="button" class="round loop-quick" aria-pressed="false" aria-label="Loop on or off">Loop</button>
+          <button id="record" type="button" class="round rec" aria-pressed="false" aria-label="Record a take" title="Record a take over the song (R)" hidden><span class="rec-dot" aria-hidden="true"></span></button>
         </div>
       </div>
     </div>
 
     <section class="card timeline-card">
       <div class="tl-toolbar">
-        <div class="zoom" role="group" aria-label="Zoom">
-          <button id="zoom-out" type="button" class="small" aria-label="Zoom out">−</button>
-          <button id="zoom-level" type="button" class="small" title="Whole song" aria-label="Zoom: back to the whole song">100%</button>
-          <button id="zoom-in" type="button" class="small" aria-label="Zoom in">+</button>
-        </div>
         <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
         <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
         <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the bars and the chords">Edit</button>
@@ -145,6 +141,24 @@
           <div class="loop-sets">
             <button id="set-a" type="button" class="small" title="Loop start at the playhead ([)">Set start</button>
             <button id="set-b" type="button" class="small" title="Loop end at the playhead (])">Set end</button>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <!-- What Record records from -->
+        <div id="input-group" class="tool-group input-group" hidden>
+          <span id="input-label" class="tool-label">Input</span>
+          <div class="input-row">
+            <button id="input-refresh" type="button" class="small input-refresh" aria-label="Look for the inputs again">↻</button>
+            <span class="select-wrap"><select id="input-select" aria-labelledby="input-label"></select></span>
+            <span id="input-meter" class="input-meter" title="Input level" aria-hidden="true"><span id="input-level" class="input-level"></span></span>
+          </div>
+        </div>
+        <div class="tool-group zoom-group">
+          <span class="tool-label">Zoom</span>
+          <div class="zoom" role="group" aria-label="Zoom">
+            <button id="zoom-out" type="button" class="small" aria-label="Zoom out">−</button>
+            <button id="zoom-level" type="button" class="small" title="Whole song" aria-label="Zoom: back to the whole song">100%</button>
+            <button id="zoom-in" type="button" class="small" aria-label="Zoom in">+</button>
           </div>
         </div>
       </div>
@@ -232,7 +246,7 @@
         <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
         <p id="project-status" class="status" role="status" aria-live="polite"></p>
         <h3 class="sub">Export MP3</h3>
-        <p id="export-hint" class="hint top">The stems that are on, as they sound now (volumes, tempo, key). The MP3 files stay here until EUTERIA closes: they are not saved in the project.</p>
+        <p id="export-hint" class="hint top">The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files stay here until EUTERIA closes: they are not saved in the project.</p>
         <button id="export" type="button">Export MP3</button>
         <p id="export-status" class="status"></p>
         <div id="exports-head" class="exports-head" hidden>
@@ -246,7 +260,7 @@
         </div>
       </section>
     </div>
-    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · 1 to 7 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%.</p>
+    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%.</p>
   </section>
 </main>
 
@@ -260,7 +274,7 @@
 <dialog id="leave-dialog" class="leave-dialog" aria-labelledby="leave-text">
   <form method="dialog">
     <p id="leave-text">Save the changes before leaving this song?</p>
-    <p class="hint">The grid, the bar numbers or the chords changed since the song was last saved.</p>
+    <p id="leave-hint" class="hint">The grid, the bar numbers or the chords changed since the song was last saved.</p>
     <div class="row">
       <button value="save" class="primary">Save</button>
       <button value="discard" class="danger">Don't save</button>

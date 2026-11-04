@@ -1,5 +1,9 @@
 // Opening EUTERIA projects (.euteria from "Export for Webapp version", or a
 // full .musicproj) and the naming rules shared with EUTERIA (Python).
+//
+// A project may also hold takes, recorded in EUTERIA Web over the song
+// (src/recorder.js): MP3 files in audio/takes/, listed in manifest.audio.takes
+// with the moment of the song where each begins.
 
 import { openZip } from "./zip.js";
 import { alignOriginal } from "./align.js";
@@ -14,6 +18,70 @@ export const TRACK_TITLES = {
   piano: "Piano",
   other: "Other",
 };
+
+// Takes: track keys "take-<id>", members "audio/takes/<id>.mp3".
+export const TAKE_PREFIX = "take-";
+export const TAKES_DIR = "audio/takes/";
+export const isTake = (key) => typeof key === "string" && key.startsWith(TAKE_PREFIX);
+export const takeKey = (id) => TAKE_PREFIX + id;
+export const takeMember = (id) => `${TAKES_DIR}${id}.mp3`;
+
+// A take as the app keeps it, from its entry in manifest.audio.takes.
+export function takeFromManifest(t, info = null) {
+  return {
+    id: String(t.id),
+    title: String(t.title || "Take"),
+    member: String(t.member),
+    start: isFinite(+t.start) ? +t.start : 0, // seconds of the song, before Sync
+    syncMs: isFinite(+t.sync_ms) ? Math.round(+t.sync_ms) : 0,
+    channels: t.channels === 1 ? 1 : 2,
+    input: t.input ? String(t.input) : "",
+    recorded: t.recorded ? String(t.recorded) : "",
+    tempoPercent: isFinite(+t.tempo_percent) ? +t.tempo_percent : 100,
+    semitones: isFinite(+t.transpose_semitones) ? Math.round(+t.transpose_semitones) : 0,
+    info,
+    saved: true, // its MP3 is in the song's file
+    mp3: null, // the MP3 in memory, until it is in the file
+    crc: null,
+  };
+}
+
+// Its entry in manifest.audio.takes.
+export function takeToManifest(t) {
+  return {
+    id: t.id,
+    title: t.title,
+    member: t.member,
+    start: Math.round(t.start * 1e6) / 1e6,
+    sync_ms: t.syncMs,
+    channels: t.channels,
+    input: t.input,
+    recorded: t.recorded,
+    tempo_percent: t.tempoPercent,
+    transpose_semitones: t.semitones,
+  };
+}
+
+// The song sample where a take plays from, Sync included.
+export const takeStartSample = (take, rate) => Math.round((take.start + take.syncMs / 1000) * rate);
+
+// A take of a project, decoded at the context's sample rate: a track.
+export async function decodeTake(zip, take, context) {
+  const bytes = await zip.bytes(take.member);
+  const buffer = await context.decodeAudioData(bytes.buffer);
+  const align = checkAlignment(buffer.length, take.info, context.sampleRate);
+  return {
+    key: takeKey(take.id),
+    member: take.member,
+    title: take.title,
+    bus: "pitched",
+    channels: toInt16(buffer, align.trimStart, align.length),
+    length: align.length,
+    align,
+    start: takeStartSample(take, context.sampleRate),
+    take,
+  };
+}
 
 // Samples an MP3 decoder adds in front of the encoder delay (MP3 standard).
 const MP3_DECODER_DELAY = 529;
@@ -43,10 +111,12 @@ export function stemsInExportOrder(keys) {
 }
 
 // "<song>_BassDrumsVocals.mp3", as stems_export_file_name() in EUTERIA (Python).
-export function stemsExportFileName(song, keys) {
+// `extra`: what follows the stems, as "Original" or "Take1".
+export function stemsExportFileName(song, keys, extra = []) {
   let name = (song || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
   name = name.replace(/\s+/g, " ").replace(/^[ .]+|[ .]+$/g, "").slice(0, 120) || "EUTERIA";
-  return `${name}_${stemsInExportOrder(keys).map((k) => TRACK_TITLES[k]).join("")}.mp3`;
+  const parts = [...stemsInExportOrder(keys).map((k) => TRACK_TITLES[k]), ...extra.map((x) => String(x).replace(/[^A-Za-z0-9]+/g, ""))];
+  return `${name}_${parts.join("")}.mp3`;
 }
 
 // How a decoded track lines up with the exact length written in the manifest.
@@ -107,11 +177,15 @@ export async function openProject(file, context, onProgress = () => {}) {
   for (const stem of STEM_NAMES) members.push([stem, (audio.stems || {})[stem]]);
   const present = members.filter(([, member]) => member && zip.has(member));
   if (!present.length) throw new Error("This project has no audio.");
+  const takeList = (Array.isArray(audio.takes) ? audio.takes : [])
+    .filter((t) => t && t.id && typeof t.member === "string" && zip.has(t.member))
+    .map((t) => takeFromManifest(t, info[t.member] || null));
+  const total = present.length + takeList.length;
 
   const tracks = [];
   for (let i = 0; i < present.length; i++) {
     const [key, member] = present[i];
-    onProgress(i, present.length, key);
+    onProgress(i, total, key);
     const t0 = performance.now();
     const bytes = await zip.bytes(member);
     const size = bytes.byteLength;
@@ -133,7 +207,12 @@ export async function openProject(file, context, onProgress = () => {}) {
       decodeMs: t2 - t1,
     });
   }
-  onProgress(present.length, present.length, null);
+  const takes = [];
+  for (let j = 0; j < takeList.length; j++) {
+    onProgress(present.length + j, total, takeKey(takeList[j].id));
+    takes.push(await decodeTake(zip, takeList[j], context));
+  }
+  onProgress(total, total, null);
 
   // The full mix must line up with the stems whatever the browser's decoder did.
   const t3 = performance.now();
@@ -151,12 +230,17 @@ export async function openProject(file, context, onProgress = () => {}) {
     t.on = t.key in enabled ? !!enabled[t.key] : t.key === "original";
     t.gain = Math.min(BOOST_CEILING, Math.max(0, volumes[t.key] ?? 1));
   }
+  // The takes after the song's own tracks, in the order they were recorded.
+  for (const t of takes) {
+    t.on = t.key in enabled ? !!enabled[t.key] : true;
+    t.gain = Math.min(BOOST_CEILING, Math.max(0, volumes[t.key] ?? 1));
+  }
   const length = Math.max(...tracks.map((t) => t.length));
   return {
     manifest,
     title: manifest.title || songName(manifest),
     songName: songName(manifest),
-    tracks,
+    tracks: [...tracks, ...takes],
     alignment,
     sampleRate: context.sampleRate,
     duration: length / context.sampleRate,

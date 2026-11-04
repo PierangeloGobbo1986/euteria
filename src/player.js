@@ -1,11 +1,14 @@
 // The player of the app: one audio context and one engine for the whole
-// session, the song that is open, its tracks and the practice controls
-// (tempo, key, loop), and the MP3 export. No user interface here: the page
-// listens to `onupdate` (something shown changed) and `onsettings` (a setting
-// worth saving changed).
+// session, the song that is open, its tracks (the takes recorded over it
+// included) and the practice controls (tempo, key, loop), and the MP3
+// export. No user interface here: the page listens to `onupdate` (something
+// shown changed) and `onsettings` (a setting worth saving changed).
+//
+// While a take is being recorded (src/recorder.js) nothing may move the song
+// under it: jumps, tempo, key and the loop wait; Pause and Stop end the take.
 
 import { Engine } from "./engine.js";
-import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName } from "./project.js";
+import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, isTake, takeStartSample } from "./project.js";
 import { int16Peaks } from "./peaks.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
@@ -51,10 +54,10 @@ async function openAudio(file, context, onProgress) {
   };
 }
 
-function runRenderWorker(message, onProgress) {
+export function runRenderWorker(message, onProgress) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./render-worker.js", import.meta.url));
-    const transfer = [];
+    const transfer = [...(message.channels || [])];
     for (const t of message.tracks || []) transfer.push(...t.channels);
     worker.onmessage = (event) => {
       const m = event.data;
@@ -87,6 +90,8 @@ export class Player {
     this.semitones = 0;
     this.loop = { on: false, start: 0, end: 0 };
     this.busy = null; // null, "opening" or "exporting"
+    this.recording = false; // a take is being recorded
+    this.recordId = 0;
     this.lost = []; // tracks a failed export could not give back
     this.onupdate = null;
     this.onsettings = null;
@@ -192,6 +197,8 @@ export class Player {
       length: t.length,
       gain: t.gain,
       on: t.on,
+      start: t.start || 0,
+      take: t.take || null,
       align: t.align || null,
       peaks: wanted.has(t.key) ? int16Peaks(t.channels, t.length) : null,
     }));
@@ -220,6 +227,7 @@ export class Player {
   // Frees the song's audio.
   async close() {
     if (!this.song || !this.engine) return;
+    if (this.recording) this.engine.recStop(this.recordId);
     this.engine.pause();
     for (const t of this.tracks) this.engine.removeTrack(t.key);
     await this.engine.sync();
@@ -233,6 +241,10 @@ export class Player {
 
   get hasStems() {
     return this.tracks.some((t) => STEM_NAMES.includes(t.key));
+  }
+
+  get takes() {
+    return this.tracks.filter((t) => t.take);
   }
 
   // ----- settings ------------------------------------------------------------
@@ -284,7 +296,8 @@ export class Player {
     this._changed();
   }
 
-  // Every stem on, the Original Track off; or the Original Track alone.
+  // Every stem on, the Original Track off; or the Original Track alone. The
+  // takes stay as they are.
   allStems() {
     this._only((t) => STEM_NAMES.includes(t.key));
   }
@@ -296,10 +309,82 @@ export class Player {
   _only(test) {
     if (this.busy) return;
     for (const t of this.tracks) {
+      if (t.take) continue;
       t.on = test(t);
       this.engine.setTrack(t.key, { on: t.on });
     }
     this._changed();
+  }
+
+  // ----- takes -------------------------------------------------------------------
+
+  // track: {key, title, channels (Int16Array[], handed to the audio thread),
+  // length, take (src/project.js takeFromManifest()), gain, on}.
+  addTake(track) {
+    if (!this.song) return;
+    const sr = this.context.sampleRate;
+    const start = takeStartSample(track.take, sr);
+    const peaks = !this.peakKeys || this.peakKeys.includes(track.key) ? int16Peaks(track.channels, track.length) : null;
+    const t = { key: track.key, title: track.title, bus: "pitched", length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start, take: track.take, align: null, peaks };
+    this.engine.addTrack({ key: t.key, bus: t.bus, channels: track.channels, length: t.length, gain: t.gain, on: t.on, start });
+    this.tracks.push(t);
+    this._changed();
+  }
+
+  removeTake(key) {
+    const t = this.track(key);
+    if (!t || !t.take || this.busy) return null;
+    this.engine.removeTrack(key);
+    this.tracks = this.tracks.filter((x) => x !== t);
+    this._changed();
+    return t;
+  }
+
+  // Moves a take earlier (ms < 0) or later, against where it was recorded.
+  setTakeSync(key, ms) {
+    const t = this.track(key);
+    if (!t || !t.take || this.busy) return;
+    t.take.syncMs = Math.round(+ms || 0);
+    t.start = takeStartSample(t.take, this.context.sampleRate);
+    this.engine.setTrack(key, { start: t.start });
+    this._changed();
+  }
+
+  // ----- recording -------------------------------------------------------------------
+
+  // Starts recording the engine's input, and playback if it was paused (from
+  // the playhead, as play()). params: {latency, takes, minFirst, tail} (see
+  // src/engine-processor.js). Resolves with the recording's id, or 0.
+  async startRecording(params) {
+    if (!this.song || this.busy || this.recording) return 0;
+    this.unlock();
+    try {
+      await this.context.resume();
+    } catch (_) {}
+    let play = null;
+    if (!this.playing) {
+      play = this.position;
+      if (play >= this.song.duration - 0.05) play = this.loop.on ? this.loop.start : 0;
+      this.position = play;
+    }
+    const id = ++this.recordId;
+    this.recording = true;
+    this.engine.recStart({ ...params, id, play });
+    this.playing = true;
+    this._wake(true);
+    this._update();
+    return id;
+  }
+
+  // Ends the take now (its end arrives from the engine).
+  stopRecording() {
+    if (this.recording && this.engine) this.engine.recStop(this.recordId);
+  }
+
+  // The engine sent the end of the take.
+  recordingEnded() {
+    this.recording = false;
+    this._update();
   }
 
   // ----- transport ---------------------------------------------------------------
@@ -321,6 +406,7 @@ export class Player {
 
   pause() {
     if (!this.engine || !this.playing) return;
+    this.stopRecording();
     this.engine.pause();
     this.playing = false;
     this._wake(false);
@@ -335,14 +421,22 @@ export class Player {
   // Back to the start of the loop, or of the song.
   stop() {
     if (!this.song) return;
+    this.stopRecording();
     this.engine.pause();
     this.playing = false;
     this._wake(false);
+    this.recordingSeek = true; // the take is over: Stop may jump
     this.seek(this.loop.on ? this.loop.start : 0);
+    this.recordingSeek = false;
+  }
+
+  // Jumps, tempo, key and loop wait while a take is recorded.
+  get locked() {
+    return this.recording && !this.recordingSeek;
   }
 
   seek(seconds, quiet = false) {
-    if (!this.song) return;
+    if (!this.song || this.locked) return;
     this.position = clamp(+seconds || 0, 0, this.song.duration);
     this.engine.seek(this.position);
     if (quiet) return;
@@ -354,12 +448,14 @@ export class Player {
   }
 
   setRate(rate, quiet = false) {
+    if (this.locked) return;
     this.rate = Math.round(clamp(+rate || 1, TEMPO_RANGE[0], TEMPO_RANGE[1]) * 100) / 100;
     if (this.engine) this.engine.setRate(this.rate);
     if (!quiet) this._changed();
   }
 
   setSemitones(semitones, quiet = false) {
+    if (this.locked) return;
     this.semitones = clamp(Math.round(+semitones || 0), KEY_RANGE[0], KEY_RANGE[1]);
     if (this.engine) this.engine.setSemitones(this.semitones);
     if (!quiet) this._changed();
@@ -368,7 +464,7 @@ export class Player {
   // ----- loop ----------------------------------------------------------------------
 
   setLoop({ on, start, end }, quiet = false) {
-    if (!this.song) return;
+    if (!this.song || this.locked) return;
     const d = this.song.duration;
     start = clamp(+start || 0, 0, d);
     end = clamp(+end || 0, 0, d);
@@ -378,7 +474,7 @@ export class Player {
   }
 
   toggleLoop() {
-    if (!this.song) return;
+    if (!this.song || this.locked) return;
     const d = this.song.duration;
     let { start, end, on } = this.loop;
     if (!on && end - start < MIN_LOOP) {
@@ -391,7 +487,7 @@ export class Player {
   // Moves one end of the loop; the other one moves too if the loop would
   // become shorter than MIN_LOOP.
   setLoopStart(seconds) {
-    if (!this.song) return;
+    if (!this.song || this.locked) return;
     const d = this.song.duration;
     const start = clamp(+seconds || 0, 0, Math.max(0, d - MIN_LOOP));
     let end = this.loop.end;
@@ -400,7 +496,7 @@ export class Player {
   }
 
   setLoopEnd(seconds) {
-    if (!this.song) return;
+    if (!this.song || this.locked) return;
     const d = this.song.duration;
     const end = clamp(+seconds || 0, Math.min(MIN_LOOP, d), d);
     let start = this.loop.start;
@@ -410,41 +506,45 @@ export class Player {
 
   // ----- MP3 export ------------------------------------------------------------------
 
-  // The stems that are on, as they sound now (volumes, tempo, key), as an MP3
-  // File named as EUTERIA (Python) names it. The tracks are lent to the
+  // The stems and the takes that are on, as they sound now (volumes, tempo,
+  // key), as an MP3 File named as EUTERIA (Python) names it. Without stems
+  // on, the Original Track goes with the takes. The tracks are lent to the
   // export worker meanwhile (their memory is moved, not copied).
   async exportMp3(onProgress) {
-    if (!this.song || this.busy) throw new Error("Wait for the current operation to finish.");
+    if (!this.song || this.busy || this.recording) throw new Error("Wait for the current operation to finish.");
     const stems = this.tracks.filter((t) => t.on && STEM_NAMES.includes(t.key)).map((t) => t.key);
+    const takes = this.tracks.filter((t) => t.on && t.take);
     const fullOn = this.tracks.some((t) => t.on && t.key === "original");
-    if (!stems.length) {
+    if (!stems.length && !takes.length) {
       let text;
-      if (!this.hasStems) text = "This song has no stems: the export combines stems, and the Original Track alone is the file you already have.";
-      else if (fullOn) text = "Exporting the Original Track is basically pointless: it is the file you already have. Switch on the stems you want to combine.";
-      else text = "No stem is switched on. Switch on the stems you want to combine.";
+      if (!this.hasStems && !this.takes.length) text = "This song has no stems: the export combines stems, and the Original Track alone is the file you already have.";
+      else if (fullOn) text = "Exporting the Original Track alone is basically pointless: it is the file you already have. Switch on the stems or the takes you want to combine.";
+      else text = "No track is switched on. Switch on the stems or the takes you want to combine.";
       throw Object.assign(new Error(text), { notice: true });
     }
+    const withOriginal = !stems.length && fullOn;
+    const keys = [...stems, ...(withOriginal ? ["original"] : []), ...takes.map((t) => t.key)];
     if (this.playing) this.pause();
     this.busy = "exporting";
     this._update();
     let lent = null;
     try {
-      lent = await this._lend(stems);
+      lent = await this._lend(keys);
       const t0 = performance.now();
       const reply = await runRenderWorker(
-        { type: "export", tracks: lent, sampleRate: this.context.sampleRate, rate: this.rate, semitones: this.semitones, bitrate: 320 },
+        { type: "export", tracks: lent, sampleRate: this.context.sampleRate, rate: this.rate, semitones: this.semitones, bitrate: 320, seconds: this.song.duration },
         onProgress
       );
       lent = null;
       this._restore(reply.tracks);
-      const name = stemsExportFileName(this.song.songName, stems);
+      const name = stemsExportFileName(this.song.songName, stems, [...(withOriginal ? ["Original"] : []), ...takes.map((t) => t.title)]);
       return {
         file: new File([reply.mp3], name, { type: "audio/mpeg" }),
         name,
         seconds: reply.seconds,
         reductionDb: reply.reductionDb,
         totalMs: performance.now() - t0,
-        fullOn,
+        fullOn: fullOn && !withOriginal,
         tempo: Math.round(this.rate * 100),
         key: this.semitones,
       };
@@ -478,6 +578,7 @@ export class Player {
         length: t.length,
         gain: meta ? meta.gain : t.gain,
         on: meta ? meta.on : t.on,
+        start: meta ? meta.start : t.start,
       });
     }
   }
