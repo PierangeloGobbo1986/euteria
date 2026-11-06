@@ -402,6 +402,15 @@ opens, whatever the browser's decoder does, and the stems line up with the song 
 sample. The project is assembled in memory (stored zip members) and written at once to
 the file chosen, read back, then opened.
 
+## Visit counter
+
+`index.html` loads the counter of GoatCounter (`euteria.goatcounter.com`), which counts
+page loads without cookies and without personal data. It knows nothing about the songs,
+the projects or the recordings: audio never leaves the device. The script is loaded from
+another site, so the service worker does not touch it, and the app works the same when it
+cannot be reached (offline, or blocked by an extension). Visits from `localhost` are not
+counted.
+
 ## How the app keeps songs and settings
 
 The library of the phone layout (`src/library.js`) uses the origin private file system,
