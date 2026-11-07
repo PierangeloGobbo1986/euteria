@@ -13,7 +13,6 @@
   --gold: #d6a85f;
   --danger: #d97d7d;
   --ok: #8fcf9a;
-  --appbar: 56px;
   color-scheme: dark;
 }
 
@@ -73,18 +72,16 @@ b { font-weight: 650; }
 [data-layout=phone] .brand .acronym span { display: block; }
 .library-btn { flex: none; min-height: 40px; padding: 8px 14px; border-radius: 999px; color: var(--accent); font-weight: 650; border-color: #355a52; background: var(--accent-bg); }
 .spacer { flex: 1; }
-.open-group { display: flex; gap: 8px; align-items: center; }
 .update-btn { flex: none; position: relative; }
 .update-btn.available::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
 [data-layout=phone] .update-btn { min-height: 40px; padding: 8px 14px; border-radius: 999px; }
 body:not([data-view=library]):not([data-view=welcome]) .update-btn { display: none; }
 /* In a song: Library, and Save under it (on the left on a computer, on the right on a phone). */
-.song-nav { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.song-nav { display: flex; flex-direction: column; gap: 6px; flex: none; min-width: 104px; }
 .song-nav button { min-height: 32px; padding: 5px 16px; font-size: 14px; }
 .song-nav .library-btn { min-height: 32px; }
 .save-top { position: relative; }
 .save-top.dirty::after { content: ""; position: absolute; top: 4px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #17140e; }
-.song-nav { min-width: 104px; }
 [data-layout=phone] .computer-only { display: none !important; }
 
 
@@ -160,7 +157,6 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 
 /* ----- library (phone) ----- */
 .view { padding-bottom: 24px; }
-.lib-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 12px; }
 .lib-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .lib-item {
   display: flex;
@@ -214,44 +210,11 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 [data-layout=phone] .lib-list { margin-top: 14px; }
 .open-buttons + .hint { max-width: 70ch; }
 .recent-title { margin: 26px 0 10px; }
-
-/* ----- welcome (computer) ----- */
-.welcome {
-  margin: 28px 0 0;
-  padding: 32px;
-  border: 1px dashed var(--border-hi);
-  border-radius: 18px;
-  background: var(--panel);
-  max-width: 760px;
-}
-.welcome h1 { font-size: 28px; margin-bottom: 10px; }
-.welcome > p { color: var(--muted); max-width: 60ch; }
-.welcome .row { margin-top: 18px; }
-#recent-block { margin-top: 26px; }
 .recent-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .recent-item { display: flex; align-items: stretch; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .recent-item .open-it { flex: 1; min-width: 0; justify-content: space-between; background: transparent; border: 0; border-radius: 0; text-align: left; }
 .recent-item .open-it .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-item .forget { background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; color: var(--dim); min-width: 44px; }
-
-.menu-wrap { position: relative; }
-.menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  min-width: 300px;
-  max-width: 420px;
-  background: var(--panel);
-  border: 1px solid var(--border-hi);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
-  z-index: 40;
-}
-.menu button { width: 100%; justify-content: space-between; background: transparent; border: 0; text-align: left; gap: 16px; }
-.menu button:hover { background: var(--panel-alt); }
-.menu .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.menu .empty-menu { color: var(--dim); padding: 10px; font-size: 14px; }
 
 /* ----- player ----- */
 .song-head { margin: 18px 0 0; }
@@ -327,7 +290,8 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 [data-layout=computer] .phone-only { display: none !important; }
 
 /* ----- timeline ----- */
-.timeline-card { padding: 12px; }
+/* --tl-col: the column of the tracks (computer); --tl-gap: under the overview. */
+.timeline-card { padding: 12px; --tl-col: 186px; --tl-gap: 8px; }
 .tl-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; margin-bottom: 10px; }
 .tl-toolbar .spacer { flex: 1; }
 /* Groups with their name over them: Input, Zoom. */
@@ -369,16 +333,16 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .loop-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .loop-sets { display: flex; gap: 8px; }
 .loop-sets button { white-space: nowrap; }
-.num.time input { width: 4.6em; }
 [data-layout=computer] .loop-controls .num { height: 36px; }
 [data-layout=computer] .loop-controls .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .loop-controls .num input { font-size: 15px; }
+.num.time input { width: 4.6em; } /* before .num.anchor input, which overrides it */
 [data-layout=phone] .loop-controls { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
 [data-layout=phone] .position-box .num { display: flex; width: 100%; }
 [data-layout=phone] .position-box .num .value { flex: 1; }
 [data-layout=phone] .loop-sets button { flex: 1; min-height: 44px; }
 .tl-wrap { display: block; }
-[data-layout=computer] .tl-wrap { display: grid; grid-template-columns: 186px minmax(0, 1fr); }
+[data-layout=computer] .tl-wrap { display: grid; grid-template-columns: var(--tl-col) minmax(0, 1fr); }
 .tl-host { min-width: 0; }
 .tl-main {
   position: relative;
@@ -391,22 +355,23 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
   -webkit-touch-callout: none;
 }
 .tl-main canvas { position: absolute; left: 0; top: 0; display: block; }
-.tl-overview { display: block; margin-top: 8px; border-radius: 6px; touch-action: none; cursor: pointer; }
-[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-head, 70px) + var(--tl-offset, 0px)); }
-[data-layout=computer] .tl-host { margin-top: var(--tl-offset, 0px); }
+.tl-overview { display: block; margin-bottom: var(--tl-gap); border-radius: 6px; touch-action: none; cursor: pointer; }
+/* Computer: Bars and Chords over the timeline, as wide as the column of the
+   tracks; the column starts beside the time scale, under the overview. */
+.edit-bar { display: flex; flex-direction: column; width: calc(var(--tl-col) - 10px); margin-bottom: 10px; }
+[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 70px)); }
 .tl-side {
   position: absolute;
-  top: 0;
+  top: calc(var(--tl-over, 26px) + var(--tl-gap));
   left: 0;
   right: 10px;
-  height: calc(var(--tl-head, 70px) + var(--tl-offset, 0px));
+  height: var(--tl-ruler, 46px);
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 6px;
 }
-.tl-side > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
-.tl-side .quick { gap: 6px; }
+.edit-bar > button, .tl-side > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
 .tl-heads .track {
   height: var(--tl-row, 60px);
@@ -524,11 +489,10 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .tracks { display: flex; flex-direction: column; gap: 8px; }
 .track { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .track .toggle { justify-content: flex-start; gap: 10px; min-width: 0; padding-left: 12px; text-align: left; color: var(--muted); }
-.track .toggle .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track .toggle .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .track .toggle .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--dim); }
 .track .toggle.on { background: var(--accent-bg); border-color: #3f6d63; color: var(--text); }
 .track .toggle.on .dot { background: var(--accent); border-color: var(--accent); }
-.track .toggle .name { font-weight: 600; }
 .take-del { background: transparent; border: 1px solid var(--border); color: #e85d5d; font-weight: 700; padding: 0; }
 .take-del:hover:not(:disabled) { background: rgba(232, 93, 93, .12); }
 .take-del.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d9; }
@@ -664,15 +628,11 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 }
 @media (max-width: 640px) {
   [data-layout=computer] .transport-inner { grid-template-columns: auto 1fr auto; grid-template-areas: "now . total" "seek seek seek" "buttons buttons buttons"; gap: 4px 10px; }
-  [data-layout=computer] .tl-wrap { grid-template-columns: 150px minmax(0, 1fr); }
-  .tl-side > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
-  .welcome { padding: 20px; }
+  .timeline-card { --tl-col: 150px; }
+  .edit-bar > button, .tl-side > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
 }
 @media (max-width: 900px) {
   [data-layout=computer] .brand .acronym span { display: block; }
-}
-@media (max-width: 640px) {
-  [data-layout=computer] .open-group #recent-menu { display: none !important; }
 }
 @media (max-width: 400px) {
   .brand { gap: 8px; }

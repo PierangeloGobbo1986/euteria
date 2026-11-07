@@ -18,21 +18,15 @@ import { buildProject } from "../src/zipwrite.js";
 import { newProjectManifest, newProjectId, savedManifest, manifestBytes, withTakes } from "../src/manifest.js";
 import { STEM_NAMES, TRACK_TITLES, checkAlignment } from "../src/project.js";
 import { detectBrowser, detectHandheld, webgpuInfo } from "../src/device.js";
-import { fmtTime } from "./controls.js";
+import { fmtTime, extensionOf, safeName } from "./controls.js";
 
 // The separation of the app: the fastest runtime measured on the test page,
 // the rate the model was trained at, the overlap of EUTERIA (Python).
-export const SEPARATION = { runtime: "1.31-opt", rate: 44100, overlap: 0.5 };
+const SEPARATION = { runtime: "1.31-opt", rate: 44100, overlap: 0.5 };
 // Formats of the Original Track kept as they are (every browser decodes
 // them); any other is encoded to MP3, so that the project opens everywhere.
 const KEPT = ["mp3", "m4a", "aac", "mp4", "m4b"];
 const $ = (id) => document.getElementById(id);
-const extensionOf = (name) => ((/\.([A-Za-z0-9]{1,8})$/.exec(name || "") || [])[1] || "").toLowerCase();
-
-function safeName(text) {
-  const name = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\s+/g, " ").replace(/^[ .]+|[ .]+$/g, "").slice(0, 120);
-  return name || "EUTERIA";
-}
 
 const stopped = () => Object.assign(new Error("Stopped."), { stopped: true });
 
@@ -40,7 +34,7 @@ const stopped = () => Object.assign(new Error("Stopped."), { stopped: true });
 // or Edge (they write files where the user chooses) and WebGPU. The graphics
 // card itself is asked for only when a separation starts: asking wakes the
 // discrete graphics card of a laptop that has two.
-export function separationSupport(phoneLayout) {
+function separationSupport(phoneLayout) {
   if (phoneLayout || detectHandheld()) return { ok: false, reason: "phone" };
   const browser = detectBrowser();
   if (!(browser.name === "Chrome" || browser.name === "Edge") || !("showSaveFilePicker" in window)) return { ok: false, reason: "browser" };
@@ -56,7 +50,7 @@ async function modelForGpu() {
   return gpu.shaderF16 ? config.models.fp16 : config.models.fp32;
 }
 
-export const UNSUPPORTED = {
+const UNSUPPORTED = {
   phone: "To separate the instruments, open the song in EUTERIA on a computer, with Chrome or Edge.",
   browser: "Separating the instruments needs Chrome or Edge on a computer.",
   gpu: "Separating the instruments needs a graphics card this browser can use (WebGPU): it is not available here.",
@@ -198,14 +192,15 @@ export class SeparationFlow {
       }
       const keepOriginal = KEPT.includes(ext);
 
-      // The model, on the graphics card.
+      // The model, on the graphics card (the automated tests give a small one
+      // in support.model).
       const model = this.support.model || (await modelForGpu());
       const separator = (this.separator = new Separator());
       separator.onprogress = (m) => this.progress(m, model);
-      let status = await separator.status(model);
+      const status = await separator.status(model);
       if (!status.cached) {
         this.say(`Downloading the separation model (about ${model.approxMB} MB, only the first time)…`, "", 0);
-        status = await separator.download(model);
+        await separator.download(model);
       }
       if (signal.stopped) throw stopped();
       this.say("Preparing the model on the graphics card…", "", 0);

@@ -5,7 +5,7 @@ import { openProject, checkAlignment, toInt16, STEM_NAMES, TRACK_TITLES, sliderT
 import { openZip } from "../src/zip.js";
 import { generateSong } from "../src/synth.js";
 import { deviceReport } from "../src/device.js";
-import { Separator, config as sepConfig, MODEL_STEMS, decodeAt, compareStem, chunksFor } from "../src/separation.js";
+import { Separator, config as sepConfig, decodeAt, compareStem, chunksFor } from "../src/separation.js";
 import { resampleChannels } from "../src/resample.js";
 
 const $ = (id) => document.getElementById(id);

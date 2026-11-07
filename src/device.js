@@ -57,9 +57,7 @@ export async function deviceReport() {
   let shareFiles = false;
   try {
     shareFiles = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "test.mp3", { type: "audio/mpeg" })] }));
-  } catch (_) {
-    shareFiles = false;
-  }
+  } catch (_) {}
   let storage = null;
   try {
     if (navigator.storage && navigator.storage.estimate) {

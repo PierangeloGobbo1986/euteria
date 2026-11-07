@@ -17,7 +17,7 @@ const CHUNK = 4 * 1024 * 1024;
 
 self.onmessage = (event) => (event.data.op === "patch" ? patch(event.data) : copy(event.data));
 
-async function open(name, create) {
+async function openAccess(name, create) {
   const root = await navigator.storage.getDirectory();
   const dir = await root.getDirectoryHandle(DIR, { create: true });
   const handle = await dir.getFileHandle(name, { create });
@@ -33,7 +33,7 @@ function failed(id, error) {
 async function patch({ id, name, at, bytes }) {
   let access = null;
   try {
-    access = await open(name, false);
+    access = await openAccess(name, false);
     await access.truncate(at);
     let written = 0;
     while (written < bytes.length) {
@@ -59,7 +59,7 @@ async function patch({ id, name, at, bytes }) {
 async function copy({ id, file, name }) {
   let access = null;
   try {
-    access = await open(name, true);
+    access = await openAccess(name, true);
     await access.truncate(0);
     let at = 0;
     while (at < file.size) {

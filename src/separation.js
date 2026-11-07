@@ -7,7 +7,7 @@ const HF = "https://huggingface.co/elicwhite/bs-roformer-sw-6stem-onnx/resolve/m
 const CDN = "https://cdn.jsdelivr.net/npm/onnxruntime-web@";
 
 // The model converted to ONNX by bs-roformer-web (MIT), downloaded once.
-export const MODELS = {
+const MODELS = {
   fp16: { key: "fp16", file: "bs_roformer_sw_6stem_fp16.onnx", url: `${HF}bs_roformer_sw_6stem_fp16.onnx`, approxMB: 336, half: true },
   fp32: { key: "fp32", file: "bs_roformer_sw_6stem_fp32.onnx", url: `${HF}bs_roformer_sw_6stem_fp32.onnx`, approxMB: 669, half: false },
 };
@@ -18,14 +18,11 @@ export const MODELS = {
 // the build: one worker holds one build.
 const ORT_124 = { key: "1.24", base: `${CDN}1.24.0-dev.20251116-b39e144322/dist/`, bundle: "ort.all.min.mjs" };
 const ORT_131 = { key: "1.31", base: `${CDN}1.31.1/dist/`, bundle: "ort.webgpu.min.mjs" };
-export const RUNTIMES = {
+const RUNTIMES = {
   "1.24": { ...ORT_124, id: "1.24", graph: "disabled", label: "ONNX Runtime 1.24", profile: true },
   "1.31": { ...ORT_131, id: "1.31", graph: "disabled", label: "ONNX Runtime 1.31" },
   "1.31-opt": { ...ORT_131, id: "1.31-opt", graph: "all", label: "ONNX Runtime 1.31, graph optimised" },
 };
-
-// Order of the model's output stems.
-export const MODEL_STEMS = ["bass", "drums", "other", "vocals", "guitar", "piano"];
 
 // Number of chunks a separation of `samples` samples takes.
 export function chunksFor(samples, overlap = 0.5) {

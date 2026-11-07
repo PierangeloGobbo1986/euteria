@@ -5,8 +5,8 @@
  * fall back to the copy kept here; if the network is slow, the kept copy is
  * used after a few seconds. The network is asked whether each file changed
  * (the browser's own cache could hold an older copy for minutes after an
- * update). Requests to other sites (the separation model and its runtime, in
- * the test page) and requests that must bypass every cache (the Update
+ * update). Requests to other sites (the separation model and its runtime,
+ * the visit counter) and requests that must bypass every cache (the Update
  * button's check) are left alone. The songs themselves never pass through
  * here: they are files on the device.
  */

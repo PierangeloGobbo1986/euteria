@@ -39,12 +39,12 @@ under it, *Save* (gold) sit at the top right.
   EUTERIA project*, or dropped on the window), so the folder where you keep the songs
   you are studying stays the only copy. In Chrome and Edge the Library lists the songs
   opened before, to open them again with one click (the browser asks once for
-  permission). The column of the tracks starts, beside the bar numbers and the
-  chords, with *Bars and Chords* (the editor, see below), then *All stems* and *Original
-  only*. Volumes and tempo also have sliders; keyboard: Space play or pause,
-  ← → 5 seconds, Home back to the start, L loop on or off, [ and ] loop start and end
-  at the current position, R record a take (again: stop), 1 to 9 switch a track on or
-  off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on a Mac) save.
+  permission). Over the timeline, *Bars and Chords* (the editor, see below) has a row of
+  its own, then comes the overview; the column of the tracks starts with *All stems* and
+  *Original only*, beside the time scale. Volumes and tempo also have sliders; keyboard:
+  Space play or pause, ← → 5 seconds, Home back to the start, L loop on or off, [ and ]
+  loop start and end at the current position, R record a take (again: stop), 1 to 9
+  switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on a Mac) save.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB, − and + by 5%, as the tempo), tempo 50-200%, key ±12 semitones (drums
@@ -65,18 +65,17 @@ tap). An audio file opens as a single track: tempo, key and loop work on the who
 
 **The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
-computer every track has its own row, with its switch and volume beside it (a track
-that is off is drawn dimmed); on the phone the row is the Original Track. Mouse and
-finger work alike on the waveforms: a tap or a click places the playhead (the yellow
-line), dragging from inside the loop moves the loop and keeps its length, dragging
-from anywhere else drags the playhead, to place it exactly. Dragging the bar numbers
-scrolls (with momentum on a touch screen); pinching, ctrl+wheel (a trackpad pinch) or
-the buttons of *Zoom* (at the right of the timeline's toolbar) go from the whole song
-(100%) to about 100 pixels per second, and a tap on the percentage goes back to the
-whole song. The overview under the timeline
-shows the whole song, the part in view and the loop: dragging the frame of the view or
-of the loop moves it (the loop snaps to the bars), a tap elsewhere brings the view
-there.
+computer every track has its own row, with its switch and volume beside it (a track that
+is off is drawn dimmed); on the phone the row is the Original Track. Mouse and finger
+work alike on the waveforms: a tap or a click places the playhead (the yellow line),
+dragging from inside the loop moves the loop and keeps its length, dragging from
+anywhere else drags the playhead, to place it exactly. Dragging the bar numbers scrolls
+(with momentum on a touch screen); pinching, ctrl+wheel (a trackpad pinch) or the
+buttons of *Zoom* (at the right of the timeline's toolbar) go from the whole song (100%)
+to about 100 pixels per second, and a tap on the percentage goes back to the whole song.
+The overview, the grey strip above the bar numbers, shows the whole song, the part in
+view and the loop: dragging the frame of the view or of the loop moves it (the loop
+snaps to the bars), a tap elsewhere brings the view there.
 
 The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
 them freely): with a finger by the handles in the band under the bar numbers, with a
@@ -93,9 +92,9 @@ the playhead, except for a few seconds after it was moved by hand.
 *Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
-**Editing the grid and the chords.** *Bars and Chords* (on a computer, at the top of the
-column of the tracks) or *Edit* (on the phone, in the timeline's toolbar) opens the
-editor of EUTERIA (Python), the same in both layouts:
+**Editing the grid and the chords.** *Bars and Chords* (on a computer, in its own row
+over the timeline) or *Edit* (on the phone, in the timeline's toolbar) opens the editor
+of EUTERIA (Python), the same in both layouts:
 
 - **The grid**: *BPM* (20-400, by half beats per minute), the meter (4/4, 3/4, 6/8) and
   the anchor, the first beat of a bar: *Set anchor* puts it at the playhead (placed
@@ -200,16 +199,16 @@ audio interface sound better. EUTERIA (Python) does not show the takes.
 
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*
-in the column of the tracks, under *Bars and Chords*. It first asks where to save the
-EUTERIA project (`.euteria`) it is going to make, so that a separation left to run on
-its own is saved when it ends. The first time, it downloads the separation model (336
-MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
-browser. A bar under the timeline's toolbar shows the progress, the speed and the time
-left; *Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps,
-with the Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3
-too), the grid, the chords, the practice settings and the takes recorded over the song,
-and the project opens in the player with every stem on. The song keeps playing while it
-is separated; another song opens once the separation is over. A 4-minute song makes a
+at the top of the column of the tracks, beside the time scale. It first asks where to
+save the EUTERIA project (`.euteria`) it is going to make, so that a separation left to
+run on its own is saved when it ends. The first time, it downloads the separation model
+(336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
+browser. A bar under *Bars and Chords* shows the progress, the speed and the time left;
+*Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps, with the
+Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3 too), the
+grid, the chords, the practice settings and the takes recorded over the song, and the
+project opens in the player with every stem on. The song keeps playing while it is
+separated; another song opens once the separation is over. A 4-minute song makes a
 project of about 70 MB, light enough to send over WhatsApp and to keep on a phone. On a
 phone, and in browsers that cannot separate, a note under the tracks says what is
 needed.
@@ -407,9 +406,9 @@ the file chosen, read back, then opened.
 `index.html` loads the counter of GoatCounter (`euteria.goatcounter.com`), which counts
 page loads without cookies and without personal data. It knows nothing about the songs,
 the projects or the recordings: audio never leaves the device. The script is loaded from
-another site, so the service worker does not touch it, and the app works the same when it
-cannot be reached (offline, or blocked by an extension). Visits from `localhost` are not
-counted.
+another site, so the service worker does not touch it, and the app works the same when
+it cannot be reached (offline, or blocked by an extension). Visits from `localhost` are
+not counted.
 
 ## How the app keeps songs and settings
 

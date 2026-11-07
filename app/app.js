@@ -18,7 +18,7 @@ import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSe
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
 import { readGrid, emptyGrid, applyGridEdits } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
-import { h, fmtTime, fmtSize, parseTime, numberField, keyField, confirmTap } from "./controls.js";
+import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, parseTime, numberField, keyField, confirmTap } from "./controls.js";
 import { Timeline } from "./timeline.js";
 import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
@@ -71,6 +71,7 @@ const app = {
   gridVisible: true,
   saving: false,
   sharing: false, // the share sheet is open
+  projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
 let editor = null; // app/editor.js, made with the timeline
 let separation = null; // app/separate.js
@@ -266,7 +267,7 @@ async function addSong(file) {
   }
   app.adding = true;
   renderLibrary();
-  let entry = null;
+  let entry;
   let fresh = false;
   try {
     notice(`Checking ${file.name}…`);
@@ -666,12 +667,13 @@ function buildControls() {
     $("tl-wrap").after($("grid-edit"));
     $("tl-wrap").after($("chord-edit"));
   } else {
-    // On a computer the tracks are the rows of the timeline. Beside the bar
-    // numbers and the chords, over the tracks: Bars and Chords (the editor),
-    // then All stems and Original only.
+    // On a computer the tracks are the rows of the timeline. Over it, in a row
+    // of its own, Bars and Chords (the editor); at the top of the column of
+    // the tracks, beside the time scale, All stems and Original only.
     const edit = $("edit-toggle");
     edit.textContent = "Bars and Chords";
-    $("tl-side").prepend(edit, $("quick"));
+    $("edit-bar").append(edit);
+    $("tl-side").prepend($("quick"));
     $("tl-hint").before($("tracks-note"));
   }
 }
@@ -789,7 +791,7 @@ function trackRow(t) {
       step: 5,
       unit: "ms",
       inputMode: "text",
-      format: (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0"),
+      format: fmtSigned,
       className: "sync",
       onChange: (v) => recording.setSync(key, v),
     });
@@ -948,13 +950,6 @@ async function shareSelected() {
 // computer Chrome and Edge write the file itself, the other browsers download
 // a copy. An audio file becomes an EUTERIA project (.euteria) holding it.
 
-const extensionOf = (name) => ((/\.([A-Za-z0-9]{1,8})$/.exec(name || "") || [])[1] || "").toLowerCase();
-
-function safeName(text) {
-  const name = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\s+/g, " ").replace(/^[ .]+|[ .]+$/g, "").slice(0, 120);
-  return name || "EUTERIA";
-}
-
 function practiceState() {
   return {
     rate: player.rate,
@@ -990,9 +985,7 @@ function shareMode() {
     let can = false;
     try {
       can = !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(4)], "song.euteria", { type: "application/zip" })] }));
-    } catch (_) {
-      can = false;
-    }
+    } catch (_) {}
     const chromium = !ios && (!!navigator.userAgentData || /\b(Chrome|Chromium|Edg|EdgA|OPR|SamsungBrowser)\//.test(ua));
     shareSheet = can && !chromium;
   }
@@ -1103,7 +1096,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
     await recording.ready(); // the takes recorded, as MP3
     const file = cur.file;
     const takes = recording.takes;
-    if (song.kind === "audio" || !song.manifest) {
+    if (isAudioSong(song)) {
       // An audio file: a new project around it (and its takes).
       const member = audioMember(file);
       const manifest = made
@@ -1339,9 +1332,7 @@ function shareProject() {
   let made = null;
   try {
     made = projectNow();
-  } catch (_) {
-    made = null;
-  }
+  } catch (_) {}
   if (made) sendProject(made); // the share sheet opens during this tap
   else sendWhenReady();
 }
@@ -1414,9 +1405,7 @@ async function sendWhenReady() {
       throw error;
     }
     made = projectNow();
-  } catch (_) {
-    made = null;
-  }
+  } catch (_) {}
   app.sharing = false;
   scheduleUi();
   if (!made) {
@@ -1456,25 +1445,6 @@ function explainSharing() {
         songDirty() ? ` Save first, at the top right: the changes${recording.dirty ? "" : " to the bars and chords"} are not in the file yet.` : ""
       }`;
   reportSave(text, "", 15000);
-}
-
-// ----- the column beside the bar numbers (computer) ---------------------------------------------
-//
-// Bars and Chords, All stems and Original only sit beside the bar numbers and
-// the chords, over the tracks. Without the chord lane there is less room:
-// the timeline then moves down by what is missing, so that the tracks stay
-// beside their waveforms.
-
-const SIDE_ROW = 28;
-const SIDE_GAP = 6;
-
-function layoutSide() {
-  if (phone || !player.song) return;
-  const rows = 1 + (player.hasStems || !$("separate").hidden ? 1 : 0);
-  const need = rows * SIDE_ROW + (rows - 1) * SIDE_GAP + 8;
-  const offset = `${Math.max(0, need - app.timeline.headHeight)}px`;
-  const wrap = $("tl-wrap");
-  if (wrap.style.getPropertyValue("--tl-offset") !== offset) wrap.style.setProperty("--tl-offset", offset);
 }
 
 // ----- the version, updating the app -----------------------------------------------------------
@@ -1647,7 +1617,6 @@ function updateUi() {
     if ($("tracks-note").textContent !== note) $("tracks-note").textContent = note;
   }
   separation.refresh();
-  layoutSide();
   $("all-stems").disabled = !ready;
   $("original-only").disabled = !ready;
 
@@ -1972,19 +1941,8 @@ window.euteria = {
     return recording;
   },
   openSong,
-  addSong,
-  openEntry,
-  deleteEntry,
-  deleteAll,
-  renderLibrary,
   renderRecent,
-  notice,
-  saveSong,
-  shareProject,
   saveMode,
-  confirmLeave,
-  updateApp,
-  VERSION,
 };
 
 init();

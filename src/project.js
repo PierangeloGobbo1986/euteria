@@ -20,14 +20,14 @@ export const TRACK_TITLES = {
 };
 
 // Takes: track keys "take-<id>", members "audio/takes/<id>.mp3".
-export const TAKE_PREFIX = "take-";
+const TAKE_PREFIX = "take-";
 export const TAKES_DIR = "audio/takes/";
 export const isTake = (key) => typeof key === "string" && key.startsWith(TAKE_PREFIX);
 export const takeKey = (id) => TAKE_PREFIX + id;
 export const takeMember = (id) => `${TAKES_DIR}${id}.mp3`;
 
 // A take as the app keeps it, from its entry in manifest.audio.takes.
-export function takeFromManifest(t, info = null) {
+function takeFromManifest(t, info = null) {
   return {
     id: String(t.id),
     title: String(t.title || "Take"),
@@ -99,14 +99,14 @@ export function gainToSlider(g) {
 }
 
 // The imported file's name without its extension, as in EUTERIA (Python).
-export function songName(manifest) {
+function songName(manifest) {
   const original = (manifest.audio && manifest.audio.original_filename) || "";
   const stem = original.replace(/\.[^./\\]*$/, "");
   return stem || manifest.title || "EUTERIA";
 }
 
 // Stem keys sorted by their display name: Bass, Drums, Guitar, Other, Piano, Vocals.
-export function stemsInExportOrder(keys) {
+function stemsInExportOrder(keys) {
   return keys.filter((k) => STEM_NAMES.includes(k)).sort((a, b) => TRACK_TITLES[a].localeCompare(TRACK_TITLES[b]));
 }
 

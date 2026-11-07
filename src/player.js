@@ -8,11 +8,11 @@
 // under it: jumps, tempo, key and the loop wait; Pause and Stop end the take.
 
 import { Engine } from "./engine.js";
-import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, isTake, takeStartSample } from "./project.js";
+import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample } from "./project.js";
 import { int16Peaks } from "./peaks.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
-export const TEMPO_RANGE = [0.5, 2];
+const TEMPO_RANGE = [0.5, 2];
 export const KEY_RANGE = [-12, 12];
 const NEW_LOOP_SECONDS = 8;
 
@@ -91,6 +91,7 @@ export class Player {
     this.loop = { on: false, start: 0, end: 0 };
     this.busy = null; // null, "opening" or "exporting"
     this.recording = false; // a take is being recorded
+    this.recordingSeek = false; // Stop's jump, allowed while the take ends
     this.recordId = 0;
     this.lost = []; // tracks a failed export could not give back
     this.onupdate = null;
@@ -473,17 +474,6 @@ export class Player {
     if (!quiet) this._changed();
   }
 
-  toggleLoop() {
-    if (!this.song || this.locked) return;
-    const d = this.song.duration;
-    let { start, end, on } = this.loop;
-    if (!on && end - start < MIN_LOOP) {
-      start = Math.min(this.position, Math.max(0, d - NEW_LOOP_SECONDS));
-      end = Math.min(d, start + NEW_LOOP_SECONDS);
-    }
-    this.setLoop({ on: !on, start, end });
-  }
-
   // Moves one end of the loop; the other one moves too if the loop would
   // become shorter than MIN_LOOP.
   setLoopStart(seconds) {
@@ -530,7 +520,6 @@ export class Player {
     let lent = null;
     try {
       lent = await this._lend(keys);
-      const t0 = performance.now();
       const reply = await runRenderWorker(
         { type: "export", tracks: lent, sampleRate: this.context.sampleRate, rate: this.rate, semitones: this.semitones, bitrate: 320, seconds: this.song.duration },
         onProgress
@@ -543,7 +532,6 @@ export class Player {
         name,
         seconds: reply.seconds,
         reductionDb: reply.reductionDb,
-        totalMs: performance.now() - t0,
         fullOn: fullOn && !withOriginal,
         tempo: Math.round(this.rate * 100),
         key: this.semitones,

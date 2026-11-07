@@ -3,9 +3,9 @@
  *
  * Plain script (no import/export), so the same code runs unchanged in the
  * AudioWorkletGlobalScope (src/engine-processor.js, live playback) and in a Web
- * Worker (src/render-worker.js, MP3 export and speed tests). It needs
- * globalThis.SignalsmithStretchModule, from lib/signalsmith-stretch/
- * signalsmith-module.js, loaded first.
+ * Worker (src/render-worker.js: the MP3 export, the takes recorded at another
+ * tempo or key, the speed test). It needs globalThis.SignalsmithStretchModule,
+ * from lib/signalsmith-stretch/signalsmith-module.js, loaded first.
  *
  * Every track is kept as 16-bit PCM at the output sample rate. The tracks that
  * are switched on are mixed into two buses, "pitched" (the full mix and every
@@ -305,7 +305,7 @@
       this.frac = 0;
       this.feed = this._advance(this.out, this.inputLatency);
       for (const bus of this.buses) {
-        if (this._busActive(bus)) this._prime(bus);
+        if (bus.hasAudio) this._prime(bus);
         else bus.active = false;
       }
     }
@@ -318,10 +318,6 @@
       this._mix(bus, this.out - this.outputLatency, this.windowLength, s.input[0], s.input[1]);
       s.prime(this.windowLength, this.rate);
       bus.active = true;
-    }
-
-    _busActive(bus) {
-      return bus.hasAudio;
     }
 
     // ----- rendering --------------------------------------------------------
@@ -410,6 +406,5 @@
     }
   }
 
-  EngineCore.softLimit = softLimit;
   globalThis.EuteriaEngineCore = EngineCore;
 })();

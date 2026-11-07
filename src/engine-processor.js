@@ -24,7 +24,7 @@
   const CHUNK = 16384; // input samples per message to the main thread
 
   class EuteriaEngineProcessor extends AudioWorkletProcessor {
-    constructor(options) {
+    constructor() {
       super();
       this.core = null;
       this.queue = [];

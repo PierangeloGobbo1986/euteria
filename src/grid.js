@@ -5,14 +5,14 @@
 // grid is edited here too: rebuilt from its anchor (the first beat of a
 // bar), tempo and meter, or cleared, as in EUTERIA (Python).
 
-export const METER_BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
+const METER_BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
 export const METERS = Object.keys(METER_BEATS);
 export const BPM_RANGE = [20, 400];
 export const DEFAULT_BPM = 180; // EUTERIA (Python), for a song without one
 
 // build_grid() of EUTERIA (Python): beats from `anchor` at `bpm`, both ways,
 // and a bar every `meter` beats, within the song.
-export function buildGrid(anchor, bpm, meter, duration) {
+function buildGrid(anchor, bpm, meter, duration) {
   if (!(bpm > 0) || !(duration > 0)) return { beats: [], bars: [] };
   const perBar = METER_BEATS[meter] || 4;
   const period = 60 / bpm;

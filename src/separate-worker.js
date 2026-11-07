@@ -98,7 +98,7 @@ async function download(model) {
   const access = await handle.createSyncAccessHandle();
   const t0 = performance.now();
   let bytes = 0;
-  let total = 0;
+  let total;
   try {
     access.truncate(0);
     const response = await fetch(model.url);
@@ -364,8 +364,6 @@ async function separate({ type, left, right, sampleRate, overlap = 0.5, maxChunk
     if (j === profileChunk && ort.env.webgpu) {
       // Profiled on its own: the timings of this chunk are not counted.
       if (previous) accumulate(previous.out, previous.start);
-      previous = null;
-      t = performance.now();
       const profiled = await profiledRun(feeds);
       out = profiled.out;
       profile = profiled.profile;

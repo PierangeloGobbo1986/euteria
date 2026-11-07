@@ -28,8 +28,8 @@ import { resamplePoly } from "./resample.js";
 
 const INPUT_KEY = "euteria.input";
 const SYNC_KEY = "euteria.inputSync";
-export const LOOP_TAKES = 3;
-export const MIN_TAKE_SECONDS = 1;
+const LOOP_TAKES = 3;
+const MIN_TAKE_SECONDS = 1;
 const KEEP_OPEN_MS = 20000; // the input stays open a while after a take, ready for the next one
 const CHECK_MS = 8000; // the level shown after an input is chosen
 const MP3_RATES = [32000, 44100, 48000];
@@ -65,7 +65,7 @@ function sameChannels(a, b) {
 // with the song from song sample song0 on. U0: the song sample (along the
 // playback path, loop passes counted on) heard when input sample 0 was
 // played; r: song samples per input sample (the tempo).
-export function passes(frames, U0, r, loop) {
+function passes(frames, U0, r, loop) {
   if (!loop || !loop.on) return [{ k0: 0, k1: frames, song0: U0 }];
   const span = loop.b - loop.a;
   const out = [];
@@ -102,7 +102,7 @@ function encodeMp3(channels, sampleRate, bitrate) {
 }
 
 // What went wrong opening an input, said plainly.
-export function inputError(error) {
+function inputError(error) {
   const name = error && error.name;
   if (name === "NotAllowedError" || name === "SecurityError") {
     return "EUTERIA may not use the microphone. Allow it for this site in the browser's settings, then press Record again.";
@@ -117,14 +117,13 @@ export class Recorder {
   constructor(player, { phone = false } = {}) {
     this.player = player;
     this.budget = phone ? 180e6 : 1.5e9; // bytes of takes in memory, per song
-    this.devices = []; // [{id, label}], the default input first (id "")
+    this.devices = this.listFrom([]); // [{id, label}], the default input first (id "")
     this.named = false; // the browser gave the inputs' names
     this.choice = load(INPUT_KEY) || { id: "", label: "" };
     this.syncs = load(SYNC_KEY) || {};
     this.input = null; // {id, stream, node, label, latency}
     this.state = "idle"; // idle, opening, recording, finishing
     this.level = 0; // the input's peak lately, 0..1
-    this.levelAt = 0;
     this.current = null; // the recording under way
     this.closeTimer = null;
     this.encoding = new Set(); // takes being encoded
@@ -140,7 +139,6 @@ export class Recorder {
     if (Recorder.supported() && navigator.mediaDevices.addEventListener) {
       navigator.mediaDevices.addEventListener("devicechange", () => this.refresh());
     }
-    this.devices = this.listFrom([]);
   }
 
   static supported() {
@@ -274,7 +272,7 @@ export class Recorder {
     this.close();
     let node;
     let stream = null;
-    let label = "";
+    let label;
     let latency = 0;
     let id = want;
     if (this.testInput) {
@@ -419,7 +417,6 @@ export class Recorder {
   receive(m) {
     if (m.type === "level") {
       this.level = m.peak;
-      this.levelAt = performance.now();
       if (this.onlevel) this.onlevel(m.peak);
       return;
     }
@@ -519,7 +516,6 @@ export class Recorder {
         saved: false,
         mp3: null,
         crc: null,
-        encoding: null,
       };
       this.encode(take, parts.map((c) => c.slice()), sr);
       out.push({ key: takeKey(id), title: take.title, channels: parts, length, take });
@@ -542,7 +538,6 @@ export class Recorder {
       take.crc = result.crc;
       take.info = result.info;
     })();
-    take.encoding = work;
     this.encoding.add(work);
     work
       .catch((error) => {
@@ -550,10 +545,8 @@ export class Recorder {
       })
       .finally(() => {
         this.encoding.delete(work);
-        take.encoding = null;
         this.changed();
       });
-    return work;
   }
 
   // Resolves once no take is being recorded, lined up or encoded (a take

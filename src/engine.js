@@ -3,7 +3,7 @@
 const loading = new WeakMap();
 
 // Adds the engine's three scripts to the context's AudioWorklet, once.
-export function loadEngine(context) {
+function loadEngine(context) {
   if (!loading.has(context)) {
     loading.set(
       context,
@@ -36,8 +36,6 @@ export class Engine {
   constructor(context, node) {
     this.context = context;
     this.node = node;
-    this.position = 0;
-    this.playing = false;
     this.onposition = null;
     this.onended = null;
     this.onrecord = null; // recording messages: rec-begin, rec-data, rec-end, level
@@ -59,12 +57,9 @@ export class Engine {
         this.rejectReady(new Error(m.message));
         break;
       case "pos":
-        this.position = m.heard;
-        this.playing = m.playing;
         if (this.onposition) this.onposition(m.heard, m.playing);
         break;
       case "ended":
-        this.playing = false;
         if (this.onended) this.onended();
         break;
       case "rec-begin":

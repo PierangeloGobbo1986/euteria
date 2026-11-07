@@ -7,7 +7,7 @@
 import { STEM_NAMES, TAKES_DIR, isTake, takeToManifest } from "./project.js";
 import { musicFields } from "./grid.js";
 
-export const EDITED_WITH = "EUTERIA Web";
+const EDITED_WITH = "EUTERIA Web";
 const WEB_FORMAT_VERSION = 4; // as the projects exported for the web app by EUTERIA (Python)
 
 const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
@@ -17,7 +17,7 @@ const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
 // The key counts as "transposed": EUTERIA Web transposes live, and
 // EUTERIA (Python), without transposed tracks in the file, plays the
 // original key.
-export function practiceFields(base, grid, state) {
+function practiceFields(base, grid, state) {
   const percent = round(state.rate * 100, 1);
   const volumes = { ...(base.track_volumes || {}) };
   const enabled = { ...(base.track_enabled || {}) };

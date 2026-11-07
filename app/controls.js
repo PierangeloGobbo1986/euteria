@@ -30,7 +30,17 @@ export function fmtSize(bytes) {
   return `${(bytes / 1e6).toFixed(bytes < 1e7 ? 1 : 0)} MB`;
 }
 
-export const fmtKey = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0");
+// A number with its sign: "+2", "−3", "0" (the key, the Sync of a take).
+export const fmtSigned = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0");
+
+// The extension of a file name, in lower case ("" if none).
+export const extensionOf = (name) => ((/\.([A-Za-z0-9]{1,8})$/.exec(name || "") || [])[1] || "").toLowerCase();
+
+// A title made safe as a file name.
+export function safeName(text) {
+  const name = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\s+/g, " ").replace(/^[ .]+|[ .]+$/g, "").slice(0, 120);
+  return name || "EUTERIA";
+}
 
 // "1:23.4", "1:23", "83.4" (seconds), and "1.23.4" or "1,23,4" for keypads
 // without a colon; a comma counts as a decimal point.
@@ -55,7 +65,7 @@ function parseNumber(text) {
 // A tap runs fn once; holding the button runs it again and again, faster and
 // faster. Holding starts only after a moment, so that a scroll that begins on
 // the button changes nothing.
-export function holdRepeat(button, fn) {
+function holdRepeat(button, fn) {
   let timer = null;
   let repeated = false;
   const stop = () => {
@@ -207,7 +217,7 @@ export function numberField({
 // The key, in semitones: a list (a wheel on phones) between − and +.
 export function keyField({ label = "Key", min = -12, max = 12, onChange = () => {} }) {
   const select = h("select", { "aria-label": `${label} in semitones` });
-  for (let v = max; v >= min; v--) select.append(new Option(fmtKey(v), String(v)));
+  for (let v = max; v >= min; v--) select.append(new Option(fmtSigned(v), String(v)));
   select.value = "0";
   select.addEventListener("change", () => onChange(+select.value));
   const dec = stepButton("−", `${label}: down a semitone`);

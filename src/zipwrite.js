@@ -34,7 +34,7 @@ const CRC_TABLE = (() => {
 })();
 
 // CRC-32 of `bytes`, continuing from `crc` (0 to start).
-export function crc32(bytes, crc = 0) {
+function crc32(bytes, crc = 0) {
   let c = ~crc >>> 0;
   for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
   return ~c >>> 0;
@@ -118,6 +118,39 @@ function join(parts) {
 
 const manifestEntry = (bytes) => ({ name: MANIFEST, crc: crc32(bytes), compressedSize: bytes.length, size: bytes.length });
 
+// A new zip file put together member after member, as a Blob: add() a stored
+// member ({name, data: Uint8Array | Blob, crc}; a Blob member needs its
+// CRC-32 given), or put() one with its entry known; then blob().
+class ZipBlob {
+  constructor() {
+    this.when = dosTime();
+    this.parts = [];
+    this.records = [];
+    this.offset = 0;
+  }
+
+  put(entry, data, size) {
+    const head = localHeader(entry, this.when);
+    this.parts.push(head, data);
+    this.records.push(centralRecord(entry, this.offset, this.when));
+    this.offset += head.length + size;
+  }
+
+  add(m) {
+    const data = m.data;
+    const bytes = data instanceof Uint8Array;
+    const size = bytes ? data.length : data.size;
+    const crc = m.crc != null ? m.crc : bytes ? crc32(data) : null;
+    if (crc === null) throw new Error(`The CRC-32 of ${m.name} is not known.`);
+    this.put({ name: m.name, crc, compressedSize: size, size }, data, size);
+  }
+
+  blob() {
+    const central = join(this.records);
+    return new Blob([...this.parts, central, endRecord(this.records.length, central.length, this.offset)], { type: "application/zip" });
+  }
+}
+
 // In place: {at, bytes} to write at offset `at` of the project, after
 // truncating it there (`zip` is openZip() of the file as it is now).
 export async function manifestPatch(zip, manifestBytes) {
@@ -138,7 +171,7 @@ export async function manifestPatch(zip, manifestBytes) {
 }
 
 // Where each member's data lies in the file (`zip` is openZip() of it), in
-// the file's order: what composeWithManifest() needs.
+// the file's order: what composeEdited() needs.
 export async function zipLayout(zip) {
   const layout = [];
   for (const entry of [...zip.directory.entries].sort((a, b) => a.localOffset - b.localOffset)) {
@@ -149,75 +182,27 @@ export async function zipLayout(zip) {
 }
 
 // A new file: the members of `file` (where zipLayout() found them) with the
-// new manifest, as a Blob of slices of `file`.
-export function composeWithManifest(file, layout, manifestBytes) {
-  return composeEdited(file, layout, { manifestBytes });
-}
-
-// The same, without the members named in `drop`, with the members of `add`
-// ([{name, data: Uint8Array | Blob, crc}], as composeProject()) after the
-// others: the takes deleted and recorded since the song was saved.
+// new manifest, as a Blob of slices of `file`; without the members named in
+// `drop`, with the members of `add` ([{name, data: Uint8Array | Blob, crc}],
+// as composeProject()) after the others: the takes deleted and recorded since
+// the song was saved.
 export function composeEdited(file, layout, { manifestBytes, drop = [], add = [] }) {
-  const when = dosTime();
-  const parts = [];
-  const records = [];
+  const zip = new ZipBlob();
   const skip = new Set([MANIFEST, ...drop, ...add.map((m) => m.name)]);
-  let offset = 0;
   for (const { entry, start, end } of layout) {
-    if (skip.has(entry.name)) continue;
-    const head = localHeader(entry, when);
-    parts.push(head, file.slice(start, end));
-    records.push(centralRecord(entry, offset, when));
-    offset += head.length + (end - start);
+    if (!skip.has(entry.name)) zip.put(entry, file.slice(start, end), end - start);
   }
-  for (const m of add) {
-    const data = m.data;
-    const bytes = data instanceof Uint8Array;
-    const size = bytes ? data.length : data.size;
-    const crc = m.crc != null ? m.crc : bytes ? crc32(data) : null;
-    if (crc === null) throw new Error(`The CRC-32 of ${m.name} is not known.`);
-    const e = { name: m.name, crc, compressedSize: size, size };
-    const head = localHeader(e, when);
-    parts.push(head, data);
-    records.push(centralRecord(e, offset, when));
-    offset += head.length + size;
-  }
-  const entry = manifestEntry(manifestBytes);
-  const head = localHeader(entry, when);
-  parts.push(head, manifestBytes);
-  records.push(centralRecord(entry, offset, when));
-  offset += head.length + manifestBytes.length;
-  const central = join(records);
-  parts.push(central, endRecord(records.length, central.length, offset));
-  return new Blob(parts, { type: "application/zip" });
-}
-
-export async function withManifest(file, zip, manifestBytes) {
-  return composeWithManifest(file, await zipLayout(zip), manifestBytes);
+  for (const m of add) zip.add(m);
+  zip.put(manifestEntry(manifestBytes), manifestBytes, manifestBytes.length);
+  return zip.blob();
 }
 
 // A new project from members [{name, data: Blob | Uint8Array, crc}]
 // (stored). A Blob member needs its CRC-32 given (crc32Blob()).
 export function composeProject(members) {
-  const when = dosTime();
-  const parts = [];
-  const records = [];
-  let offset = 0;
-  for (const m of members) {
-    const data = m.data;
-    const bytes = data instanceof Uint8Array;
-    const size = bytes ? data.length : data.size;
-    const crc = m.crc != null ? m.crc : bytes ? crc32(data) : null;
-    if (crc === null) throw new Error(`The CRC-32 of ${m.name} is not known.`);
-    const entry = { name: m.name, crc, compressedSize: size, size };
-    const head = localHeader(entry, when);
-    parts.push(head, data);
-    records.push(centralRecord(entry, offset, when));
-    offset += head.length + size;
-  }
-  const central = join(records);
-  parts.push(central, endRecord(records.length, central.length, offset));
-  return new Blob(parts, { type: "application/zip" });
+  const zip = new ZipBlob();
+  for (const m of members) zip.add(m);
+  return zip.blob();
 }
 
 // The same, the CRC-32 of the Blob members computed first.

@@ -140,7 +140,7 @@ function coarseLag(reference, target, maxLag) {
 
 // How many samples the original is behind (positive) or ahead of (negative)
 // the stems. Returns {offset, confidence}; offset 0 when unsure.
-export function measureOffset(originalChannels, stemChannelList, sampleRate) {
+function measureOffset(originalChannels, stemChannelList, sampleRate) {
   const length = Math.min(originalChannels[0].length, ...stemChannelList.map((c) => c[0].length));
   if (length < sampleRate * 2) return { offset: 0, confidence: 0 };
   const excerpt = Math.min(Math.round(EXCERPT_SECONDS * sampleRate), Math.floor(length * 0.7));
@@ -182,7 +182,7 @@ export function measureOffset(originalChannels, stemChannelList, sampleRate) {
 
 // Shifts the channels by `offset` samples (positive: drop that many from the
 // start; negative: delay with silence), keeping their length.
-export function shiftChannels(channels, offset) {
+function shiftChannels(channels, offset) {
   return channels.map((ch) => {
     const out = new Int16Array(ch.length);
     if (offset >= 0) out.set(ch.subarray(offset));

@@ -10,7 +10,7 @@
 // anywhere along them), snapping to the bars and beats (Alt or Option turns
 // snapping off). Dragging the bar numbers scrolls; pinching, ctrl+wheel (a
 // trackpad pinch) or the zoom buttons zoom from the whole song (100%) to
-// about 100 pixels per second. The overview under the timeline shows the
+// about 100 pixels per second. The overview over the timeline shows the
 // whole song, the part in view and the loop: dragging their frames moves the
 // view or the loop, a tap elsewhere brings the view there.
 // While the song plays the view follows the playhead, except for a few
@@ -84,10 +84,10 @@ export class Timeline {
   // zoomed, onChange() after every redraw of the view, onSelect({anchor, lo,
   // hi}, done) while bars are selected in the chord lane (done: the press
   // ended, tap: it did not move).
-  // varsOn: the element that gets --tl-head and --tl-row (the height of the
-  // ruler and chords, and of a row), so that a column beside can line up.
+  // varsOn: the element that gets --tl-over, --tl-ruler, --tl-head and
+  // --tl-row (the height of the overview, of the ruler, of the ruler and the
+  // chords, and of a row), so that a column beside can line up.
   constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange, onSelect } = {}) {
-    this.host = host;
     this.onSelect = onSelect || (() => {});
     this.editing = false;
     this.selection = null; // {anchor, lo, hi}: bars selected in the chord lane
@@ -132,7 +132,7 @@ export class Timeline {
     this.over = document.createElement("canvas");
     this.over.className = "tl-overview";
     this.over.setAttribute("aria-label", "Overview of the whole song: drag the frame of the view or of the loop to move it, tap elsewhere to bring the view there");
-    host.append(this.main, this.over);
+    host.append(this.over, this.main);
     this._bind();
     this.resizer = new ResizeObserver(() => this.layout());
     this.resizer.observe(this.main);
@@ -358,6 +358,8 @@ export class Timeline {
     this.over.style.width = `${w}px`;
     this.over.style.height = `${o}px`;
     this.overviewCache = null;
+    this.varsOn.style.setProperty("--tl-over", `${o}px`);
+    this.varsOn.style.setProperty("--tl-ruler", `${this.dims.ruler}px`);
     this.varsOn.style.setProperty("--tl-head", `${this.headHeight}px`);
     this.varsOn.style.setProperty("--tl-row", `${this.dims.row}px`);
     this.zoom = clamp(this.zoom, 1, this.zoomMax);
