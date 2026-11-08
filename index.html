@@ -133,11 +133,20 @@
       </div>
     </div>
 
+    <!-- What Record records from -->
+    <section id="input-card" class="card input-card" hidden>
+      <h2 id="input-label">Recording input</h2>
+      <div class="input-row">
+        <button id="input-refresh" type="button" class="small input-refresh" aria-label="Look for the inputs again">↻</button>
+        <span class="select-wrap"><select id="input-select" aria-labelledby="input-label"></select></span>
+        <span id="input-meter" class="input-meter" title="Input level" aria-hidden="true"><span id="input-level" class="input-level"></span></span>
+      </div>
+    </section>
+
     <section class="card timeline-card">
       <div class="tl-toolbar">
         <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
         <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
-        <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the bars and the chords">Edit</button>
         <div id="loop-controls" class="loop-controls">
           <div id="position-box" class="position-box"></div>
           <div class="loop-sets">
@@ -146,15 +155,6 @@
           </div>
         </div>
         <div class="spacer"></div>
-        <!-- What Record records from -->
-        <div id="input-group" class="tool-group input-group" hidden>
-          <span id="input-label" class="tool-label">Input</span>
-          <div class="input-row">
-            <button id="input-refresh" type="button" class="small input-refresh" aria-label="Look for the inputs again">↻</button>
-            <span class="select-wrap"><select id="input-select" aria-labelledby="input-label"></select></span>
-            <span id="input-meter" class="input-meter" title="Input level" aria-hidden="true"><span id="input-level" class="input-level"></span></span>
-          </div>
-        </div>
         <div class="tool-group zoom-group">
           <span class="tool-label">Zoom</span>
           <div class="zoom" role="group" aria-label="Zoom">
@@ -164,8 +164,10 @@
           </div>
         </div>
       </div>
-      <!-- Computer: Bars and Chords (the editor), in a row of its own over the timeline -->
-      <div id="edit-bar" class="edit-bar computer-only"></div>
+      <!-- Bars and Chords (the editor): over the timeline on a computer, at the bottom of this card on the phone -->
+      <div id="edit-bar" class="edit-bar">
+        <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the bars and the chords">Bars and Chords</button>
+      </div>
       <!-- Separating the instruments (computer) -->
       <div id="sep-panel" class="sep-panel computer-only" hidden>
         <div id="sep-bar" class="sep-bar"><div id="sep-fill" class="sep-fill"></div></div>
@@ -231,40 +233,53 @@
     <div class="panels">
       <section class="card">
         <h2>Tempo and key</h2>
-        <div class="field">
-          <span class="label">Tempo</span>
-          <div id="tempo-box" class="control-box"></div>
+        <div class="card-cols">
+          <div class="card-col">
+            <div class="field">
+              <span class="label">Tempo</span>
+              <div id="tempo-box" class="control-box"></div>
+            </div>
+          </div>
+          <div class="card-col">
+            <div class="field">
+              <span class="label">Key</span>
+              <div id="key-box" class="control-box"></div>
+            </div>
+            <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
+          </div>
         </div>
-        <div class="field">
-          <span class="label">Key</span>
-          <div id="key-box" class="control-box"></div>
-        </div>
-        <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
       </section>
 
       <section class="card project-card">
         <h2>File export and sharing</h2>
-        <div class="row">
-          <button id="share-song" type="button" class="primary">Share project…</button>
-        </div>
-        <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
-        <p id="project-status" class="status" role="status" aria-live="polite"></p>
-        <h3 class="sub">Export MP3</h3>
-        <p id="export-hint" class="hint top">The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files stay here until EUTERIA closes: they are not saved in the project.</p>
-        <button id="export" type="button">Export MP3</button>
-        <p id="export-status" class="status"></p>
-        <div id="exports-head" class="exports-head" hidden>
-          <span id="exports-count"></span>
-          <button id="exports-clear" type="button" class="ghost danger small">Delete all</button>
-        </div>
-        <div id="exports" class="exports"></div>
-        <div id="export-actions" class="row" hidden>
-          <button id="download" type="button" class="primary">Download</button>
-          <button id="share" type="button" class="primary" hidden>Share…</button>
+        <div class="card-cols">
+          <div class="card-col">
+            <h3 class="sub computer-only">Share project</h3>
+            <div class="row">
+              <button id="share-song" type="button" class="primary">Share project…</button>
+            </div>
+            <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
+            <p id="project-status" class="status" role="status" aria-live="polite"></p>
+          </div>
+          <div class="card-col">
+            <h3 class="sub">Export MP3</h3>
+            <p id="export-hint" class="hint top">The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.</p>
+            <button id="export" type="button">Export MP3</button>
+            <p id="export-status" class="status"></p>
+            <div id="exports-head" class="exports-head" hidden>
+              <span id="exports-count"></span>
+              <button id="exports-clear" type="button" class="ghost danger small">Delete all</button>
+            </div>
+            <div id="exports" class="exports"></div>
+            <div id="export-actions" class="row" hidden>
+              <button id="download" type="button" class="primary">Download</button>
+              <button id="share" type="button" class="primary" hidden>Share…</button>
+            </div>
+          </div>
         </div>
       </section>
     </div>
-    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%.</p>
+    <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
   </section>
 </main>
 

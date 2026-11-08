@@ -666,7 +666,8 @@ export class Timeline {
       c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       c.fillStyle = C.overview;
       c.fillRect(0, 0, W, H);
-      const row = this.rows.find((r) => r.peaks);
+      // The Original Track, wherever its row is.
+      const row = this.rows.find((r) => r.key === "original" && r.peaks) || this.rows.find((r) => r.peaks && !r.offset);
       if (row) this._wave(c, row.peaks, "#5d6d6b", 1, 2, H - 4, 0, W / this.duration, W);
       this.overviewCache = cache;
     }

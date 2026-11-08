@@ -1,7 +1,7 @@
 // Recording takes, the page's side (src/recorder.js does the work): Record,
-// beside Loop; Input, in the timeline's toolbar (↻ looks for the inputs
-// again, the menu chooses one, the bar beside it shows its level); the takes
-// at the bottom of the tracks (✕ deletes one, Sync moves it in time); and
+// beside Loop; the Recording input card (↻ looks for the inputs again, the
+// menu chooses one, the bar beside it shows its level); the takes at the
+// bottom of the tracks (✕ deletes one, Sync moves it in time); and
 // what Save, Share project and the separation need to write the takes in the
 // song's file. Takes recorded, deleted or moved make the song "not saved",
 // as edits to the bars and chords do.
@@ -10,6 +10,7 @@ import { Recorder } from "../src/recorder.js";
 import { openZip } from "../src/zip.js";
 import { decodeTake } from "../src/project.js";
 import { h } from "./controls.js";
+import { countEvent } from "./counter.js";
 
 const $ = (id) => document.getElementById(id);
 const TOLD_KEY = "euteria.syncTold";
@@ -77,6 +78,7 @@ export class RecordingFlow {
     }
     this.dirty = true;
     takesChanged();
+    for (let i = 0; i < tracks.length; i++) countEvent("take-recorded");
     const first = tracks[0].title;
     let text = tracks.length === 1 ? `${first} added.` : `${first} to ${tracks[tracks.length - 1].title} added.`;
     if (reason === "full") text += " There is no more room for takes in this song.";
@@ -225,7 +227,7 @@ export class RecordingFlow {
     // A scale in decibels from -48 dB: quiet playing still shows.
     const db = v > 0 ? 20 * Math.log10(v) : -96;
     const fill = Math.max(0, Math.min(1, (db + 48) / 48));
-    bar.style.transform = `scaleY(${fill.toFixed(3)})`;
+    bar.style.transform = `scaleX(${fill.toFixed(3)})`;
     bar.classList.toggle("hot", v >= 0.98);
     $("input-meter").classList.toggle("open", open);
   }
@@ -236,7 +238,7 @@ export class RecordingFlow {
     const song = player.song;
     const record = $("record");
     record.hidden = !this.supported;
-    $("input-group").hidden = !this.supported || !song;
+    $("input-card").hidden = !this.supported || !song;
     if (!this.supported) return;
     const state = r.state;
     record.disabled = !song || !!player.busy || state === "opening" || state === "finishing" || app.saving || app.sharing;

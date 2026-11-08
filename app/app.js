@@ -18,11 +18,13 @@ import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSe
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
 import { readGrid, emptyGrid, applyGridEdits } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
-import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, parseTime, numberField, keyField, confirmTap } from "./controls.js";
+import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, parseTime, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
+import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
 import { RecordingFlow } from "./recording.js";
+import { sortable } from "./sortable.js";
 
 const $ = (id) => document.getElementById(id);
 const phone = document.documentElement.dataset.layout === "phone";
@@ -59,7 +61,7 @@ const app = {
   // Edge may write to), ready (what Share project needs, read from file)}.
   current: null,
   adding: false,
-  exports: [], // {id, file, url, name, seconds, tempo, key, selected}: in memory only, until the page closes
+  exports: [], // {id, owner, file, url, name, seconds, tempo, key, selected}: in memory only, until the page closes
   exportShown: null, // the export the status under Export MP3 is about
   rows: [],
   fields: {},
@@ -226,6 +228,8 @@ async function openSong(file, origin) {
     const practice = (song.manifest && song.manifest.practice) || {};
     app.gridVisible = saved && typeof saved.grid === "boolean" ? saved.grid : practice.grid_visible !== false;
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null };
+    app.current.owner = songOwner();
+    if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
     showView("player");
     renderPlayer(saved && saved.view);
     editor.songOpened({ differs: !!edits, built: !!(edits && edits.built), dirty: !!(saved && saved.dirty) });
@@ -241,6 +245,18 @@ async function openSong(file, origin) {
     notice(`${file.name} could not be opened. ${(error && error.message) || error}`, "error");
     return null;
   }
+}
+
+// Whose MP3 exports are listed: the song open, as its entry in the library,
+// else the project (its id stays the same when it is saved), else the audio
+// file.
+function songOwner() {
+  const cur = app.current;
+  const song = player.song;
+  if (!cur || !song) return null;
+  if (cur.entryId) return `e:${cur.entryId}`;
+  const id = song.manifest && song.manifest.project_id;
+  return id ? `p:${id}` : `a:${cur.name}:${cur.file.size}`;
 }
 
 function trackWarning() {
@@ -326,6 +342,7 @@ async function deleteEntry(entry) {
   try {
     if (app.current && app.current.entryId === entry.id) await closeSong();
     await library.remove(entry.id);
+    deleteExports(app.exports.filter((e) => e.owner === `e:${entry.id}`));
     if (entry.settingsKey && !library.entries.some((e) => e.settingsKey === entry.settingsKey)) forgetSettings(entry.settingsKey);
     notice(`${entry.title} deleted.`, "ok", 3000);
   } catch (error) {
@@ -340,6 +357,8 @@ async function deleteAll() {
     if (app.current && app.current.source === "library") await closeSong();
     const removed = await library.clear();
     for (const e of removed) if (e.settingsKey) forgetSettings(e.settingsKey);
+    const gone = new Set(removed.map((e) => `e:${e.id}`));
+    deleteExports(app.exports.filter((e) => gone.has(e.owner)));
     notice(`${removed.length} song${removed.length === 1 ? "" : "s"} deleted.`, "ok", 3000);
   } catch (error) {
     notice(`The library could not be emptied. ${(error && error.message) || error}`, "error");
@@ -603,6 +622,13 @@ function buildControls() {
     },
   });
   $("position-box").append(f.position.el);
+  // The cards of the tracks, dragged by their grip to another place; the
+  // bar at the top of the screen stays in view.
+  sortable(phone ? $("tracks") : $("tl-rows"), {
+    grip: ".grip",
+    onMove: moveTrack,
+    top: () => Math.max(0, document.querySelector(".appbar").getBoundingClientRect().bottom),
+  });
   app.timeline = new Timeline($("timeline"), {
     compact: phone,
     varsOn: $("tl-wrap"),
@@ -631,7 +657,7 @@ function buildControls() {
     refreshPage: scheduleUi,
     takes: () => recording.forNewProject(),
     openFile: async (file, handle) => {
-      const song = await openSong(file, { source: "file", handle });
+      const song = await openSong(file, { source: "file", handle, separated: true });
       if (song) {
         await addRecent(handle, { title: song.title, size: file.size });
         renderRecent();
@@ -661,18 +687,16 @@ function buildControls() {
   if (phone) {
     // The transport joins the app bar: one banner at the top, always in view.
     document.querySelector(".appbar").append($("transport"));
-    // Under the timeline: the editing tools (the chord of the bars selected
-    // in it, then the grid), then the playhead and the loop.
+    // Under the timeline: the playhead and the loop; at the bottom of the
+    // card, Bars and Chords (the editor), whose tools open under it (the
+    // chord of the bars selected, then the grid).
     $("tl-wrap").after($("loop-controls"));
-    $("tl-wrap").after($("grid-edit"));
-    $("tl-wrap").after($("chord-edit"));
+    $("tl-hint").after($("edit-bar"));
+    $("edit-bar").after($("chord-edit"), $("grid-edit"));
   } else {
     // On a computer the tracks are the rows of the timeline. Over it, in a row
     // of its own, Bars and Chords (the editor); at the top of the column of
     // the tracks, beside the time scale, All stems and Original only.
-    const edit = $("edit-toggle");
-    edit.textContent = "Bars and Chords";
-    $("edit-bar").append(edit);
     $("tl-side").prepend($("quick"));
     $("tl-hint").before($("tracks-note"));
   }
@@ -766,7 +790,9 @@ function trackRow(t) {
     if (track) player.setTrackOn(key, !track.on);
   });
   const volume = numberField({ label: `${t.title} volume`, min: 0, max: 200, step: 5, unit: "%", onChange: (v) => player.setTrackGain(key, sliderToGain(v)) });
-  const parts = [toggle];
+  // The grip: dragged, or the arrow keys on it, to put the track elsewhere.
+  const grip = h("button", { type: "button", class: "grip", title: "Drag to move the track (or ↑ ↓)", "aria-label": `Move ${t.title}: drag it, or press the up or down arrow` }, icon("grip"));
+  const parts = [grip, toggle];
   let slider = null;
   let del = null;
   let sync = null;
@@ -798,7 +824,20 @@ function trackRow(t) {
     sync.el.title = "Sync: moves the take earlier (−) or later (+), in milliseconds, to put it in time with the song. The next takes from the same input get the same Sync.";
     parts.push(h("div", { class: "sync-row" }, h("span", { class: "mini-label", text: "Sync" }), sync.el));
   }
-  return { key, el: h("div", { class: `track${t.take ? " take" : ""}` }, ...parts), toggle, volume, slider, del, sync };
+  return { key, el: h("div", { class: `track${t.take ? " take" : ""}` }, ...parts), grip, toggle, volume, slider, del, sync };
+}
+
+// A track dragged to another place (or moved with the arrow keys on its
+// grip): the cards and the rows of the timeline are drawn again in the new
+// order, kept with the song's settings and written in its file by Save.
+function moveTrack(from, to, byKey) {
+  const t = player.tracks[from];
+  if (!t || !player.moveTrack(t.key, to)) return;
+  renderPlayer(app.timeline.getView());
+  if (byKey) {
+    const row = app.rows.find((r) => r.key === t.key);
+    if (row) row.grip.focus();
+  }
 }
 
 function showSongMeta() {
@@ -812,6 +851,7 @@ function renderPlayer(view = null) {
   const box = phone ? $("tracks") : $("tl-rows");
   box.textContent = "";
   app.rows = [];
+  renderExports(); // the exports of this song
   $("song-title").textContent = song ? song.title : "";
   if (!song) {
     $("song-meta").textContent = "";
@@ -843,14 +883,16 @@ async function exportMp3() {
   setExportStatus("Measuring the level…");
   try {
     const r = await player.exportMp3((p) => setExportStatus(`${p.phase === "measure" ? "Measuring the level" : "Encoding"}… ${Math.round(p.fraction * 100)}%`));
-    for (const e of app.exports) e.selected = false; // the new one is the selection
-    app.exports.unshift({ id: Date.now(), file: r.file, url: URL.createObjectURL(r.file), name: r.name, seconds: r.seconds, tempo: r.tempo, key: r.key, selected: true });
+    for (const e of songExports()) e.selected = false; // the new one is the selection
+    const owner = app.current ? app.current.owner : null;
+    app.exports.unshift({ id: Date.now(), owner, file: r.file, url: URL.createObjectURL(r.file), name: r.name, seconds: r.seconds, tempo: r.tempo, key: r.key, selected: true });
     while (app.exports.length > MAX_EXPORTS) URL.revokeObjectURL(app.exports.pop().url);
     const lowered = r.reductionDb >= 0.1 ? ` · lowered ${r.reductionDb.toFixed(1)} dB to avoid clipping` : "";
     const full = r.fullOn ? " · Original Track not included" : "";
     setExportStatus(`Ready: ${r.name}\n${fmtTime(r.seconds)} · ${fmtSize(r.file.size)}${lowered}${full}`, "ok");
     app.exportShown = app.exports[0].id;
     renderExports();
+    countEvent("mp3-exported");
   } catch (error) {
     setExportStatus(error.notice ? error.message : `The export failed: ${(error && error.message) || error}`, "error");
   }
@@ -859,8 +901,10 @@ async function exportMp3() {
   }
 }
 
-const EXPORT_HINT = "The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files stay here until EUTERIA closes: they are not saved in the project.";
-const selectedExports = () => app.exports.filter((e) => e.selected);
+const EXPORT_HINT = "The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.";
+// The exports of the song open: each export belongs to the song it was made from.
+const songExports = () => app.exports.filter((e) => !!app.current && e.owner === app.current.owner);
+const selectedExports = () => songExports().filter((e) => e.selected);
 
 function canShareFiles(files) {
   try {
@@ -873,7 +917,7 @@ function canShareFiles(files) {
 function renderExports() {
   const box = $("exports");
   box.textContent = "";
-  for (const e of app.exports) {
+  for (const e of songExports()) {
     const tick = h("input", { type: "checkbox", "aria-label": `Select ${e.name}` });
     tick.checked = e.selected;
     tick.addEventListener("change", () => {
@@ -891,7 +935,8 @@ function renderExports() {
 }
 
 // The exports live in memory only (never in the song's file, nor on the
-// device): deleting one frees its memory at once.
+// device): deleting one frees its memory at once. They go with their song
+// when it is deleted from the library.
 function deleteExports(list) {
   for (const e of list) URL.revokeObjectURL(e.url);
   app.exports = app.exports.filter((e) => !list.includes(e));
@@ -903,14 +948,15 @@ function deleteExports(list) {
 }
 
 function updateExportActions() {
-  const chosen = selectedExports();
-  const count = app.exports.length;
+  const shown = songExports();
+  const chosen = shown.filter((e) => e.selected);
+  const count = shown.length;
   $("exports-head").hidden = !count;
   if (count) {
-    const size = app.exports.reduce((sum, e) => sum + e.file.size, 0);
+    const size = shown.reduce((sum, e) => sum + e.file.size, 0);
     $("exports-count").textContent = `${count} ${count === 1 ? "file" : "files"} · ${fmtSize(size)}`;
   }
-  $("export-actions").hidden = !app.exports.length;
+  $("export-actions").hidden = !count;
   const n = chosen.length;
   $("download").disabled = !n;
   $("download").textContent = n > 1 ? `Download ${n} files` : "Download";
@@ -1041,11 +1087,15 @@ async function checkSaved(file, id) {
 function savedInPlace(file, manifest) {
   const cur = app.current;
   const oldKey = cur.key;
+  const oldOwner = cur.owner;
   player.song.manifest = manifest;
   player.song.kind = "project";
   cur.file = file;
   cur.name = file.name;
   cur.key = settingsKey(player.song, file);
+  // An audio file saved as a project keeps its exports.
+  cur.owner = songOwner();
+  for (const e of app.exports) if (e.owner === oldOwner) e.owner = cur.owner;
   prepareSoon();
   editor.saved(true);
   recording.saved(true);
@@ -1388,6 +1438,7 @@ function reportShare(error, saved, refused = false) {
           : "Shared.";
   if (saved) text = text === "Shared." ? "Saved and shared." : `Saved. ${text}`.trim();
   if (text) reportSave(text, failed ? "error" : again ? "" : "ok", failed ? 0 : 6000);
+  if (!error && !refused) countEvent("project-shared");
 }
 
 // Tapped before the song's file was read (just opened): read it, then try.
@@ -1425,11 +1476,13 @@ async function downloadProject() {
       if (!entry) return;
       downloadBlob(new File([await library.file(entry)], entry.name, { type: "application/zip" }), entry.name);
       reportSave(`Saved and downloaded: ${entry.name}.`, "ok");
+      countEvent("project-downloaded");
       return;
     }
     const file = await projectFile();
     downloadBlob(file, file.name);
     reportSave(`Downloaded: ${file.name}.`, "ok");
+    countEvent("project-downloaded");
   } catch (error) {
     reportSave(`The project could not be downloaded. ${(error && error.message) || error}`, "error", 0);
   }
@@ -1529,6 +1582,28 @@ async function updateApp() {
   }
 }
 
+// ----- the visit counter -------------------------------------------------------------------
+//
+// Five taps on the version number leave this device out of the visit
+// counter (its owner's own use), or count it again (app/counter.js).
+
+let versionTaps = 0;
+let versionTapAt = 0;
+function versionTapped() {
+  const now = Date.now();
+  versionTaps = now - versionTapAt < 1500 ? versionTaps + 1 : 1;
+  versionTapAt = now;
+  if (versionTaps < 5) return;
+  versionTaps = 0;
+  const on = toggleCounting();
+  showCounting();
+  notice(on ? "This device is counted again by the visit counter." : "This device is no longer counted by the visit counter.", "ok", 5000);
+}
+
+function showCounting() {
+  $("app-version").title = counted() ? "" : "This device is not counted by the visit counter";
+}
+
 // ----- updating the page -------------------------------------------------------------------
 
 let uiQueued = false;
@@ -1551,8 +1626,8 @@ function updateUi() {
   const takesBusy = recording.busy;
   for (const id of ["play", "stop", "back5", "fwd5", "seek"]) $(id).disabled = !ready || (locked && (id === "back5" || id === "fwd5" || id === "seek"));
   const play = $("play");
-  const playText = player.playing ? "❚❚" : "▶";
-  if (play.textContent !== playText) play.textContent = playText;
+  const playIcon = player.playing ? "pause" : "play";
+  setIcon(play, playIcon);
   play.classList.toggle("playing", player.playing);
   play.setAttribute("aria-label", player.playing ? "Pause" : "Play");
   const duration = song ? song.duration : 0;
@@ -1697,7 +1772,7 @@ function updateUi() {
   if (showNow) {
     $("now-title").textContent = song.title;
     $("now-time").textContent = `${fmtTime(player.position)} / ${fmtTime(duration)}`;
-    $("now-play").textContent = playText;
+    setIcon($("now-play"), playIcon);
     $("now-play").setAttribute("aria-label", player.playing ? "Pause" : "Play");
     $("now-play").disabled = !ready;
   }
@@ -1716,7 +1791,7 @@ function wire() {
     });
   }
   if (library) confirmTap($("lib-clear"), "Tap again to delete every song", deleteAll);
-  confirmTap($("exports-clear"), phone ? "Tap again to delete all" : "Click again to delete all", () => deleteExports([...app.exports]));
+  confirmTap($("exports-clear"), phone ? "Tap again to delete all" : "Click again to delete all", () => deleteExports(songExports()));
   $("back").addEventListener("click", goHome);
   $("save-top").addEventListener("click", () => saveSong());
   $("share-song").addEventListener("click", shareProject);
@@ -1741,6 +1816,9 @@ function wire() {
   });
 
   // Transport
+  setIcon($("play"), "play");
+  setIcon($("now-play"), "play");
+  setIcon($("stop"), "stop");
   $("play").addEventListener("click", () => {
     player.unlock();
     player.toggle();
@@ -1905,6 +1983,8 @@ async function init() {
     return;
   }
   $("app-version").textContent = VERSION ? `v${VERSION}` : "";
+  $("app-version").addEventListener("click", versionTapped);
+  showCounting();
   showUpdate(null);
   buildControls();
   wire();

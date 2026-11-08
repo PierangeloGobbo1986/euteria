@@ -8,7 +8,7 @@
 // under it: jumps, tempo, key and the loop wait; Pause and Stop end the take.
 
 import { Engine } from "./engine.js";
-import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample } from "./project.js";
+import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder } from "./project.js";
 import { int16Peaks } from "./peaks.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
@@ -253,12 +253,13 @@ export class Player {
   settings() {
     const tracks = {};
     for (const t of this.tracks) tracks[t.key] = { on: t.on, gain: t.gain };
-    return { v: 1, tracks, rate: this.rate, semitones: this.semitones, loop: { ...this.loop }, position: this.position };
+    return { v: 1, tracks, order: this.tracks.map((t) => t.key), rate: this.rate, semitones: this.semitones, loop: { ...this.loop }, position: this.position };
   }
 
   // Applies saved settings (any part may be missing).
   apply(s) {
     if (!s || !this.song) return;
+    if (Array.isArray(s.order)) this.tracks = inTrackOrder(this.tracks, s.order);
     if (s.tracks) {
       for (const t of this.tracks) {
         const v = s.tracks[t.key];
@@ -280,6 +281,20 @@ export class Player {
   track(key) {
     return this.tracks.find((t) => t.key === key) || null;
   }
+
+  // Puts a track at another place in the list: the rows of the timeline and
+  // the cards follow, and the keys 1 to 9. Returns whether it moved.
+  moveTrack(key, to) {
+    const from = this.tracks.findIndex((t) => t.key === key);
+    if (from < 0 || this.busy) return false;
+    to = clamp(Math.round(to), 0, this.tracks.length - 1);
+    if (to === from) return false;
+    const [t] = this.tracks.splice(from, 1);
+    this.tracks.splice(to, 0, t);
+    this._changed();
+    return true;
+  }
+
 
   setTrackOn(key, on) {
     const t = this.track(key);

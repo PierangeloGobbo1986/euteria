@@ -12,8 +12,17 @@ const WEB_FORMAT_VERSION = 4; // as the projects exported for the web app by EUT
 
 const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
 
-// The practice settings as EUTERIA (Python) saves them (_save_music_settings).
-// state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key, on, gain}]}.
+// The stems in the order of the tracks, as EUTERIA (Python) reads them
+// (stem_order: the six stems; the ones the song does not have after them).
+function stemOrder(tracks) {
+  const shown = tracks.map((t) => t.key).filter((k) => STEM_NAMES.includes(k));
+  return [...shown, ...STEM_NAMES.filter((k) => !shown.includes(k))];
+}
+
+// The practice settings as EUTERIA (Python) saves them (_save_music_settings),
+// with the order of every track (track_order) that EUTERIA Web adds.
+// state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key, on, gain}]},
+// the tracks in their order.
 // The key counts as "transposed": EUTERIA Web transposes live, and
 // EUTERIA (Python), without transposed tracks in the file, plays the
 // original key.
@@ -39,7 +48,8 @@ function practiceFields(base, grid, state) {
     grid_visible: !!state.gridVisible,
     track_volumes: volumes,
     track_enabled: enabled,
-    stem_order: Array.isArray(base.stem_order) ? base.stem_order : [...STEM_NAMES],
+    stem_order: stemOrder(state.tracks),
+    track_order: state.tracks.map((t) => t.key),
   };
 }
 

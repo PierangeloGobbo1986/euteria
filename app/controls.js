@@ -30,6 +30,31 @@ export function fmtSize(bytes) {
   return `${(bytes / 1e6).toFixed(bytes < 1e7 ? 1 : 0)} MB`;
 }
 
+// Icons drawn as vectors in the color of the text, the same on every system
+// (characters such as ❚❚ look different from one font to the other).
+const ICONS = {
+  play: '<path d="M8 4.8v14.4L19.6 12z"/>',
+  pause: '<rect x="5.6" y="4.8" width="4.3" height="14.4" rx="1"/><rect x="14.1" y="4.8" width="4.3" height="14.4" rx="1"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
+  grip: '<circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/>',
+};
+
+export function icon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", `icon icon-${name}`);
+  svg.innerHTML = ICONS[name];
+  return svg;
+}
+
+// Shows icon `name` in `el`, unless it shows it already.
+export function setIcon(el, name) {
+  if (el.dataset.icon === name) return;
+  el.dataset.icon = name;
+  el.replaceChildren(icon(name));
+}
+
 // A number with its sign: "+2", "−3", "0" (the key, the Sync of a take).
 export const fmtSigned = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0");
 

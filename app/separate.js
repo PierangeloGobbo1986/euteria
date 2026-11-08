@@ -19,6 +19,7 @@ import { newProjectManifest, newProjectId, savedManifest, manifestBytes, withTak
 import { STEM_NAMES, TRACK_TITLES, checkAlignment } from "../src/project.js";
 import { detectBrowser, detectHandheld, webgpuInfo } from "../src/device.js";
 import { fmtTime, extensionOf, safeName } from "./controls.js";
+import { countEvent } from "./counter.js";
 
 // The separation of the app: the fastest runtime measured on the test page,
 // the rate the model was trained at, the overlap of EUTERIA (Python).
@@ -293,6 +294,7 @@ export class SeparationFlow {
       const saved = await target.getFile();
       const back = JSON.parse(await (await openZip(saved)).text("manifest.json"));
       if (back.project_id !== manifest.project_id) throw new Error("the file read back is not the one written");
+      countEvent("separation-done");
 
       // The separated song, in the player.
       this.running = false;
@@ -313,6 +315,7 @@ export class SeparationFlow {
         if ((await target.getFile()).size === 0 && target.remove) await target.remove();
       } catch (_) {}
       this.say(wasStopped ? "Separation stopped: nothing was saved." : `The separation failed: ${(error && error.message) || error}`, wasStopped ? "" : "error", 0);
+      countEvent(wasStopped ? "separation-stopped" : "separation-failed");
     }
   }
 

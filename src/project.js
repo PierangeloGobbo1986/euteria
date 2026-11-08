@@ -19,6 +19,18 @@ export const TRACK_TITLES = {
   other: "Other",
 };
 
+// The tracks in the order given in EUTERIA Web (practice.track_order, every
+// track: the Original Track and the takes too); the ones it does not name
+// (a take recorded since) after them, as they were. Without it the order
+// stays: the Original Track, the stems as EUTERIA (Python) orders them
+// (stem_order), then the takes.
+export function inTrackOrder(list, keys) {
+  if (!Array.isArray(keys) || !keys.length) return list;
+  const at = new Map(keys.map((k, i) => [String(k), i]));
+  const rank = (t, i) => (at.has(t.key) ? at.get(t.key) : keys.length + i);
+  return list.map((t, i) => [rank(t, i), t]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+}
+
 // Takes: track keys "take-<id>", members "audio/takes/<id>.mp3".
 const TAKE_PREFIX = "take-";
 export const TAKES_DIR = "audio/takes/";
@@ -240,7 +252,7 @@ export async function openProject(file, context, onProgress = () => {}) {
     manifest,
     title: manifest.title || songName(manifest),
     songName: songName(manifest),
-    tracks: [...tracks, ...takes],
+    tracks: inTrackOrder([...tracks, ...takes], practice.track_order),
     alignment,
     sampleRate: context.sampleRate,
     duration: length / context.sampleRate,
