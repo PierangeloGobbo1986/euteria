@@ -1,7 +1,7 @@
 // Recording takes, the page's side (src/recorder.js does the work): Record,
 // beside Loop; the Recording input card (↻ looks for the inputs again, the
-// menu chooses one, the bar beside it shows its level); the takes at the
-// bottom of the tracks (✕ deletes one, Sync moves it in time); and
+// menu chooses one, the meter beside it shows its level in dB); the takes at
+// the bottom of the tracks (✕ deletes one, Sync moves it in time); and
 // what Save, Share project and the separation need to write the takes in the
 // song's file. Takes recorded, deleted or moved make the song "not saved",
 // as edits to the bars and chords do.
@@ -15,6 +15,19 @@ import { countEvent } from "./counter.js";
 const $ = (id) => document.getElementById(id);
 const TOLD_KEY = "euteria.syncTold";
 
+// The level meter, as in recording programs: from FLOOR dB at its left end to
+// 0 dB, the loudest a take can be; green, yellow from YELLOW dB, red (too
+// loud, the take may distort) from RED dB. The bar goes up at once and comes
+// down by FALL dB a second; a line holds the highest peak for HOLD_MS.
+const FLOOR = -48;
+const YELLOW = -12;
+const RED = -3;
+const SCALE_STEP = 6; // dB between the marks of the scale
+const SCALE_NUMBERS = [-48, -36, -24, -18, -12, -6, 0]; // the marks with their number
+const FALL = 24;
+const HOLD_MS = 1500;
+const meterAt = (db) => (Math.max(FLOOR, Math.min(0, db)) - FLOOR) / -FLOOR; // 0 to 1 along the bar
+
 export class RecordingFlow {
   // ctx: {app, player, phone, notice(text, kind, ms), refreshPage(),
   // takesChanged() (the takes listed changed: the tracks are drawn again)}.
@@ -25,12 +38,27 @@ export class RecordingFlow {
     this.dirty = false; // takes recorded, deleted or moved since the song was saved
     this.dropped = new Map(); // member -> take: takes of the song's file deleted since
     this.shownDevices = "";
+    this.meter = { db: FLOOR, hold: FLOOR, holdAt: 0, at: 0 }; // what the meter shows
     const r = this.recorder;
     r.onchange = () => ctx.refreshPage();
     r.onmessage = (text, kind) => ctx.notice(text, kind, kind === "error" ? 0 : 6000);
     r.onlevel = () => this.paintLevel();
     r.ontakes = (tracks, reason) => this.added(tracks, reason);
+    this.buildMeter();
     this.wire();
+  }
+
+  // The meter's colors and its scale, from the levels above.
+  buildMeter() {
+    const pct = (db) => `${(meterAt(db) * 100).toFixed(2)}%`;
+    const meter = $("input-meter");
+    meter.style.setProperty("--meter-yellow", pct(YELLOW));
+    meter.style.setProperty("--meter-red", pct(RED));
+    const scale = $("input-scale");
+    for (let db = FLOOR; db <= 0; db += SCALE_STEP) {
+      const text = !SCALE_NUMBERS.includes(db) ? "" : db ? `−${-db}` : "0";
+      scale.append(h("span", { text, style: `left: ${pct(db)}` }));
+    }
   }
 
   get busy() {
@@ -218,17 +246,32 @@ export class RecordingFlow {
 
   // ----- the page ----------------------------------------------------------------------
 
+  // The level of the input, the latest peak (0 to 1) turned into dB.
   paintLevel() {
     const r = this.recorder;
-    const bar = $("input-level");
-    if (!bar) return;
+    const m = this.meter;
     const open = !!r.input;
+    const now = performance.now();
+    const last = m.at;
+    m.at = now;
     const v = open ? Math.min(1, r.level) : 0;
-    // A scale in decibels from -48 dB: quiet playing still shows.
-    const db = v > 0 ? 20 * Math.log10(v) : -96;
-    const fill = Math.max(0, Math.min(1, (db + 48) / 48));
-    bar.style.transform = `scaleX(${fill.toFixed(3)})`;
-    bar.classList.toggle("hot", v >= 0.98);
+    const db = v > 0 ? Math.max(FLOOR, 20 * Math.log10(v)) : FLOOR;
+    if (!open) {
+      m.db = m.hold = FLOOR;
+    } else {
+      m.db = Math.max(db, m.db - (FALL * Math.max(0, now - last)) / 1000);
+      if (db >= m.hold) {
+        m.hold = db;
+        m.holdAt = now;
+      } else {
+        const from = Math.max(last, m.holdAt + HOLD_MS); // the line comes down once its time is over
+        if (now > from) m.hold = Math.max(m.db, m.hold - (FALL * (now - from)) / 1000);
+      }
+    }
+    $("input-unlit").style.transform = `scaleX(${(1 - meterAt(m.db)).toFixed(3)})`;
+    const peak = $("input-peak");
+    peak.style.transform = `translateX(${(meterAt(m.hold) * 100).toFixed(2)}%)`;
+    peak.classList.toggle("on", open && m.hold > FLOOR);
     $("input-meter").classList.toggle("open", open);
   }
 

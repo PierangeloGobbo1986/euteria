@@ -139,7 +139,11 @@
       <div class="input-row">
         <button id="input-refresh" type="button" class="small input-refresh" aria-label="Look for the inputs again">↻</button>
         <span class="select-wrap"><select id="input-select" aria-labelledby="input-label"></select></span>
-        <span id="input-meter" class="input-meter" title="Input level" aria-hidden="true"><span id="input-level" class="input-level"></span></span>
+        <span id="input-meter" class="input-meter" aria-hidden="true"
+          title="Level of the input, in dB (0 dB: the loudest a take can be). Green, then yellow; red is too loud, the take may distort. It lights up for a few seconds after an input is chosen, and while recording.">
+          <span class="meter-bar"><span id="input-unlit" class="meter-unlit"></span><span id="input-peak" class="meter-peak"></span></span>
+          <span id="input-scale" class="meter-scale"></span><span class="meter-unit">dB</span>
+        </span>
       </div>
     </section>
 

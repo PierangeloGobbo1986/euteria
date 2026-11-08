@@ -174,8 +174,11 @@ computer, under the song's name on the phone): the menu lists the microphone of 
 phone or the computer and the audio interfaces connected, such as a guitar processor on
 USB-C. The browser names them only once the page may use the microphone, so the first
 time ↻ asks for that permission, then lists them; the list follows what is plugged in
-and out, the choice is kept, and the bar beside the menu shows the level of the input
-chosen for a few seconds, then while recording. The sound is recorded as it is (no echo
+and out, the choice is kept. The meter beside the menu (under it on the phone) shows the
+level of the input in dB, as in recording programs, for a few seconds after an input is
+chosen and while recording: green, then yellow from −12 dB, red from −3 dB (too loud:
+the take may distort; 0 dB is the loudest a take can be), and a line that holds the
+highest peak for a moment. The sound is recorded as it is (no echo
 cancellation, noise suppression or automatic gain, made for calls) and is not played
 back through the app while recording: you hear yourself from the instrument, the amp or
 the processor, which has no delay.
