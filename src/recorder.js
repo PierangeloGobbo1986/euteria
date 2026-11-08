@@ -17,6 +17,11 @@
 //   (src/render-worker.js), so that it then follows them as the stems do.
 // - With the loop on, each pass is a take, up to three, then playback stops
 //   (a first pass shorter than a second does not count).
+// - Level: a take comes in far quieter than a mastered song, so once recorded
+//   it is raised to sit a little under the song, its peaks held under full
+//   scale (src/level.js).
+// - While it is recorded, its waveform is kept as it comes in (`live`), for the
+//   timeline.
 // - Each take is encoded to MP3 at once (src/encode-worker.js), ready for
 //   Save and Share project.
 // - On iPhone the audio session plays and records while the input is open,
@@ -25,6 +30,8 @@
 import { runRenderWorker } from "./player.js";
 import { takeKey, takeMember } from "./project.js";
 import { resamplePoly } from "./resample.js";
+import { integratedLoudness, takeGain, levelChannels } from "./level.js";
+import { PEAK_BUCKET } from "./peaks.js";
 
 const INPUT_KEY = "euteria.input";
 const SYNC_KEY = "euteria.inputSync";
@@ -33,6 +40,7 @@ const MIN_TAKE_SECONDS = 1;
 const KEEP_OPEN_MS = 20000; // the input stays open a while after a take, ready for the next one
 const CHECK_MS = 8000; // the level shown after an input is chosen
 const MP3_RATES = [32000, 44100, 48000];
+const LIVE_ZOOM = 32; // the most the waveform of a take being recorded is enlarged
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -129,8 +137,10 @@ export class Recorder {
     this.encoding = new Set(); // takes being encoded
     this.onchange = null;
     this.onmessage = null; // (text, kind)
-    this.ontakes = null; // (tracks, reason) takes added
+    this.ontakes = null; // (tracks, reason, raisedDb) takes added
     this.onlevel = null;
+    this.live = null; // the waveform of the take being recorded
+    this.onlive = null; // live changed
     // Tests: an AudioNode factory used instead of the microphone, and the
     // delay of the devices.
     this.testInput = null;
@@ -389,7 +399,7 @@ export class Recorder {
     const sr = ctx.sampleRate;
     const seconds = (ctx.baseLatency || 0) + (ctx.outputLatency || 0) + (input.latency || 0);
     const latency = this.latencyOverride != null ? this.latencyOverride : Math.round(seconds * sr);
-    this.current = { id: 0, song, label: input.label, sync: this.syncFor(input.label), begin: null, chunks: [], frames: 0, bytes: 0, full: false };
+    this.current = { id: 0, song, label: input.label, sync: this.syncFor(input.label), begin: null, chunks: [], frames: 0, bytes: 0, full: false, gain: 0 };
     const cur = this.current;
     this.state = "recording";
     const id = await player.startRecording({
@@ -422,35 +432,144 @@ export class Recorder {
     }
     const cur = this.current;
     if (!cur || (cur.id && m.id !== cur.id)) return;
-    if (m.type === "rec-begin") cur.begin = m;
-    else if (m.type === "rec-data") {
-      cur.chunks.push(m.channels.map((b) => new Int16Array(b)));
+    if (m.type === "rec-begin") {
+      cur.begin = m;
+      this.startLive(cur);
+    } else if (m.type === "rec-data") {
+      const chunk = m.channels.map((b) => new Int16Array(b));
+      cur.chunks.push(chunk);
       cur.frames += m.frames;
       cur.bytes += m.frames * 2 * m.channels.length;
+      this.addLive(chunk, m.frames);
       if (!cur.full && this.usedBytes() + cur.bytes >= this.budget) {
         cur.full = true;
         this.player.stopRecording();
       }
-    } else if (m.type === "rec-end") this.finish(cur, m.reason);
+    } else if (m.type === "rec-end") this.finish(cur, m);
   }
 
-  async finish(cur, reason) {
+  // end: the engine's "rec-end" ({reason, inHops, outHops}: the loudness of
+  // the input and of what played, every 100 ms).
+  async finish(cur, end) {
     const player = this.player;
+    const reason = end.reason;
     this.current = null;
     player.recordingEnded();
     if (reason === "loop") player.stop(); // every pass recorded: back to the start of the loop
     this.setState("finishing");
     try {
+      cur.gain = takeGain(integratedLoudness(end.inHops || []), integratedLoudness(end.outHops || []));
       const tracks = cur.begin && cur.frames ? await this.takesFrom(cur) : [];
       if (cur.song !== player.song) return; // the song was closed meanwhile
       for (const t of tracks) player.addTake(t);
-      if (this.ontakes) this.ontakes(tracks, cur.full ? "full" : reason);
+      this.endLive(); // before the takes are drawn: their rows replace it
+      if (this.ontakes) this.ontakes(tracks, cur.full ? "full" : reason, cur.gain);
     } catch (error) {
       this.say(`The take could not be kept. ${(error && error.message) || error}`, "error");
     } finally {
+      this.endLive();
       this.keepOpen();
       this.setState("idle");
     }
+  }
+
+  // ----- the take as it comes in ----------------------------------------------------
+
+  // Its waveform for the timeline, as src/peaks.js makes it but 16-bit:
+  // buckets of PEAK_BUCKET samples of the song (an input recorded while the
+  // song plays slower or faster fills a bucket with more or fewer samples),
+  // from `offset` seconds of the song on, Sync included. It begins where
+  // playback started with the take (before, the stretcher is getting ready).
+  // With the loop on, each pass starts again from the start of the loop.
+  startLive(cur) {
+    const b = cur.begin;
+    const r = b.rate;
+    const sr = b.sampleRate;
+    const U0 = b.e0 - b.latency * r; // the song sample (along the playback path) heard with input sample 0
+    const from = b.from !== null && b.from !== undefined && b.from > U0 ? b.from : U0;
+    const span = b.loop.b - b.loop.a;
+    this.live = {
+      min: new Int16Array(4096),
+      max: new Int16Array(4096),
+      filled: 0,
+      peak: 0, // the loudest sample of the pass so far
+      offset: from / sr + cur.sync / 1000,
+      skip: Math.ceil((from - U0) / r), // input samples before it
+      per: PEAK_BUCKET / r,
+      count: 0,
+      lo: 32767,
+      hi: -32768,
+      frame: 0,
+      // The input sample where the next pass of the loop begins.
+      nextPass: b.loop.on && span > 0 ? Math.max(0, (b.loop.b - U0) / r) : Infinity,
+      passFrames: span / r,
+      passOffset: b.loop.a / sr + cur.sync / 1000,
+    };
+    this.liveChanged();
+  }
+
+  addLive(chunk, frames) {
+    const v = this.live;
+    if (!v) return;
+    const L = chunk[0];
+    const R = chunk[1] || chunk[0];
+    for (let i = 0; i < frames; i++, v.frame++) {
+      if (v.frame < v.skip) continue;
+      if (v.frame >= v.nextPass) {
+        v.filled = 0;
+        v.peak = 0;
+        v.count = 0;
+        v.lo = 32767;
+        v.hi = -32768;
+        v.offset = v.passOffset;
+        v.nextPass += v.passFrames;
+      }
+      const l = L[i];
+      const r = R[i];
+      if (l < v.lo) v.lo = l;
+      if (l > v.hi) v.hi = l;
+      if (r < v.lo) v.lo = r;
+      if (r > v.hi) v.hi = r;
+      if (++v.count >= v.per) {
+        if (v.filled === v.min.length) {
+          const min = new Int16Array(v.min.length * 2);
+          const max = new Int16Array(v.max.length * 2);
+          min.set(v.min);
+          max.set(v.max);
+          v.min = min;
+          v.max = max;
+        }
+        v.min[v.filled] = v.lo;
+        v.max[v.filled] = v.hi;
+        v.filled++;
+        v.peak = Math.max(v.peak, -v.lo, v.hi);
+        v.count -= v.per;
+        v.lo = 32767;
+        v.hi = -32768;
+      }
+    }
+    this.liveChanged();
+  }
+
+  endLive() {
+    if (!this.live) return;
+    this.live = null;
+    this.liveChanged();
+  }
+
+  liveChanged() {
+    if (this.onlive) this.onlive();
+  }
+
+  // What the timeline draws: {offset, peaks, scale}, or null. The waveform is
+  // drawn as large as it can be (up to LIVE_ZOOM times), so that a quiet input,
+  // which the take's level will raise anyway, shows as clearly as a loud one;
+  // scale turns its 16-bit values into the 8-bit ones of the other rows.
+  liveView() {
+    const v = this.live;
+    if (!v) return null;
+    const zoom = Math.max(1, Math.min(LIVE_ZOOM, (0.8 * 32768) / Math.max(1, v.peak)));
+    return { offset: v.offset, peaks: { min: v.min.subarray(0, v.filled), max: v.max.subarray(0, v.filled) }, scale: zoom / 256 };
   }
 
   // The recording as takes of the song: [{key, title, channels, length,
@@ -500,6 +619,7 @@ export class Recorder {
         parts = reply.channels.map((b) => new Int16Array(b));
         length = reply.length;
       }
+      if (cur.gain >= 0.1) await levelChannels(parts, length, sr, cur.gain);
       const id = newId();
       const take = {
         id,

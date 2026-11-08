@@ -12,7 +12,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v8";
+const CACHE = "euteria-app-v9";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -41,6 +41,7 @@ const SHELL = [
   "src/engine-core.js",
   "src/engine-processor.js",
   "src/grid.js",
+  "src/level.js",
   "src/library.js",
   "src/library-worker.js",
   "src/manifest.js",

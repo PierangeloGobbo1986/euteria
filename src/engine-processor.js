@@ -14,14 +14,72 @@
  * main thread as 16-bit PCM, in chunks. With the loop on, playback stops by
  * itself at the end of the pass that completes the takes asked for; the input
  * is kept for `tail` samples more, the sound still on its way from the
- * devices.
+ * devices. Meanwhile the loudness of the input and of what plays is measured
+ * every HOP_SECONDS, K-weighted (ITU-R BS.1770), for the take's level
+ * (src/level.js).
  */
 (function () {
   "use strict";
 
   const REPORT_SECONDS = 0.04;
   const LEVEL_SECONDS = 0.05;
-  const CHUNK = 16384; // input samples per message to the main thread
+  const CHUNK = 8192; // input samples per message to the main thread (the take is drawn as they come)
+  const HOP_SECONDS = 0.1;
+
+  // K-weighting (ITU-R BS.1770): a high shelf (+4 dB above 1.5 kHz), then a
+  // high-pass (38 Hz), as biquads for this sample rate (the formulas of
+  // pyloudnorm). Each stage: [b0, b1, b2, a1, a2], normalised.
+  function kWeighting(rate) {
+    const stage = (shelf, gainDb, q, hz) => {
+      const A = 10 ** (gainDb / 40);
+      const w0 = (2 * Math.PI * hz) / rate;
+      const cos = Math.cos(w0);
+      const alpha = Math.sin(w0) / (2 * q);
+      let b;
+      let a;
+      if (shelf) {
+        const s = 2 * Math.sqrt(A) * alpha;
+        b = [A * (A + 1 + (A - 1) * cos + s), -2 * A * (A - 1 + (A + 1) * cos), A * (A + 1 + (A - 1) * cos - s)];
+        a = [A + 1 - (A - 1) * cos + s, 2 * (A - 1 - (A + 1) * cos), A + 1 - (A - 1) * cos - s];
+      } else {
+        b = [(1 + cos) / 2, -(1 + cos), (1 + cos) / 2];
+        a = [1 + alpha, -2 * cos, 1 - alpha];
+      }
+      return [b[0] / a[0], b[1] / a[0], b[2] / a[0], a[1] / a[0], a[2] / a[0]];
+    };
+    return [stage(true, 4, Math.SQRT1_2, 1500), stage(false, 0, 0.5, 38)];
+  }
+
+  // The K-weighted energy of a block, its channels summed: a single channel
+  // counts twice (a mono take plays on both sides). z: the filters' state,
+  // four values per channel.
+  function kEnergy(kw, channels, n, z) {
+    const [s, p] = kw;
+    let sum = 0;
+    for (let c = 0; c < channels.length; c++) {
+      const x = channels[c];
+      const o = c * 4;
+      let s1 = z[o];
+      let s2 = z[o + 1];
+      let p1 = z[o + 2];
+      let p2 = z[o + 3];
+      for (let i = 0; i < n; i++) {
+        const v = x[i];
+        const y = s[0] * v + s1;
+        s1 = s[1] * v - s[3] * y + s2;
+        s2 = s[2] * v - s[4] * y;
+        const w = p[0] * y + p1;
+        p1 = p[1] * y - p[3] * w + p2;
+        p2 = p[2] * y - p[4] * w;
+        sum += w * w;
+      }
+      z[o] = s1;
+      z[o + 1] = s2;
+      z[o + 2] = p1;
+      z[o + 3] = p2;
+    }
+    return channels.length === 1 ? 2 * sum : sum;
+  }
 
   class EuteriaEngineProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -36,6 +94,8 @@
       this.meterPeak = 0;
       this.levelEvery = Math.round(sampleRate * LEVEL_SECONDS);
       this.meterLeft = this.levelEvery;
+      this.kw = kWeighting(sampleRate);
+      this.hop = Math.round(sampleRate * HOP_SECONDS);
       this.port.onmessage = (event) => {
         if (this.core) this.handle(event.data);
         else this.queue.push(event.data);
@@ -151,7 +211,39 @@
         stopAt: Infinity,
         tailLeft: -1,
         reason: "stop",
+        // Loudness every HOP_SECONDS: mean K-weighted powers of the input and
+        // of what plays, the filters' state, the hop being summed.
+        inHops: [],
+        outHops: [],
+        zIn: new Float64Array(8),
+        zOut: new Float64Array(8),
+        inSum: 0,
+        outSum: 0,
+        hopFill: 0,
       };
+    }
+
+    // The loudness of the block just recorded and played.
+    loudness(input, left, right, n) {
+      const r = this.rec;
+      const kept = [];
+      for (let c = 0; c < r.nch; c++) {
+        const src = input && input.length ? input[c] || input[0] : null;
+        if (src) kept.push(src);
+      }
+      if (kept.length) r.inSum += kEnergy(this.kw, kept, n, r.zIn);
+      r.outSum += kEnergy(this.kw, [left, right], n, r.zOut);
+      r.hopFill += n;
+      if (r.hopFill >= this.hop) this.closeHop();
+    }
+
+    closeHop() {
+      const r = this.rec;
+      if (!r.hopFill) return;
+      r.inHops.push(r.inSum / r.hopFill);
+      r.outHops.push(r.outSum / r.hopFill);
+      r.inSum = r.outSum = 0;
+      r.hopFill = 0;
     }
 
     // The first block: the moment of the song it sends out, and where the
@@ -227,9 +319,14 @@
     recEnd(reason) {
       const r = this.rec;
       if (!r) return;
-      if (r.begun) this.flush();
+      if (r.begun) {
+        this.flush();
+        this.closeHop();
+      }
       this.rec = null;
-      this.port.postMessage({ type: "rec-end", id: r.id, reason, frames: r.frames, begun: r.begun });
+      const inHops = Float32Array.from(r.inHops);
+      const outHops = Float32Array.from(r.outHops);
+      this.port.postMessage({ type: "rec-end", id: r.id, reason, frames: r.frames, begun: r.begun, inHops, outHops }, [inHops.buffer, outHops.buffer]);
     }
 
     // After the block is rendered: the loop finished the takes (playback
@@ -301,6 +398,7 @@
         this.core.ended = false;
         this.port.postMessage({ type: "ended" });
       }
+      if (this.rec && this.rec === rec && rec.begun) this.loudness(input, left, right || this.scratch, n);
       if (this.rec && this.rec === rec) this.recAfter(n, wasPlaying);
       if (wasPlaying) {
         this.counter -= n;

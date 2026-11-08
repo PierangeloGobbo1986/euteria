@@ -31,18 +31,19 @@ under it, *Save* (gold) sit at the top right.
   never copied twice, and a file that is neither a project nor readable audio is refused
   before it takes any space. Volumes, tempo, key and the playhead are numbers with − and
   + buttons: a tap on the number brings up the keypad, holding a button repeats it. In a
-  song, play, stop, −5 s, +5 s, the loop, Record and the position join the bar at the
-  top, with the name and *Library* and *Save*: one banner that stays in view as the page
-  scrolls. Under the song's name come *Recording input* (see below), then the card of
-  the timeline, with *Bars and Chords* (the editor, see below) at its bottom, then the
-  tracks. Deleting a song frees the space of the app's copy; the file it was added from
+  song, its name (with its tracks and length on the same line), play, stop, −5 s, +5 s,
+  the loop, Record and the position join the bar at the top, with *Library* and *Save*:
+  one banner that stays in view as the page scrolls. Under it come *Recording input*
+  (see below), then the card of the timeline, with *Bars and Chords* (the editor, see
+  below) at its bottom, then the tracks. Deleting a song frees the space of the app's copy; the file it was added from
   (in Files, in a chat) is not touched, as a web app cannot reach it.
 - **Computer layout**: songs are opened from any folder (*Open MP3 / audio*, *Open
   EUTERIA project*, or dropped on the window), so the folder where you keep the songs
   you are studying stays the only copy. In Chrome and Edge the Library lists the songs
   opened before, to open them again with one click (the browser asks once for
-  permission). Under the transport comes *Recording input* (see below), then the card of
-  the timeline. Over the timeline, *Bars and Chords* (the editor, see below) has a row
+  permission). The transport stays in view as the page scrolls, the song's name at its
+  top (its tracks and length on the same line). Under it comes *Recording input* (see
+  below), then the card of the timeline. Over the timeline, *Bars and Chords* (the editor, see below) has a row
   of its own, then comes the overview; the column of the tracks starts with *All stems*
   and *Original only*, beside the time scale. *Tempo and key* and *File export and
   sharing* follow, each across the page in two columns. Volumes and tempo also have
@@ -168,9 +169,13 @@ again. Its library is deleted with it, so first save the projects changed on the
 
 **Recording takes** (every device and browser). *Record*, the red dot beside *Loop*,
 records what you play over the song: if the song is paused it starts it from the
-playhead, and *Record* again ends the take while the song goes on (*Pause* or *Stop* end
-both). The input is chosen in the card **Recording input** (under the transport on a
-computer, under the song's name on the phone): the menu lists the microphone of the
+playhead. *Record* again, as *Stop*, ends the take and the song and goes back to the
+start (of the loop, if it is on); *Pause* ends both where they are. While a take is
+recorded its waveform grows in the timeline, in red: on a computer in a row at the
+bottom (*Recording…* beside it), on the phone in a lane under the waveform. It is drawn
+as large as it can be, so a quiet input shows as clearly as a loud one; a flat line
+means nothing is coming in. The input is chosen in the card **Recording input** (under
+the transport): the menu lists the microphone of the
 phone or the computer and the audio interfaces connected, such as a guitar processor on
 USB-C. The browser names them only once the page may use the microphone, so the first
 time ↻ asks for that permission, then lists them; the list follows what is plugged in
@@ -183,9 +188,22 @@ cancellation, noise suppression or automatic gain, made for calls) and is not pl
 back through the app while recording: you hear yourself from the instrument, the amp or
 the processor, which has no delay.
 
+**The level of a take.** A song is mastered: loud and even, its average close to its
+peaks. A take comes in as played, its peaks far above its average, and from an input
+that leaves room to spare (an audio interface peaks around −18 dB, a phone's microphone
+lower still): beside the song it would be much too quiet, and raising its volume would
+push its peaks over full scale. So once recorded, a take is raised to sit about 6 dB
+under the song (as a guitar in a band), measured as programme loudness is (ITU-R
+BS.1770: the take, and what played while it was recorded); its few highest peaks are
+held under −1 dB by a limiter that lowers them instead of cutting them. A take already
+loud enough stays as it is, and with no track of the song playing it is brought to
+−20 LUFS. The message after the take says by how much it was raised; its volume stays
+at 100%, free to change (`src/level.js`).
+
 Every take is a track at the bottom of the tracks (a row of its own in the timeline on a
 computer, drawn in red; its grip moves it elsewhere), with its switch, its volume, a red
-✕ that deletes it (a second tap confirms) and **Sync**. The take is lined up with the
+✕ that deletes it (a second tap confirms; on the phone it sits between the grip and the
+name) and **Sync**. The take is lined up with the
 song from what the engine was playing while each sample came in, minus the delay of the
 devices that the browser reports (the sound on its way to the ears, the input on its way
 to the page). What it does not report, as the delay of Bluetooth headphones or speakers
@@ -328,7 +346,9 @@ buses, the pitched instruments with the full mix, and the drums, and each bus ru
 through one [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/)
 instance. Tempo and key change live, the tracks cannot drift apart, and the drums keep
 their pitch, as in EUTERIA (Python). Volumes above 100% use the same soft limiter as
-EUTERIA (Python), and the sum goes through it too during playback.
+EUTERIA (Python). During playback the sum goes through a limiter: where it would go over
+−0.9 dB the gain drops at once, just enough, and comes back over 120 ms, so the peaks of
+a song and a take played together are lowered rather than cut.
 
 The stretchers run at Signalsmith's default quality (120 ms blocks every 30 ms) with
 the work of each block spread over the audio callbacks: done all at once, it
@@ -349,7 +369,9 @@ copied), so an export does not double the memory in use.
 `getUserMedia()`) goes into the engine's AudioWorklet, which keeps each block of input
 with the moment of the song it sends out in the same block (`emission()`, the same
 mapping as the playhead, the stretcher's delay included). The input travels to the page
-as 16-bit PCM in chunks of 16384 samples. Lined up on the song from that moment minus
+as 16-bit PCM in chunks of 8192 samples, drawn as they arrive; meanwhile the worklet
+measures every 100 ms the K-weighted loudness of the input and of its own output, which
+`src/level.js` turns into the take's gain at the end. Lined up on the song from that moment minus
 the delay of the devices (the context's `baseLatency` and `outputLatency`, and the
 track's `latency` where the browser gives it), the take is split into loop passes and
 trimmed to where playback started with it (what the stretcher sends out before is its
@@ -506,7 +528,8 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   (`engine*.js`), the player (`player.js`), the export worker (`render-worker.js`), the
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
-  (`grid.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`),
+  (`grid.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
+  and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
   `onnx-rewrite.js`), MP3 encoding of the stems and takes (`encode-worker.js`), device
   checks (`device.js`) and the synthetic test song (`synth.js`).

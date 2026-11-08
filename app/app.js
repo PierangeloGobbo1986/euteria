@@ -38,6 +38,7 @@ const MAX_EXPORTS = phone ? 6 : 10; // older exports leave the list, to keep mem
 const DEFAULT_LOOP_SECONDS = 16; // as EUTERIA (Python)
 const WAVE_COLORS = { original: "#d6a85f", stems: ["#8eaaa5", "#809692"], take: "#d08a84" }; // as EUTERIA (Python), and the takes
 const TAKE_ROW = 84; // the height of a take's row in the timeline (computer): its Sync goes under the volume
+const LIVE_LANE = 30; // the phone's lane under the waveform, for the take being recorded
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const HINTS = phone
   ? {
@@ -683,6 +684,7 @@ function buildControls() {
       renderPlayer(app.timeline.getView());
       rememberSettings();
     },
+    liveRow: { color: WAVE_COLORS.take, height: phone ? LIVE_LANE : TAKE_ROW },
   });
   if (phone) {
     // The transport joins the app bar: one banner at the top, always in view.
@@ -798,9 +800,11 @@ function trackRow(t) {
   let sync = null;
   if (t.take) {
     // A take: ✕ deletes it (a second tap confirms), Sync moves it in time.
+    // On the phone ✕ comes between the grip and the name, on a computer after the name.
     del = h("button", { type: "button", class: "take-del", title: `Delete ${t.title}`, "aria-label": `Delete ${t.title}`, text: "✕" });
     confirmTap(del, "Delete", () => recording.deleteTake(key));
-    parts.push(del);
+    if (phone) parts.splice(1, 0, del);
+    else parts.push(del);
   }
   if (!phone) {
     slider = h("input", { type: "range", min: "0", max: "200", step: "1", "aria-label": `${t.title} volume` });
@@ -853,6 +857,7 @@ function renderPlayer(view = null) {
   app.rows = [];
   renderExports(); // the exports of this song
   $("song-title").textContent = song ? song.title : "";
+  $("song-title").title = song ? song.title : ""; // in full, should it be cut short
   if (!song) {
     $("song-meta").textContent = "";
     app.timeline.setSong({ duration: 0, sampleRate: 48000, rows: [], grid: emptyGrid() });
@@ -872,6 +877,7 @@ function renderPlayer(view = null) {
   app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
   app.timeline.setLoop(player.loop);
   app.timeline.setPosition(player.position, player.playing);
+  if (recording) recording.drawLive(); // a take being recorded: its card again beside its row
   updateZoom();
   updateUi();
 }

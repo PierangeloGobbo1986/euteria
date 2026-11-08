@@ -31,7 +31,8 @@
   "use strict";
 
   // Soft limiter, as _soft_limit() in EUTERIA (Python): untouched up to 0.9,
-  // then a tanh knee that never reaches 1.0.
+  // then a tanh knee that never reaches 1.0. It keeps a track raised over 100%
+  // under full scale.
   const LIMIT = 0.9;
   const SPAN = 1 - LIMIT;
   function softLimit(x) {
@@ -39,6 +40,12 @@
     if (x < -LIMIT) return -LIMIT - SPAN * Math.tanh((-x - LIMIT) / SPAN);
     return x;
   }
+
+  // The limiter of the whole mix in live playback: where the sum would go over
+  // LIMIT the gain drops at once, just enough, then comes back over
+  // RELEASE_SECONDS. The peaks are lowered rather than cut, which a song and a
+  // take played together need (a mastered song already reaches full scale).
+  const RELEASE_SECONDS = 0.12;
 
   // Signalsmith's default quality (120 ms blocks every 30 ms), with the work of
   // each block spread over the audio callbacks instead of done all at once:
@@ -145,9 +152,11 @@
       this.loopA = 0;
       this.loopB = 0;
       // Live playback cannot know the loudest moment ahead, so the sum goes
-      // through the soft limiter. The MP3 export turns it off: it measures the
+      // through the limiter. The MP3 export turns it off: it measures the
       // whole song first and lowers it instead, as EUTERIA (Python) does.
       this.masterLimit = true;
+      this.limitGain = 1;
+      this.limitRelease = 1 - Math.exp(-1 / (sampleRate * RELEASE_SECONDS));
       this.length = 0; // samples of the longest track
       this.list = []; // the tracks as an array, for the audio loop
     }
@@ -343,12 +352,7 @@
         this._mix(bus, this.feed, k, s.input[0], s.input[1]);
         s.stream(k, n, out0, out1);
       }
-      if (this.masterLimit) {
-        for (let i = 0; i < n; i++) {
-          out0[i] = softLimit(out0[i]);
-          out1[i] = softLimit(out1[i]);
-        }
-      }
+      if (this.masterLimit) this._limit(out0, out1, n);
       this.feed = this._advance(this.feed, k);
       this.out = this._advance(this.out, k);
       this.sinceStart += n;
@@ -356,6 +360,22 @@
         this.playing = false;
         this.ended = true;
       }
+    }
+
+    // The mix kept under LIMIT (see RELEASE_SECONDS).
+    _limit(out0, out1, n) {
+      let g = this.limitGain;
+      const rel = this.limitRelease;
+      for (let i = 0; i < n; i++) {
+        const a = out0[i] < 0 ? -out0[i] : out0[i];
+        const b = out1[i] < 0 ? -out1[i] : out1[i];
+        const peak = a > b ? a : b;
+        g += (1 - g) * rel;
+        if (peak * g > LIMIT) g = LIMIT / peak;
+        out0[i] *= g;
+        out1[i] *= g;
+      }
+      this.limitGain = g;
     }
 
     // Mixes `count` samples of the bus's tracks along the playback path from

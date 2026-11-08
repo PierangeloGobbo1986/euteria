@@ -112,12 +112,12 @@
 
   <!-- The player -->
   <section id="player-view" class="view" hidden>
-    <div class="song-head">
-      <h1 id="song-title"></h1>
-      <p id="song-meta" class="meta"></p>
-    </div>
-
+    <!-- The transport stays in view; at its top, the song's name, its tracks and length. -->
     <div id="transport" class="transport">
+      <div class="song-head">
+        <h1 id="song-title"></h1>
+        <p id="song-meta" class="meta"></p>
+      </div>
       <div class="transport-inner">
         <span id="time-now" class="times-now">0:00.0</span>
         <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Position">

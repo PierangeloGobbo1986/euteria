@@ -218,8 +218,12 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .recent-item .forget { background: transparent; border: 0; border-left: 1px solid var(--border); border-radius: 0; color: var(--dim); min-width: 44px; }
 
 /* ----- player ----- */
-.song-head { margin: 18px 0 0; }
-.song-head .meta { margin: 4px 0 0; }
+/* At the top of the transport, which stays in view: the song's name and, on
+   the same line, its tracks and length; a long name is cut short. */
+.song-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin: 0 0 6px; }
+.song-head h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.song-head .meta { flex: none; margin: 0; white-space: nowrap; }
+[data-layout=phone] .song-head { max-width: 648px; margin: 6px auto 0; }
 
 .transport-inner {
   display: grid;
@@ -430,12 +434,18 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .tl-heads .track .num .step:first-child { border-radius: 5px 0 0 5px; }
 .tl-heads .track .num .step:last-child { border-radius: 0 5px 5px 0; }
 /* A take: ✕ beside its name, Sync under its volume. */
-.tl-heads .track.take { height: 84px; grid-template-rows: 28px 22px 22px; }
-.tl-heads .track.take .toggle { grid-column: 2; grid-row: 1; }
-.tl-heads .track.take .take-del { grid-column: 3; grid-row: 1; width: 28px; height: 28px; min-height: 0; border-radius: 8px; font-size: 13px; }
+.tl-heads .track.take { height: 84px; grid-template-columns: 16px minmax(0, 1fr) auto auto; grid-template-rows: 28px 22px 22px; }
+.tl-heads .track.take .toggle { grid-column: 2 / 4; grid-row: 1; }
+.tl-heads .track.take .take-del { grid-column: 4; grid-row: 1; width: 28px; height: 28px; min-height: 0; border-radius: 8px; font-size: 13px; }
+.tl-heads .track.take .num:not(.sync) { grid-column: 3 / 5; grid-row: 2; }
 .tl-heads .track.take .take-del.confirm { width: auto; padding: 0 8px; font-size: 12px; }
 .tl-heads .track.take .sync-row { grid-column: 1 / -1; grid-row: 3; justify-content: flex-end; }
 .tl-heads .track .sync-row .mini-label { font-size: 11px; }
+/* The take being recorded: beside its row, a card saying so. */
+.tl-heads .track.live-take { display: flex; align-items: center; gap: 8px; padding-left: 26px; color: #e85d5d; font-size: 13px; font-weight: 650; }
+.live-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: #e85d5d; animation: live-blink 1s ease-in-out infinite alternate; }
+@keyframes live-blink { to { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 .tl-heads .track .num.sync input { width: 3em; }
 
 /* ----- editing the grid and the chords ----- */
@@ -542,12 +552,13 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .take-del.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d9; }
 .sync-row { display: flex; align-items: center; gap: 6px; }
 .num.sync input { width: 3.2em; text-align: right; }
-[data-layout=phone] .track.take { grid-template-columns: auto minmax(0, 1fr) auto auto; row-gap: 6px; }
+/* Phone: a take's ✕ between the grip and the name, Sync on the row under. */
+[data-layout=phone] .track.take { grid-template-columns: auto auto minmax(0, 1fr) auto; row-gap: 6px; }
 [data-layout=phone] .track.take .grip { grid-column: 1; grid-row: 1; }
-[data-layout=phone] .track.take .toggle { grid-column: 2; grid-row: 1; }
-[data-layout=phone] .track.take .num:not(.sync) { grid-column: 3; grid-row: 1; }
-[data-layout=phone] .track.take .take-del { grid-column: 4; grid-row: 1; min-width: 44px; height: 44px; border-radius: 10px; font-size: 16px; }
+[data-layout=phone] .track.take .take-del { grid-column: 2; grid-row: 1; min-width: 44px; height: 44px; border-radius: 10px; font-size: 16px; }
 [data-layout=phone] .track.take .take-del.confirm { padding: 0 10px; font-size: 14px; }
+[data-layout=phone] .track.take .toggle { grid-column: 3; grid-row: 1; }
+[data-layout=phone] .track.take .num:not(.sync) { grid-column: 4; grid-row: 1; }
 [data-layout=phone] .track.take .sync-row { grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
 [data-layout=phone] .num.sync { height: 40px; }
 
@@ -696,17 +707,17 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
   [data-layout=phone] .transport .round { width: 44px; height: 44px; min-height: 44px; }
   [data-layout=phone] .transport .round.play { width: 52px; height: 52px; }
   [data-layout=phone] .transport-row { gap: 6px; }
-  /* More room for the names of the tracks, beside the grip; a take's ✕
-     goes down beside Sync. */
+  /* More room for the names of the tracks, beside the grip (and a take's ✕). */
   [data-layout=phone] .tracks-card { padding-left: 8px; padding-right: 8px; }
   [data-layout=phone] .track { column-gap: 4px; }
   [data-layout=phone] .track .num .step { width: 32px; }
-  [data-layout=phone] .track.take { grid-template-columns: auto minmax(0, 1fr) auto; }
-  [data-layout=phone] .track.take .take-del { grid-column: 1 / 3; grid-row: 2; justify-self: start; }
-  [data-layout=phone] .track.take .sync-row { justify-self: end; }
+  [data-layout=phone] .track.take .take-del { min-width: 40px; }
 }
 @media (max-width: 340px) {
   [data-layout=phone] .transport .round { width: 40px; height: 40px; min-height: 40px; font-size: 13px; }
   [data-layout=phone] .transport .round.play { width: 48px; height: 48px; }
   [data-layout=phone] .transport-row { gap: 5px; }
+  /* A take's name, beside its ✕: its switch shows on and off by its color. */
+  [data-layout=phone] .track.take .take-del { min-width: 34px; }
+  [data-layout=phone] .track.take .toggle .dot { display: none; }
 }

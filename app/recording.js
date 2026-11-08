@@ -1,10 +1,12 @@
 // Recording takes, the page's side (src/recorder.js does the work): Record,
-// beside Loop; the Recording input card (↻ looks for the inputs again, the
-// menu chooses one, the meter beside it shows its level in dB); the takes at
-// the bottom of the tracks (✕ deletes one, Sync moves it in time); and
-// what Save, Share project and the separation need to write the takes in the
-// song's file. Takes recorded, deleted or moved make the song "not saved",
-// as edits to the bars and chords do.
+// beside Loop (pressed again, it stops the take and the song, as Stop does);
+// the Recording input card (↻ looks for the inputs again, the menu chooses
+// one, the meter beside it shows its level in dB); the take drawn in the
+// timeline while it is recorded; the takes at the bottom of the tracks (✕
+// deletes one, Sync moves it in time); and what Save, Share project and the
+// separation need to write the takes in the song's file. Takes recorded,
+// deleted or moved make the song "not saved", as edits to the bars and
+// chords do.
 
 import { Recorder } from "../src/recorder.js";
 import { openZip } from "../src/zip.js";
@@ -30,7 +32,8 @@ const meterAt = (db) => (Math.max(FLOOR, Math.min(0, db)) - FLOOR) / -FLOOR; // 
 
 export class RecordingFlow {
   // ctx: {app, player, phone, notice(text, kind, ms), refreshPage(),
-  // takesChanged() (the takes listed changed: the tracks are drawn again)}.
+  // takesChanged() (the takes listed changed: the tracks are drawn again),
+  // liveRow: {color, height} (the take being recorded, in the timeline)}.
   constructor(ctx) {
     this.ctx = ctx;
     this.recorder = new Recorder(ctx.player, { phone: ctx.phone });
@@ -43,7 +46,9 @@ export class RecordingFlow {
     r.onchange = () => ctx.refreshPage();
     r.onmessage = (text, kind) => ctx.notice(text, kind, kind === "error" ? 0 : 6000);
     r.onlevel = () => this.paintLevel();
-    r.ontakes = (tracks, reason) => this.added(tracks, reason);
+    r.ontakes = (tracks, reason, raisedDb) => this.added(tracks, reason, raisedDb);
+    r.onlive = () => this.paintLive();
+    this.liveQueued = false;
     this.buildMeter();
     this.wire();
   }
@@ -90,15 +95,45 @@ export class RecordingFlow {
     if (this.supported) r.refresh();
   }
 
+  // Record starts a take; pressed again it stops everything, as Stop does:
+  // the take, the song, back to the start (of the loop, if it is on).
   toggle() {
     const r = this.recorder;
-    if (r.state === "recording") r.stop();
+    if (r.state === "recording") this.ctx.player.stop();
     else if (r.state === "idle") r.start();
+  }
+
+  // The take being recorded, drawn as it comes in: on a computer a red row
+  // at the bottom of the timeline, a card beside it saying so; on the phone a
+  // lane under the waveform. Gone once the take is kept (or not).
+  paintLive() {
+    if (!this.recorder.live) {
+      this.drawLive(); // at once: the take's own row replaces it in the same frame
+      return;
+    }
+    if (this.liveQueued) return;
+    this.liveQueued = true;
+    requestAnimationFrame(() => {
+      this.liveQueued = false;
+      this.drawLive();
+    });
+  }
+
+  drawLive() {
+    const { app, phone, liveRow } = this.ctx;
+    const live = this.recorder.liveView();
+    app.timeline.setLive(live && { ...live, ...liveRow });
+    if (phone) return;
+    const card = $("live-take");
+    if (live && !card) {
+      $("tl-rows").append(h("div", { id: "live-take", class: "track take live-take" }, h("span", { class: "live-dot", "aria-hidden": "true" }), h("span", { text: "Recording…" })));
+    } else if (!live && card) card.remove();
   }
 
   // ----- takes ------------------------------------------------------------------------
 
-  added(tracks, reason) {
+  // raisedDb: how much the takes were raised to sit with the song.
+  added(tracks, reason, raisedDb = 0) {
     const { notice, takesChanged } = this.ctx;
     if (!tracks.length) {
       notice(reason === "full" ? "There is no more room for takes in this song: delete one with its ✕ first." : "The take was shorter than a second: nothing was kept.", "error", 6000);
@@ -108,7 +143,8 @@ export class RecordingFlow {
     takesChanged();
     for (let i = 0; i < tracks.length; i++) countEvent("take-recorded");
     const first = tracks[0].title;
-    let text = tracks.length === 1 ? `${first} added.` : `${first} to ${tracks[tracks.length - 1].title} added.`;
+    const raised = raisedDb >= 0.5 ? `, raised ${Math.round(raisedDb)} dB to sit with the song` : "";
+    let text = tracks.length === 1 ? `${first} added${raised}.` : `${first} to ${tracks[tracks.length - 1].title} added${raised}.`;
     if (reason === "full") text += " There is no more room for takes in this song.";
     let told = false;
     try {

@@ -1,7 +1,8 @@
 // The timeline of the player, drawn as EUTERIA (Python) draws it: bar numbers
 // and time, the chords, the waveform of each track (one row on the phone, one
 // per track on a computer) with the bar grid over it, the loop and the
-// playhead. Only the part of the song in view is drawn.
+// playhead. Only the part of the song in view is drawn. While a take is
+// recorded, its waveform grows in a row of its own at the bottom.
 //
 // The same with a mouse and a finger: on the waveforms, a tap or a click
 // places the playhead, dragging from inside the loop moves the loop (keeping
@@ -103,6 +104,7 @@ export class Timeline {
     this.duration = 0;
     this.sampleRate = 48000;
     this.rows = [];
+    this.live = null; // the take being recorded
     this.grid = { beats: [], bars: [], offset: 0, chords: new Map(), bpm: null, meter: "4/4" };
     this.gridVisible = true;
     this.zoom = 1;
@@ -183,6 +185,15 @@ export class Timeline {
     return row.height || this.dims.row;
   }
 
+  // The take being recorded ({offset, peaks, color, height}), drawn as it
+  // comes in, as the last row; null when no take is recorded.
+  setLive(live) {
+    const before = this.height;
+    this.live = live || null;
+    if (this.height !== before) this.layout();
+    else this.requestDraw();
+  }
+
   setGridVisible(on) {
     this.gridVisible = !!on;
     this.layout();
@@ -246,7 +257,7 @@ export class Timeline {
   }
 
   get height() {
-    return this.headHeight + this.rows.reduce((sum, r) => sum + this.rowHeight(r), 0);
+    return this.headHeight + this.rows.reduce((sum, r) => sum + this.rowHeight(r), 0) + (this.live ? this.live.height : 0);
   }
 
   get pps() {
@@ -392,6 +403,7 @@ export class Timeline {
       this._row(ctx, row, y);
       y += this.rowHeight(row);
     }
+    if (this.live) this._row(ctx, { ...this.live, on: true }, y);
     this.drawTop();
     this.drawOverview();
     this.onChange();
@@ -535,14 +547,15 @@ export class Timeline {
 
   // The envelope of `peaks` between song times t0 and t1 drawn as one
   // vertical line per device pixel, in the area x 0..width, y y0..y0+h.
-  _wave(ctx, peaks, color, alpha, y0, h, t0, pxPerSec, width) {
+  // scale: how the values compare with 8-bit ones (the take being recorded).
+  _wave(ctx, peaks, color, alpha, y0, h, t0, pxPerSec, width, scale = 1) {
     if (!peaks) return;
     const { min, max } = peaks;
     const n = min.length;
     const dpr = this.dpr;
     const bucketSec = PEAK_BUCKET / this.sampleRate;
     const mid = (y0 + h / 2) * dpr;
-    const amp = ((h / 2) * 0.88 * dpr) / 128;
+    const amp = (((h / 2) * 0.88 * dpr) / 128) * scale;
     const cols = Math.ceil(width * dpr);
     const perCol = 1 / (pxPerSec * dpr * bucketSec); // buckets per device pixel
     ctx.save();
@@ -554,8 +567,8 @@ export class Timeline {
       const a = Math.floor(base + px * perCol);
       const b = Math.max(a + 1, Math.floor(base + (px + 1) * perCol));
       if (b > 0 && a < n) {
-        let lo = 127;
-        let hi = -128;
+        let lo = Infinity;
+        let hi = -Infinity;
         for (let i = Math.max(0, a); i < Math.min(n, b); i++) {
           if (min[i] < lo) lo = min[i];
           if (max[i] > hi) hi = max[i];
@@ -573,7 +586,7 @@ export class Timeline {
     const h = this.rowHeight(row);
     ctx.fillStyle = C.row;
     ctx.fillRect(0, y0, this.width, h);
-    this._wave(ctx, row.peaks, row.color, row.on || this.compact ? 0.9 : 0.3, y0, h, this.start - (row.offset || 0), this.pps, this.width);
+    this._wave(ctx, row.peaks, row.color, row.on || this.compact ? 0.9 : 0.3, y0, h, this.start - (row.offset || 0), this.pps, this.width, row.scale);
     this._gridLines(ctx, y0, h);
     ctx.fillStyle = C.border;
     ctx.fillRect(0, y0 + h - 1, this.width, 1);
