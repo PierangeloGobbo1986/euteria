@@ -22,6 +22,13 @@ The app chooses its layout from the device; the link at the bottom of the page s
 to the other one. In both, the home screen is the **Library**; in a song, *Library* and,
 under it, *Save* (gold) sit at the top right.
 
+**Language**: English or Italian. The app starts in the device's language (Italian on a
+device set to Italian, English otherwise); the menu at the top right, at the left of
+*Update* in the Library and of *Library* in a song, switches it at once and the browser
+keeps the choice. On a computer it reads *Language:* with its menu, on the phone a small
+*EN ▾* (or *IT ▾*). In Italian too, *Take*, *Stem*, *Sync*, *Loop* and *Zoom* keep their
+English names, and so does the tagline.
+
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
   *Open MP3 / audio* and *Open EUTERIA project* copy an audio file or a `.euteria`
   project from the Files app, a download or a chat into the app's private storage and
@@ -537,12 +544,21 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
   `onnx-rewrite.js`), MP3 encoding of the stems and takes (`encode-worker.js`), device
-  checks (`device.js`) and the synthetic test song (`synth.js`).
+  checks (`device.js`), the languages of the app (`i18n.js`, the Italian texts in
+  `i18n-it.js`) and the synthetic test song (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
 
 The site is plain HTML, CSS and JavaScript modules: there is no build step, and the
 repository is published as it is by GitHub Pages. Every update published raises the
 version in `version.js` (the only place it is written).
+
+The texts are written in English in the code and in `index.html`; the English text is the
+key of its translation (`src/i18n-it.js`). The code writes its texts through `tr()` (with
+`{name}` for the values in them) and `trn()` (one, or any other number), and writes them
+again when the language changes; the texts of `index.html` are translated where they are
+(`data-i18n-html` for a sentence with words in bold, `translate="no"` for what stays as
+it is). A text missing from a dictionary shows in English. The names of the files the
+app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gives them.
 
 ## Roadmap
 

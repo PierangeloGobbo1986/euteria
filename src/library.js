@@ -5,6 +5,7 @@
 // it takes and deletes songs one by one or all together.
 
 import { openZip } from "./zip.js";
+import { tr } from "./i18n.js";
 
 const INDEX_KEY = "euteria.library";
 const DIR = "library";
@@ -25,14 +26,14 @@ export async function inspectFile(file) {
     try {
       archive = await openZip(file);
     } catch (_) {
-      throw new Error(`${file.name} is a damaged zip file.`);
+      throw new Error(tr("{name} is a damaged zip file.", { name: file.name }));
     }
-    if (!archive.has("manifest.json")) throw new Error(`${file.name} is not an EUTERIA project (it has no manifest.json).`);
+    if (!archive.has("manifest.json")) throw new Error(tr("{name} is not an EUTERIA project (it has no manifest.json).", { name: file.name }));
     return "project";
   }
   const ext = extensionOf(file.name);
   if (AUDIO_EXTENSIONS.includes(ext) || /^audio\//.test(file.type || "")) return "audio";
-  throw new Error(`${file.name} is neither an EUTERIA project (.euteria) nor an audio file.`);
+  throw new Error(tr("{name} is neither an EUTERIA project (.euteria) nor an audio file.", { name: file.name }));
 }
 
 function newId() {
@@ -52,11 +53,11 @@ function runWorker(message, onProgress = () => {}) {
       }
       worker.terminate();
       if (m.type === "done") resolve(m);
-      else reject(Object.assign(new Error(m.message), { name: m.name }));
+      else reject(Object.assign(new Error(tr(m.message)), { name: m.name })); // the worker's own messages are in English
     };
     worker.onerror = (event) => {
       worker.terminate();
-      reject(new Error(event.message || "The library could not be written."));
+      reject(new Error(event.message || tr("The library could not be written.")));
     };
     worker.postMessage({ id: 1, ...message });
   });
@@ -88,14 +89,14 @@ async function copyOnPage(dir, file, name, onProgress) {
 // A full storage explained; other errors as they are.
 function spaceError(error) {
   if (error && error.name === "QuotaExceededError") {
-    return new Error("There is not enough space for this song. Delete songs you no longer need, or free some space on the device.");
+    return new Error(tr("There is not enough space for this song. Delete songs you no longer need, or free some space on the device."));
   }
   return error;
 }
 
 function friendly(error) {
   const e = spaceError(error);
-  return e !== error ? e : new Error(`The song could not be added to the library (${(error && error.message) || error}).`);
+  return e !== error ? e : new Error(tr("The song could not be added to the library ({error}).", { error: (error && error.message) || error }));
 }
 
 export class Library {
@@ -191,7 +192,7 @@ export class Library {
     } catch (error) {
       if (error && error.name === "NotFoundError") {
         this.forget(entry.id);
-        throw new Error(`${entry.title} is no longer in the library: the browser removed it.`);
+        throw new Error(tr("{title} is no longer in the library: the browser removed it.", { title: entry.title }));
       }
       throw error;
     }

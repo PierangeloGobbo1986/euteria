@@ -13,9 +13,13 @@ import { openZip } from "../src/zip.js";
 import { decodeTake } from "../src/project.js";
 import { h } from "./controls.js";
 import { countEvent } from "./counter.js";
+import { tr } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const TOLD_KEY = "euteria.syncTold";
+
+// An input's name in the menu: its own, or the one EUTERIA gives it.
+const inputName = (d) => (d.id === "" ? (d.name ? tr("Default ({name})", { name: d.name }) : tr("Default input")) : d.n ? tr("Input {n}", { n: d.n }) : d.label);
 
 // The level meter, as in recording programs: from FLOOR dB at its left end to
 // 0 dB, the loudest a take can be; green, yellow from YELLOW dB, red (too
@@ -126,7 +130,7 @@ export class RecordingFlow {
     if (phone) return;
     const card = $("live-take");
     if (live && !card) {
-      $("tl-rows").append(h("div", { id: "live-take", class: "track take live-take" }, h("span", { class: "live-dot", "aria-hidden": "true" }), h("span", { text: "Recording…" })));
+      $("tl-rows").append(h("div", { id: "live-take", class: "track take live-take" }, h("span", { class: "live-dot", "aria-hidden": "true" }), h("span", { text: tr("Recording…") })));
     } else if (!live && card) card.remove();
   }
 
@@ -136,22 +140,31 @@ export class RecordingFlow {
   added(tracks, reason, raisedDb = 0) {
     const { notice, takesChanged } = this.ctx;
     if (!tracks.length) {
-      notice(reason === "full" ? "There is no more room for takes in this song: delete one with its ✕ first." : "The take was shorter than a second: nothing was kept.", "error", 6000);
+      notice(reason === "full" ? tr("There is no more room for takes in this song: delete one with its ✕ first.") : tr("The take was shorter than a second: nothing was kept."), "error", 6000);
       return;
     }
     this.dirty = true;
     takesChanged();
     for (let i = 0; i < tracks.length; i++) countEvent("take-recorded");
     const first = tracks[0].title;
-    const raised = raisedDb >= 0.5 ? `, raised ${Math.round(raisedDb)} dB to sit with the song` : "";
-    let text = tracks.length === 1 ? `${first} added${raised}.` : `${first} to ${tracks[tracks.length - 1].title} added${raised}.`;
-    if (reason === "full") text += " There is no more room for takes in this song.";
+    const last = tracks[tracks.length - 1].title;
+    const db = Math.round(raisedDb);
+    const raised = raisedDb >= 0.5;
+    let text =
+      tracks.length === 1
+        ? raised
+          ? tr("{first} added, raised {db} dB to sit with the song.", { first, db })
+          : tr("{first} added.", { first })
+        : raised
+          ? tr("{first} to {last} added, raised {db} dB to sit with the song.", { first, last, db })
+          : tr("{first} to {last} added.", { first, last });
+    if (reason === "full") text += ` ${tr("There is no more room for takes in this song.")}`;
     let told = false;
     try {
       told = localStorage.getItem(TOLD_KEY) === "1";
       localStorage.setItem(TOLD_KEY, "1");
     } catch (_) {}
-    if (!told) text += " If a take is not in time with the song, move it with its Sync: EUTERIA then applies the same Sync to the next takes from that input.";
+    if (!told) text += ` ${tr("If a take is not in time with the song, move it with its Sync: EUTERIA then applies the same Sync to the next takes from that input.")}`;
     notice(text, reason === "full" ? "error" : "ok", told ? 5000 : 12000);
   }
 
@@ -163,7 +176,7 @@ export class RecordingFlow {
     if (t.take.saved) this.dropped.set(t.take.member, t.take);
     this.dirty = true;
     takesChanged();
-    notice(`${t.title} deleted.`, "ok", 3000);
+    notice(tr("{take} deleted.", { take: t.title }), "ok", 3000);
   }
 
   setSync(key, ms) {
@@ -213,7 +226,13 @@ export class RecordingFlow {
   async ready() {
     await this.recorder.encoded();
     const bad = this.takes.find((t) => !t.saved && !t.mp3);
-    if (bad) throw new Error(`${bad.title} could not be encoded${bad.error ? ` (${bad.error})` : ""}: delete it and record it again.`);
+    if (bad) {
+      throw new Error(
+        bad.error
+          ? tr("{take} could not be encoded ({error}): delete it and record it again.", { take: bad.title, error: bad.error })
+          : tr("{take} could not be encoded: delete it and record it again.", { take: bad.title })
+      );
+    }
   }
 
   // The song was saved: in its own file (inPlace), or as a copy.
@@ -311,6 +330,17 @@ export class RecordingFlow {
     $("input-meter").classList.toggle("open", open);
   }
 
+  // The texts written here, again in the language in use.
+  relabel() {
+    this.shownDevices = ""; // the menu of the inputs, named again
+    const card = $("live-take");
+    if (card) {
+      card.remove();
+      this.drawLive();
+    }
+    this.refresh();
+  }
+
   refresh() {
     const { player, app } = this.ctx;
     const r = this.recorder;
@@ -324,23 +354,22 @@ export class RecordingFlow {
     record.classList.toggle("recording", state === "recording");
     record.classList.toggle("waiting", state === "opening" || state === "finishing");
     record.setAttribute("aria-pressed", String(state === "recording"));
-    const label = state === "recording" ? "Stop recording" : "Record a take";
-    if (record.getAttribute("aria-label") !== label) {
-      record.setAttribute("aria-label", label);
-      record.title = state === "recording" ? "Stop recording (R)" : "Record a take over the song (R)";
-    }
+    const label = state === "recording" ? tr("Stop recording") : tr("Record a take");
+    if (record.getAttribute("aria-label") !== label) record.setAttribute("aria-label", label);
+    const recordTip = state === "recording" ? tr("Stop recording (R)") : tr("Record a take over the song (R)");
+    if (record.title !== recordTip) record.title = recordTip;
     // The inputs.
     const select = $("input-select");
     const key = JSON.stringify(r.devices);
     if (key !== this.shownDevices) {
       this.shownDevices = key;
       select.textContent = "";
-      for (const d of r.devices) select.append(h("option", { value: d.id, text: d.label }));
+      for (const d of r.devices) select.append(h("option", { value: d.id, text: inputName(d) }));
     }
     if (select.value !== r.selected) select.value = r.selected;
     select.disabled = state !== "idle";
     $("input-refresh").disabled = state !== "idle";
-    const tip = r.named ? "Look for the inputs again" : "Look for the inputs: the browser asks to use the microphone the first time";
+    const tip = r.named ? tr("Look for the inputs again") : tr("Look for the inputs: the browser asks to use the microphone the first time");
     if ($("input-refresh").title !== tip) $("input-refresh").title = tip;
     this.paintLevel();
   }

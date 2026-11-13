@@ -45,18 +45,27 @@
     <div class="brand">
       <img class="logo" src="app/icons/logo-96.png" alt="" width="44" height="44">
       <div class="brand-text">
-        <div class="name">EUTERIA <span id="app-version" class="version"></span></div>
-        <p class="acronym" title="EUTERIA"><span><b>E</b>nhanced <b>U</b>niversal <b>T</b>ool for <b>E</b>xploring</span> <span><b>R</b>ecordings, <b>I</b>mprovisations &amp; <b>A</b>rrangements</span></p>
+        <div class="name" translate="no">EUTERIA <span id="app-version" class="version"></span></div>
+        <p class="acronym" title="EUTERIA" translate="no"><span><b>E</b>nhanced <b>U</b>niversal <b>T</b>ool for <b>E</b>xploring</span> <span><b>R</b>ecordings, <b>I</b>mprovisations &amp; <b>A</b>rrangements</span></p>
         <p class="author">Created by Pierangelo Gobbo</p>
       </div>
     </div>
-    <div class="spacer"></div>
-    <!-- In a song: back to the library, and Save under it -->
-    <div id="song-nav" class="song-nav" hidden>
-      <button id="back" class="library-btn" type="button">Library</button>
-      <button id="save-top" class="primary save-top" type="button">Save</button>
+    <!-- The language, at the left of Update (the library) or of Library (a song, Save under it).
+         On the phone a small "EN ▾": the menu itself, invisible, lies over it. -->
+    <div class="appbar-actions">
+      <label class="lang">
+        <span class="lang-label computer-only">Language:</span>
+        <span class="lang-pick">
+          <select id="lang-select" aria-label="Language"></select>
+          <span id="lang-short" class="lang-short phone-only" aria-hidden="true" translate="no"></span>
+        </span>
+      </label>
+      <div id="song-nav" class="song-nav" hidden>
+        <button id="back" class="library-btn" type="button">Library</button>
+        <button id="save-top" class="primary save-top" type="button">Save</button>
+      </div>
+      <button id="update" class="update-btn" type="button">Update</button>
     </div>
-    <button id="update" class="update-btn" type="button">Update</button>
   </div>
 </header>
 
@@ -86,7 +95,7 @@
     <ul id="lib-list" class="lib-list"></ul>
     <div id="lib-empty" class="empty" hidden>
       <p>No songs yet.</p>
-      <p><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open MP3 / audio</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords.</p>
+      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open MP3 / audio</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords.</p>
     </div>
     <div id="lib-foot" class="lib-foot" hidden>
       <span id="lib-usage"></span>
@@ -103,7 +112,7 @@
       <button id="open-audio" class="primary big" type="button">Open MP3 / audio</button>
       <button id="open-project" class="primary big" type="button">Open EUTERIA project</button>
     </div>
-    <p class="hint">Or drop a file on this window. <b>Open MP3 / audio</b> opens WAV, M4A, FLAC and the other audio files too, and in Chrome and Edge EUTERIA separates their instruments. <b>Open EUTERIA project</b> opens a <b>.euteria</b> project, or a <b>.musicproj</b> of EUTERIA (Python).</p>
+    <p class="hint" data-i18n-html>Or drop a file on this window. <b>Open MP3 / audio</b> opens WAV, M4A, FLAC and the other audio files too, and in Chrome and Edge EUTERIA separates their instruments. <b>Open EUTERIA project</b> opens a <b>.euteria</b> project, or a <b>.musicproj</b> of EUTERIA (Python).</p>
     <h2 class="recent-title">Recent</h2>
     <ul id="recent-list" class="recent-list"></ul>
     <p id="recent-empty" class="hint" hidden>The songs you open are listed here, to open them again with one click.</p>

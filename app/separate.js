@@ -20,6 +20,7 @@ import { STEM_NAMES, TRACK_TITLES, checkAlignment } from "../src/project.js";
 import { detectBrowser, detectHandheld, webgpuInfo } from "../src/device.js";
 import { fmtTime, extensionOf, safeName } from "./controls.js";
 import { countEvent } from "./counter.js";
+import { tr } from "../src/i18n.js";
 
 // The separation of the app: the fastest runtime measured on the test page,
 // the rate the model was trained at, the overlap of EUTERIA (Python).
@@ -29,7 +30,7 @@ const SEPARATION = { runtime: "1.31-opt", rate: 44100, overlap: 0.5 };
 const KEPT = ["mp3", "m4a", "aac", "mp4", "m4b"];
 const $ = (id) => document.getElementById(id);
 
-const stopped = () => Object.assign(new Error("Stopped."), { stopped: true });
+const stopped = () => Object.assign(new Error("Stopped."), { stopped: true }); // never shown
 
 // What this browser can do: {ok, reason}. Full mode needs a computer, Chrome
 // or Edge (they write files where the user chooses) and WebGPU. The graphics
@@ -47,14 +48,15 @@ function separationSupport(phoneLayout) {
 // 16-bit floats, full precision elsewhere.
 async function modelForGpu() {
   const gpu = await webgpuInfo();
-  if (!gpu.available || gpu.fallback) throw new Error(UNSUPPORTED.gpu);
+  if (!gpu.available || gpu.fallback) throw new Error(UNSUPPORTED.gpu());
   return gpu.shaderF16 ? config.models.fp16 : config.models.fp32;
 }
 
+// Why this browser cannot separate, in the language in use.
 const UNSUPPORTED = {
-  phone: "To separate the instruments, open the song in EUTERIA on a computer, with Chrome or Edge.",
-  browser: "Separating the instruments needs Chrome or Edge on a computer.",
-  gpu: "Separating the instruments needs a graphics card this browser can use (WebGPU): it is not available here.",
+  phone: () => tr("To separate the instruments, open the song in EUTERIA on a computer, with Chrome or Edge."),
+  browser: () => tr("Separating the instruments needs Chrome or Edge on a computer."),
+  gpu: () => tr("Separating the instruments needs a graphics card this browser can use (WebGPU): it is not available here."),
 };
 
 // A few workers encode at once, each a stem at a time.
@@ -79,7 +81,15 @@ function encodeAll(jobs, onDone, signal) {
       worker.onmessage = (event) => {
         const m = event.data;
         if (m.type === "progress") return;
-        if (m.type === "error") return finish(new Error(`The ${job.title} could not be encoded: ${m.message}`));
+        if (m.type === "error") {
+          return finish(
+            new Error(
+              job.key === "original"
+                ? tr("The Original Track could not be encoded: {error}", { error: m.message })
+                : tr("The {stem} stem could not be encoded: {error}", { stem: job.title, error: m.message })
+            )
+          );
+        }
         results[i] = { bytes: m.bytes, info: m.info };
         onDone(++done, jobs.length);
         if (done === jobs.length) finish(null);
@@ -90,7 +100,7 @@ function encodeAll(jobs, onDone, signal) {
     };
     for (let k = 0; k < count; k++) {
       const worker = new Worker(new URL("../src/encode-worker.js", import.meta.url));
-      worker.onerror = (event) => finish(new Error(event.message || "The encoder stopped."));
+      worker.onerror = (event) => finish(new Error(event.message || tr("The encoder stopped.")));
       workers.push(worker);
       feed(worker);
     }
@@ -108,7 +118,7 @@ export class SeparationFlow {
     this.running = false;
     this.separator = null;
     this.signal = null;
-    this.status = null; // {text, kind}
+    this.status = null; // {text (or a function giving it, in the language in use), kind}
     this.fraction = 0;
     this.wakeLock = null;
     this.onLeave = (e) => {
@@ -138,7 +148,8 @@ export class SeparationFlow {
   }
 
   get reason() {
-    return this.support && !this.support.ok ? UNSUPPORTED[this.support.reason] || "" : "";
+    const why = this.support && !this.support.ok ? UNSUPPORTED[this.support.reason] : null;
+    return why ? why() : "";
   }
 
   say(text, kind = "", fraction = null) {
@@ -160,10 +171,11 @@ export class SeparationFlow {
       target = await window.showSaveFilePicker({
         id: "euteria-songs",
         suggestedName: `${safeName(song.title)}.euteria`,
-        types: [{ description: "EUTERIA project", accept: { "application/x-euteria": [".euteria"] } }],
+        types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
       });
     } catch (error) {
-      if (!error || error.name !== "AbortError") this.say(`The project cannot be saved there: ${(error && error.message) || error}`, "error");
+      const why = (error && error.message) || error;
+      if (!error || error.name !== "AbortError") this.say(() => tr("The project cannot be saved there: {error}", { error: why }), "error");
       return;
     }
     this.running = true;
@@ -172,7 +184,7 @@ export class SeparationFlow {
     const t0 = performance.now();
     window.addEventListener("beforeunload", this.onLeave);
     this.keepAwake(true);
-    this.say("Reading the song…", "", 0);
+    this.say(tr("Reading the song…"), "", 0);
     try {
       const carried = await this.ctx.takes();
       // The Original Track as a file: the audio file itself, or the member
@@ -200,16 +212,16 @@ export class SeparationFlow {
       separator.onprogress = (m) => this.progress(m, model);
       const status = await separator.status(model);
       if (!status.cached) {
-        this.say(`Downloading the separation model (about ${model.approxMB} MB, only the first time)…`, "", 0);
+        this.say(tr("Downloading the separation model (about {mb} MB, only the first time)…", { mb: model.approxMB }), "", 0);
         await separator.download(model);
       }
       if (signal.stopped) throw stopped();
-      this.say("Preparing the model on the graphics card…", "", 0);
+      this.say(tr("Preparing the model on the graphics card…"), "", 0);
       await separator.load(model, config.runtimes[SEPARATION.runtime], config.ep, config.rewrite);
       if (signal.stopped) throw stopped();
 
       // The song at 44.1 kHz, trimmed as the player trims it.
-      this.say("Reading the song…", "", 0);
+      this.say(tr("Reading the song…"), "", 0);
       const rate = SEPARATION.rate;
       const buffer = await decodeAt(original.slice().buffer, rate);
       const align = checkAlignment(buffer.length, info, rate);
@@ -218,7 +230,7 @@ export class SeparationFlow {
       const right = pick(1);
       this.seconds = left.length / rate;
       this.sepStart = performance.now();
-      this.say("Separating the instruments…", "", 0);
+      this.say(tr("Separating the instruments…"), "", 0);
       const result = await separator.separate(left, right, rate, SEPARATION.overlap);
       separator.terminate();
       this.separator = null;
@@ -227,15 +239,15 @@ export class SeparationFlow {
 
       // Encoded to MP3: the six stems, and the Original Track unless it is
       // kept as it is.
-      const jobs = STEM_NAMES.map((stem) => ({ key: stem, title: `${TRACK_TITLES[stem].toLowerCase()} stem`, left: result.stems[stem][0], right: result.stems[stem][1], sampleRate: rate }));
-      if (!keepOriginal) jobs.push({ key: "original", title: "Original Track", left: result.input[0], right: result.input[1], sampleRate: rate });
+      const jobs = STEM_NAMES.map((stem) => ({ key: stem, title: tr(TRACK_TITLES[stem]).toLowerCase(), left: result.stems[stem][0], right: result.stems[stem][1], sampleRate: rate }));
+      if (!keepOriginal) jobs.push({ key: "original", title: tr("Original Track"), left: result.input[0], right: result.input[1], sampleRate: rate });
       result.stems = null;
-      this.say("Saving the stems as MP3…", "", 0);
-      const encoded = await encodeAll(jobs, (done, total) => this.say(`Saving the stems as MP3… ${done} of ${total}`, "", done / total), signal);
+      this.say(tr("Saving the stems as MP3…"), "", 0);
+      const encoded = await encodeAll(jobs, (done, total) => this.say(tr("Saving the stems as MP3… {done} of {total}", { done, total }), "", done / total), signal);
       if (signal.stopped) throw stopped();
 
       // The project.
-      this.say("Writing the project…", "", 1);
+      this.say(tr("Writing the project…"), "", 1);
       const members = [];
       const tracks = {};
       const stems = {};
@@ -293,7 +305,7 @@ export class SeparationFlow {
       }
       const saved = await target.getFile();
       const back = JSON.parse(await (await openZip(saved)).text("manifest.json"));
-      if (back.project_id !== manifest.project_id) throw new Error("the file read back is not the one written");
+      if (back.project_id !== manifest.project_id) throw new Error(tr("the file read back is not the one written"));
       countEvent("separation-done");
 
       // The separated song, in the player.
@@ -301,8 +313,12 @@ export class SeparationFlow {
       this.cleanUp();
       const total = (performance.now() - t0) / 1000;
       const opened = await this.ctx.openFile(saved, target);
+      const done = { time: fmtTime(sepSeconds), speed: (this.seconds / sepSeconds).toFixed(1), total: fmtTime(total), name: saved.name };
       this.say(
-        `Separated in ${fmtTime(sepSeconds)} (${(this.seconds / sepSeconds).toFixed(1)}× real time), ${fmtTime(total)} in all. Saved in ${saved.name}${opened ? ": the six stems are in the tracks." : "."}`,
+        () =>
+          opened
+            ? tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}: the six stems are in the tracks.", done)
+            : tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}.", done),
         "ok",
         1
       );
@@ -314,7 +330,8 @@ export class SeparationFlow {
       try {
         if ((await target.getFile()).size === 0 && target.remove) await target.remove();
       } catch (_) {}
-      this.say(wasStopped ? "Separation stopped: nothing was saved." : `The separation failed: ${(error && error.message) || error}`, wasStopped ? "" : "error", 0);
+      const why = (error && error.message) || error;
+      this.say(() => (wasStopped ? tr("Separation stopped: nothing was saved.") : tr("The separation failed: {error}", { error: why })), wasStopped ? "" : "error", 0);
       countEvent(wasStopped ? "separation-stopped" : "separation-failed");
     }
   }
@@ -323,18 +340,22 @@ export class SeparationFlow {
     if (!this.running) return;
     if (m.phase === "download") {
       const left = m.total && m.done ? ((m.total - m.done) * m.ms) / m.done / 1000 : 0;
-      const mb = (b) => `${Math.round(b / 1e6)} MB`;
-      this.say(
-        `Downloading the separation model (only the first time): ${mb(m.done)}${m.total ? ` of ${mb(m.total)}` : ` of about ${model.approxMB} MB`}${left ? ` · about ${fmtTime(left)} left` : ""}`,
-        "",
-        m.total ? m.done / m.total : 0
-      );
+      const mb = (b) => Math.round(b / 1e6);
+      let text = m.total
+        ? tr("Downloading the separation model (only the first time): {done} of {total} MB", { done: mb(m.done), total: mb(m.total) })
+        : tr("Downloading the separation model (only the first time): {done} of about {total} MB", { done: mb(m.done), total: model.approxMB });
+      if (left) text += ` · ${tr("about {time} left", { time: fmtTime(left) })}`;
+      this.say(text, "", m.total ? m.done / m.total : 0);
     } else if (m.phase === "verify") {
-      this.say("Checking the model downloaded…", "", 1);
+      this.say(tr("Checking the model downloaded…"), "", 1);
     } else if (m.phase === "separate") {
       const left = ((m.total - m.done) * m.ms) / m.done / 1000;
       const speed = ((m.done / m.total) * this.seconds) / (m.ms / 1000);
-      this.say(`Separating the instruments: ${Math.round((m.done / m.total) * 100)}% · ${speed.toFixed(1)}× real time · about ${fmtTime(left)} left`, "", m.done / m.total);
+      this.say(
+        tr("Separating the instruments: {pct}% · {speed}× real time · about {time} left", { pct: Math.round((m.done / m.total) * 100), speed: speed.toFixed(1), time: fmtTime(left) }),
+        "",
+        m.done / m.total
+      );
     }
   }
 
@@ -343,7 +364,7 @@ export class SeparationFlow {
     this.signal.stopped = true;
     if (this.separator) this.separator.terminate(); // the pending call fails with "Stopped."
     if (this.signal.encoders) this.signal.encoders();
-    this.say("Stopping…");
+    this.say(tr("Stopping…"));
   }
 
   cleanUp() {
@@ -376,7 +397,8 @@ export class SeparationFlow {
     if (!show) return;
     const text = $("sep-text");
     const s = this.status || { text: "", kind: "" };
-    if (text.textContent !== s.text) text.textContent = s.text;
+    const said = typeof s.text === "function" ? s.text() : s.text;
+    if (text.textContent !== said) text.textContent = said;
     const cls = `sep-text ${s.kind}`.trim();
     if (text.className !== cls) text.className = cls;
     $("sep-fill").style.width = `${Math.round(Math.max(0, Math.min(1, this.fraction)) * 1000) / 10}%`;

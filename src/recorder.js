@@ -32,6 +32,7 @@ import { takeKey, takeMember } from "./project.js";
 import { resamplePoly } from "./resample.js";
 import { integratedLoudness, takeGain, levelChannels } from "./level.js";
 import { PEAK_BUCKET } from "./peaks.js";
+import { tr } from "./i18n.js";
 
 const INPUT_KEY = "euteria.input";
 const SYNC_KEY = "euteria.inputSync";
@@ -100,7 +101,7 @@ function encodeMp3(channels, sampleRate, bitrate) {
     };
     worker.onerror = (event) => {
       worker.terminate();
-      reject(new Error(event.message || "The encoder stopped."));
+      reject(new Error(event.message || tr("The encoder stopped.")));
     };
     const [left, right = null] = channels;
     const transfer = [left.buffer];
@@ -113,11 +114,11 @@ function encodeMp3(channels, sampleRate, bitrate) {
 function inputError(error) {
   const name = error && error.name;
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "EUTERIA may not use the microphone. Allow it for this site in the browser's settings, then press Record again.";
+    return tr("EUTERIA may not use the microphone. Allow it for this site in the browser's settings, then press Record again.");
   }
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "No input to record from was found: connect a microphone or an audio interface.";
-  if (name === "NotReadableError" || name === "AbortError") return "The input cannot be read: another app may be using it.";
-  return `The input could not be opened. ${(error && error.message) || error}`;
+  if (name === "NotFoundError" || name === "OverconstrainedError") return tr("No input to record from was found: connect a microphone or an audio interface.");
+  if (name === "NotReadableError" || name === "AbortError") return tr("The input cannot be read: another app may be using it.");
+  return tr("The input could not be opened. {error}", { error: (error && error.message) || error });
 }
 
 export class Recorder {
@@ -125,7 +126,7 @@ export class Recorder {
   constructor(player, { phone = false } = {}) {
     this.player = player;
     this.budget = phone ? 180e6 : 1.5e9; // bytes of takes in memory, per song
-    this.devices = this.listFrom([]); // [{id, label}], the default input first (id "")
+    this.devices = this.listFrom([]); // [{id, label, name | n}], the default input first (id "")
     this.named = false; // the browser gave the inputs' names
     this.choice = load(INPUT_KEY) || { id: "", label: "" };
     this.syncs = load(SYNC_KEY) || {};
@@ -185,9 +186,13 @@ export class Recorder {
         continue;
       }
       if (!d.deviceId) continue;
-      list.push({ id: d.deviceId, label: d.label || `Input ${list.length + 1}` });
+      const n = list.length + 1;
+      list.push({ id: d.deviceId, label: d.label || `Input ${n}`, n: d.label ? 0 : n });
     }
-    return [{ id: "", label: defaultName ? `Default (${defaultName})` : "Default input" }, ...list];
+    // The labels stay in English (they name the inputs in the settings kept);
+    // the menu shows `name` (the default input's) and `n` (an input without a
+    // name of its own) in the language in use.
+    return [{ id: "", label: defaultName ? `Default (${defaultName})` : "Default input", name: defaultName }, ...list];
   }
 
   // The inputs again. ask: may ask the permission that gives their names
@@ -295,7 +300,7 @@ export class Recorder {
           stream = await this.getStream(want);
         } catch (error) {
           if (!want || !error || !["OverconstrainedError", "NotFoundError"].includes(error.name)) throw error;
-          this.say("The input chosen is not connected: EUTERIA records from the default input.", "error");
+          this.say(tr("The input chosen is not connected: EUTERIA records from the default input."), "error");
           id = "";
           stream = await this.getStream("");
         }
@@ -344,7 +349,7 @@ export class Recorder {
   lost(stream) {
     if (!this.input || this.input.stream !== stream) return;
     if (this.state === "recording") {
-      this.say("The input was disconnected: the take ends there.", "error");
+      this.say(tr("The input was disconnected: the take ends there."), "error");
       this.player.stopRecording();
     } else this.close();
   }
@@ -377,7 +382,7 @@ export class Recorder {
     const player = this.player;
     if (this.busy || !player.song || player.busy || player.recording) return false;
     if (this.full) {
-      this.say("There is no more room for takes in this song: delete one with its ✕ first.", "error");
+      this.say(tr("There is no more room for takes in this song: delete one with its ✕ first."), "error");
       return false;
     }
     this.setState("opening");
@@ -465,7 +470,7 @@ export class Recorder {
       this.endLive(); // before the takes are drawn: their rows replace it
       if (this.ontakes) this.ontakes(tracks, cur.full ? "full" : reason, cur.gain);
     } catch (error) {
-      this.say(`The take could not be kept. ${(error && error.message) || error}`, "error");
+      this.say(tr("The take could not be kept. {error}", { error: (error && error.message) || error }), "error");
     } finally {
       this.endLive();
       this.keepOpen();

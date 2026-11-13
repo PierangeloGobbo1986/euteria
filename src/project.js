@@ -7,8 +7,11 @@
 
 import { openZip } from "./zip.js";
 import { alignOriginal } from "./align.js";
+import { tr } from "./i18n.js";
 
 export const STEM_NAMES = ["vocals", "drums", "bass", "guitar", "piano", "other"];
+// In English, as EUTERIA (Python) names the files; the page shows them in
+// the language in use (src/i18n.js).
 export const TRACK_TITLES = {
   original: "Original Track",
   vocals: "Vocals",
@@ -181,14 +184,14 @@ export function toInt16(buffer, start, length) {
 // onProgress(done, total, key) is called before each track.
 export async function openProject(file, context, onProgress = () => {}) {
   const zip = await openZip(file);
-  if (!zip.has("manifest.json")) throw new Error("This file is not an EUTERIA project (no manifest.json).");
+  if (!zip.has("manifest.json")) throw new Error(tr("This file is not an EUTERIA project (no manifest.json)."));
   const manifest = JSON.parse(await zip.text("manifest.json"));
   const audio = manifest.audio || {};
   const info = audio.tracks || {};
   const members = [["original", audio.original_member]];
   for (const stem of STEM_NAMES) members.push([stem, (audio.stems || {})[stem]]);
   const present = members.filter(([, member]) => member && zip.has(member));
-  if (!present.length) throw new Error("This project has no audio.");
+  if (!present.length) throw new Error(tr("This project has no audio."));
   const takeList = (Array.isArray(audio.takes) ? audio.takes : [])
     .filter((t) => t && t.id && typeof t.member === "string" && zip.has(t.member))
     .map((t) => takeFromManifest(t, info[t.member] || null));

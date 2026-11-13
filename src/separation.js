@@ -3,6 +3,8 @@
 // card. This module holds the model and runtime choices, talks to the worker,
 // and measures how close two separations are.
 
+import { tr } from "./i18n.js";
+
 const HF = "https://huggingface.co/elicwhite/bs-roformer-sw-6stem-onnx/resolve/main/";
 const CDN = "https://cdn.jsdelivr.net/npm/onnxruntime-web@";
 
@@ -52,7 +54,7 @@ export class Separator {
     if (!this.worker) {
       this.worker = new Worker(new URL("./separate-worker.js", import.meta.url), { type: "module" });
       this.worker.onmessage = (event) => this._receive(event.data);
-      this.worker.onerror = (event) => this._failAll(new Error(event.message || "The separation worker stopped."));
+      this.worker.onerror = (event) => this._failAll(new Error(event.message || tr("The separation worker stopped.")));
       this.runtime = null;
     }
     if (runtimeKey) this.runtime = runtimeKey;
@@ -67,7 +69,8 @@ export class Separator {
     const call = this.pending.get(m.id);
     if (!call) return;
     this.pending.delete(m.id);
-    if (m.type === "error") call.reject(new Error(m.message));
+    // The worker's errors for the user, in the language in use.
+    if (m.type === "error") call.reject(new Error(m.text ? tr(m.text, m.vars) : m.message));
     else call.resolve(m);
   }
 

@@ -18,7 +18,9 @@
  * Messages: status, download, delete (model files), load (ONNX Runtime and
  * the session), separate, benchmark (the first chunks only, timed, with an
  * optional GPU profile of one of them). Progress goes out as
- * {type: "progress", phase, ...}.
+ * {type: "progress", phase, ...}. The errors the user may meet go out with
+ * their English text and its values as well ({text, vars}): the page says
+ * them in its own language (src/i18n.js).
  */
 
 import { Stft } from "./stft.js";
@@ -35,6 +37,10 @@ const FADE = Math.floor(CHUNK / 10);
 const MODEL_DIR = "euteria-models";
 const INPUTS = ["spec_real", "spec_imag"];
 const OUTPUTS = ["out_spec_real", "out_spec_imag"];
+
+// An error for the user: `text` in English, {name} standing for vars.name.
+const fail = (text, vars = null) =>
+  Object.assign(new Error(vars ? text.replace(/\{(\w+)\}/g, (all, k) => (k in vars ? String(vars[k]) : all)) : text), { text, vars });
 
 let ort = null;
 let runtimeKey = null;
@@ -57,7 +63,7 @@ self.onmessage = async (event) => {
     } else throw new Error(`Unknown request ${msg.type}`);
     self.postMessage({ type: "reply", id: msg.id, ...reply });
   } catch (error) {
-    self.postMessage({ type: "error", id: msg.id, message: String((error && error.message) || error) });
+    self.postMessage({ type: "error", id: msg.id, message: String((error && error.message) || error), text: (error && error.text) || null, vars: (error && error.vars) || null });
   }
 };
 
@@ -102,7 +108,7 @@ async function download(model) {
   try {
     access.truncate(0);
     const response = await fetch(model.url);
-    if (!response.ok) throw new Error(`The model download failed (HTTP ${response.status}).`);
+    if (!response.ok) throw fail("The model download failed (HTTP {status}).", { status: response.status });
     total = Number(response.headers.get("content-length")) || 0;
     const reader = response.body.getReader();
     let reported = 0;
@@ -121,7 +127,7 @@ async function download(model) {
   } finally {
     access.close();
   }
-  if (total && bytes !== total) throw new Error(`The model download stopped early (${bytes} of ${total} bytes).`);
+  if (total && bytes !== total) throw fail("The model download stopped early ({bytes} of {total} bytes).", { bytes, total });
   const downloadMs = performance.now() - t0;
   progress("verify", { done: bytes, total: bytes });
   const data = await (await handle.getFile()).arrayBuffer();
@@ -176,21 +182,21 @@ async function load({ model, runtime, ep, graph = "disabled", rewrite = true }) 
   }
   const dir = await modelsDir();
   const handle = await fileHandle(dir, model.file);
-  if (!handle) throw new Error("The model is not downloaded.");
+  if (!handle) throw fail("The model is not downloaded.");
   let bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
   let rewritten = 0;
   if (rewrite) ({ bytes, rewritten } = rewriteAttention(bytes));
   let adapter = null;
   if (ep === "webgpu") {
-    if (!navigator.gpu) throw new Error("WebGPU is not available in this browser.");
+    if (!navigator.gpu) throw fail("WebGPU is not available in this browser.");
     const a = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-    if (!a) throw new Error("No graphics adapter for WebGPU.");
+    if (!a) throw fail("No graphics adapter for WebGPU.");
     const info = a.info || {};
     adapter = [info.vendor, info.architecture, info.description].filter(Boolean).join(" ") || "unknown";
     // Without 16-bit floats in the shaders the half-precision model does not
     // fail: it returns silence. Refuse it up front.
     if (model.half && !a.features.has("shader-f16")) {
-      throw new Error("This graphics card cannot run the half-precision model: choose full precision (fp32).");
+      throw fail("This graphics card cannot run the half-precision model: choose full precision (fp32).");
     }
   }
   const t0 = performance.now();
@@ -231,13 +237,13 @@ function checkOutput(out, input) {
   let energy = 0;
   for (let i = 0; i < re.length; i += 61) {
     const v = re[i];
-    if (!Number.isFinite(v)) throw new Error("The graphics card returned invalid numbers: try the other runtime or full precision.");
+    if (!Number.isFinite(v)) throw fail("The graphics card returned invalid numbers: try the other runtime or full precision.");
     energy += v * v;
   }
   let inputEnergy = 0;
   for (let i = 0; i < input.length; i += 61) inputEnergy += input[i] * input[i];
   if (energy === 0 && inputEnergy > 1e-6) {
-    throw new Error("The graphics card returned silence: try the other runtime or full precision.");
+    throw fail("The graphics card returned silence: try the other runtime or full precision.");
   }
 }
 
@@ -286,12 +292,12 @@ async function profiledRun(feeds) {
 }
 
 async function separate({ type, left, right, sampleRate, overlap = 0.5, maxChunks = Infinity, profileChunk = -1 }) {
-  if (!session) throw new Error("The model is not loaded.");
+  if (!session) throw fail("The model is not loaded.");
   const benchmark = type === "benchmark";
   const t0 = performance.now();
   const n = left.length;
   if (right.length !== n) throw new Error("The two channels differ in length.");
-  if (n < N_FFT) throw new Error("The song is too short.");
+  if (n < N_FFT) throw fail("The song is too short.");
   if (!(overlap > 0.1 && overlap <= 0.5)) throw new Error("Unsupported overlap.");
   const STEP = Math.round(CHUNK * (1 - overlap));
   const BORDER = CHUNK - STEP;

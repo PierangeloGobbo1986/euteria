@@ -25,6 +25,7 @@ import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
 import { RecordingFlow } from "./recording.js";
 import { sortable } from "./sortable.js";
+import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const phone = document.documentElement.dataset.layout === "phone";
@@ -40,14 +41,19 @@ const WAVE_COLORS = { original: "#d6a85f", stems: ["#8eaaa5", "#809692"], take: 
 const TAKE_ROW = 84; // the height of a take's row in the timeline (computer): its Sync goes under the volume
 const LIVE_LANE = 30; // the phone's lane under the waveform, for the take being recorded
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+// The hint under the timeline, in the language in use.
 const HINTS = phone
   ? {
-      view: "Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles under the bar numbers to change it (they snap to the bars). Pinch to zoom, drag the bar numbers to scroll. In the overview, drag the frame of the view or of the loop to move it.",
-      edit: "Tap a bar in the chord lane to select it, drag along the lane to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there.",
+      view: () =>
+        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles under the bar numbers to change it (they snap to the bars). Pinch to zoom, drag the bar numbers to scroll. In the overview, drag the frame of the view or of the loop to move it."),
+      edit: () =>
+        tr("Tap a bar in the chord lane to select it, drag along the lane to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     }
   : {
-      view: "Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Drag the bar numbers to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it.",
-      edit: "Click a bar in the chord lane and type its chord (Return: the next bar); shift-click or drag along the lane to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there.",
+      view: () =>
+        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Drag the bar numbers to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
+      edit: () =>
+        tr("Click a bar in the chord lane and type its chord (Return: the next bar); shift-click or drag along the lane to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     };
 
 const player = new Player();
@@ -64,6 +70,7 @@ const app = {
   adding: false,
   exports: [], // {id, owner, file, url, name, seconds, tempo, key, selected}: in memory only, until the page closes
   exportShown: null, // the export the status under Export MP3 is about
+  exportStatus: null, // that status: {text (or a function giving it), kind}
   rows: [],
   fields: {},
   seeking: false,
@@ -95,10 +102,18 @@ function notice(text, kind = "", ms = 0) {
   if (text && ms) noticeTimer = setTimeout(() => (el.hidden = true), ms);
 }
 
+// The line under Export MP3. text: a text, or a function giving it in the
+// language in use (a message that stays, said again in another language).
 function setExportStatus(text, kind = "") {
   app.exportShown = null;
+  app.exportStatus = { text, kind };
+  paintExportStatus();
+}
+
+function paintExportStatus() {
+  const { text, kind } = app.exportStatus || { text: "", kind: "" };
   const el = $("export-status");
-  el.textContent = text;
+  el.textContent = typeof text === "function" ? text() : text;
   el.className = `status ${kind}`.trim();
 }
 
@@ -130,10 +145,13 @@ let leaving = false; // the page is going away on purpose: no question from the 
 
 function askToSave() {
   const dialog = $("leave-dialog");
-  const parts = [];
-  if (editor.dirty) parts.push("the grid, the bar numbers or the chords");
-  if (recording && recording.dirty) parts.push("the takes");
-  $("leave-hint").textContent = `${parts.join(" and ").replace(/^./, (c) => c.toUpperCase())} changed since the song was last saved.`;
+  const takes = !!recording && recording.dirty;
+  $("leave-hint").textContent =
+    editor.dirty && takes
+      ? tr("The grid, the bar numbers or the chords, and the takes, changed since the song was last saved.")
+      : takes
+        ? tr("The takes changed since the song was last saved.")
+        : tr("The grid, the bar numbers or the chords changed since the song was last saved.");
   return new Promise((resolve) => {
     const done = () => {
       dialog.removeEventListener("close", done);
@@ -165,7 +183,11 @@ async function discardEdits() {
   if (editor.dirty) editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
   if (takes) await recording.revert();
   rememberSettings();
-  notice(`The changes${takes ? "" : " to the bars and chords"} were not saved: the song is as its file has it.`, "", 5000);
+  notice(
+    takes ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
+    "",
+    5000
+  );
 }
 
 async function goHome() {
@@ -205,7 +227,7 @@ document.addEventListener("visibilitychange", () => {
 async function openSong(file, origin) {
   if (player.busy) return null;
   if (separation && separation.running) {
-    notice("The separation is still running: wait for it to finish, or stop it, before opening another song.", "error", 6000);
+    notice(tr("The separation is still running: wait for it to finish, or stop it, before opening another song."), "error", 6000);
     return null;
   }
   if (recording.busy) await recording.recorder.settle();
@@ -214,10 +236,14 @@ async function openSong(file, origin) {
   recording.reset();
   setExportStatus("");
   window.scrollTo(0, 0);
-  notice(`Opening ${file.name}…`);
+  notice(tr("Opening {name}…", { name: file.name }));
   try {
     const song = await player.open(file, (done, total, key) =>
-      notice(key ? `Opening ${file.name}: ${TRACK_TITLES[key] || (isTake(key) ? "takes" : key)} (${done + 1} of ${total})…` : `Opening ${file.name}: lining up the tracks…`)
+      notice(
+        key
+          ? tr("Opening {name}: {what} ({n} of {total})…", { name: file.name, what: TRACK_TITLES[key] ? tr(TRACK_TITLES[key]) : isTake(key) ? tr("takes") : key, n: done + 1, total })
+          : tr("Opening {name}: lining up the tracks…", { name: file.name })
+      )
     );
     const key = settingsKey(song, file);
     const saved = loadSettings(key);
@@ -243,7 +269,7 @@ async function openSong(file, origin) {
   } catch (error) {
     renderPlayer();
     showView(homeView());
-    notice(`${file.name} could not be opened. ${(error && error.message) || error}`, "error");
+    notice(tr("{name} could not be opened. {error}", { name: file.name, error: (error && error.message) || error }), "error");
     return null;
   }
 }
@@ -263,7 +289,13 @@ function songOwner() {
 function trackWarning() {
   const bad = player.tracks.filter((t) => t.align && t.align.status === "mismatch");
   if (!bad.length) return "";
-  return `${bad.map((t) => t.title).join(", ")}: not the length the project gives, so ${bad.length > 1 ? "they" : "it"} may not line up with the other tracks.`;
+  const names = bad.map((t) => tr(t.title)).join(", ");
+  return trn(
+    bad.length,
+    "{names}: not the length the project gives, so it may not line up with the other tracks.",
+    "{names}: not the length the project gives, so they may not line up with the other tracks.",
+    { names }
+  );
 }
 
 async function closeSong() {
@@ -287,15 +319,17 @@ async function addSong(file) {
   let entry;
   let fresh = false;
   try {
-    notice(`Checking ${file.name}…`);
+    notice(tr("Checking {name}…", { name: file.name }));
     const kind = await inspectFile(file);
     entry = library.find(file.name, file.size);
     if (!entry) {
       const estimate = await storageEstimate();
       if (estimate && estimate.quota && estimate.quota - estimate.usage < file.size * 1.05 + 5e6) {
-        throw new Error(`There is not enough space for ${file.name} (${fmtSize(file.size)}). Delete songs you no longer need, or free some space on the device.`);
+        throw new Error(
+          tr("There is not enough space for {name} ({size}). Delete songs you no longer need, or free some space on the device.", { name: file.name, size: fmtSize(file.size) })
+        );
       }
-      entry = await library.add(file, kind, (done, total) => notice(`Adding ${file.name} to the library… ${Math.floor((done / total) * 100)}%`));
+      entry = await library.add(file, kind, (done, total) => notice(tr("Adding {name} to the library… {pct}%", { name: file.name, pct: Math.floor((done / total) * 100) })));
       fresh = true;
       app.persisted = await requestPersistence();
     }
@@ -333,7 +367,7 @@ async function openEntry(entry, fresh = false) {
     try {
       await library.remove(entry.id);
     } catch (_) {}
-    $("notice").textContent += " It was not kept in the library.";
+    $("notice").textContent += ` ${tr("It was not kept in the library.")}`;
   }
   renderLibrary();
 }
@@ -345,9 +379,9 @@ async function deleteEntry(entry) {
     await library.remove(entry.id);
     deleteExports(app.exports.filter((e) => e.owner === `e:${entry.id}`));
     if (entry.settingsKey && !library.entries.some((e) => e.settingsKey === entry.settingsKey)) forgetSettings(entry.settingsKey);
-    notice(`${entry.title} deleted.`, "ok", 3000);
+    notice(tr("{title} deleted.", { title: entry.title }), "ok", 3000);
   } catch (error) {
-    notice(`${entry.title} could not be deleted. ${(error && error.message) || error}`, "error");
+    notice(tr("{title} could not be deleted. {error}", { title: entry.title, error: (error && error.message) || error }), "error");
   }
   renderLibrary();
 }
@@ -360,9 +394,9 @@ async function deleteAll() {
     for (const e of removed) if (e.settingsKey) forgetSettings(e.settingsKey);
     const gone = new Set(removed.map((e) => `e:${e.id}`));
     deleteExports(app.exports.filter((e) => gone.has(e.owner)));
-    notice(`${removed.length} song${removed.length === 1 ? "" : "s"} deleted.`, "ok", 3000);
+    notice(trn(removed.length, "{n} song deleted.", "{n} songs deleted."), "ok", 3000);
   } catch (error) {
-    notice(`The library could not be emptied. ${(error && error.message) || error}`, "error");
+    notice(tr("The library could not be emptied. {error}", { error: (error && error.message) || error }), "error");
   }
   renderLibrary();
 }
@@ -378,8 +412,8 @@ function renderLibrary() {
     const current = !!(player.song && app.current && app.current.entryId === entry.id);
     const bits = [];
     if (entry.duration) bits.push(fmtTime(entry.duration));
-    if (entry.kind === "audio") bits.push("audio file");
-    else if (entry.tracks) bits.push(`${entry.tracks} track${entry.tracks === 1 ? "" : "s"}`);
+    if (entry.kind === "audio") bits.push(tr("audio file"));
+    else if (entry.tracks) bits.push(trn(entry.tracks, "{n} track", "{n} tracks"));
     bits.push(fmtSize(entry.size));
     const open = h("button", { type: "button", class: "lib-open" }, h("span", { class: "title", text: entry.title }), h("span", { class: "meta", text: bits.join(" · ") }));
     open.disabled = busy;
@@ -387,9 +421,9 @@ function renderLibrary() {
       player.unlock();
       openEntry(entry);
     });
-    const del = h("button", { type: "button", class: "lib-del", "aria-label": `Delete ${entry.title}`, text: "✕" });
+    const del = h("button", { type: "button", class: "lib-del", "aria-label": tr("Delete {title}", { title: entry.title }), text: "✕" });
     del.disabled = busy;
-    confirmTap(del, "Delete", () => deleteEntry(entry));
+    confirmTap(del, () => tr("Delete"), () => deleteEntry(entry));
     list.append(h("li", { class: `lib-item${current ? " current" : ""}` }, open, del));
   }
   $("lib-empty").hidden = !library || entries.length > 0;
@@ -407,11 +441,11 @@ async function updateUsage(entries) {
   if (!library) return;
   const round = ++usageRound;
   const n = entries.length;
-  const text = `${n} song${n === 1 ? "" : "s"} · ${fmtSize(library.usage())}`;
+  const text = trn(n, "{n} song · {size}", "{n} songs · {size}", { size: fmtSize(library.usage()) });
   $("lib-usage").textContent = text;
   const estimate = await storageEstimate();
   if (round !== usageRound || !estimate || !estimate.quota) return;
-  $("lib-usage").textContent = `${text} · ${fmtSize(Math.max(0, estimate.quota - estimate.usage))} available`;
+  $("lib-usage").textContent = tr("{text} · {size} available", { text, size: fmtSize(Math.max(0, estimate.quota - estimate.usage)) });
 }
 
 // A Home Screen app added before version 0.4.5 still runs under the status
@@ -425,13 +459,15 @@ function underStatusBar() {
 function updateLibraryHint() {
   let text = "";
   if (library && underStatusBar()) {
-    text =
-      "To remove the dark band at the top of the screen, delete EUTERIA from the Home Screen and add it again from Safari (Share, then Add to Home Screen): the system reads that setting only when the app is added. The songs of this library are deleted with it: first save the projects you changed (Share project, then Save to Files), then add them again.";
+    text = tr(
+      "To remove the dark band at the top of the screen, delete EUTERIA from the Home Screen and add it again from Safari (Share, then Add to Home Screen): the system reads that setting only when the app is added. The songs of this library are deleted with it: first save the projects you changed (Share project, then Save to Files), then add them again."
+    );
   } else if (library && ios && !standalone()) {
-    text =
-      "Tip: add EUTERIA to the Home Screen (Share, then Add to Home Screen) and open it from there. Safari may delete the data of websites not opened for a while, never that of Home Screen apps. The Home Screen app has a library of its own: add your songs there.";
+    text = tr(
+      "Tip: add EUTERIA to the Home Screen (Share, then Add to Home Screen) and open it from there. Safari may delete the data of websites not opened for a while, never that of Home Screen apps. The Home Screen app has a library of its own: add your songs there."
+    );
   } else if (library && !ios && app.persisted === false) {
-    text = "The browser may delete the library if the device runs short of space. Installing EUTERIA (browser menu, Install app or Add to Home screen) protects it.";
+    text = tr("The browser may delete the library if the device runs short of space. Installing EUTERIA (browser menu, Install app or Add to Home screen) protects it.");
   }
   $("lib-hint").textContent = text;
   $("lib-hint").hidden = !text;
@@ -440,8 +476,8 @@ function updateLibraryHint() {
 // ----- files and recent files (computer) --------------------------------------------------
 
 const PICK = {
-  audio: { description: "Audio files", accept: { "audio/*": AUDIO_EXTENSIONS.map((e) => `.${e}`) }, input: `audio/*,${AUDIO_EXTENSIONS.map((e) => `.${e}`).join(",")}` },
-  project: { description: "EUTERIA projects", accept: { "application/x-euteria": [".euteria", ".musicproj"] }, input: ".euteria,.musicproj" },
+  audio: { description: () => tr("Audio files"), accept: { "audio/*": AUDIO_EXTENSIONS.map((e) => `.${e}`) }, input: `audio/*,${AUDIO_EXTENSIONS.map((e) => `.${e}`).join(",")}` },
+  project: { description: () => tr("EUTERIA projects"), accept: { "application/x-euteria": [".euteria", ".musicproj"] }, input: ".euteria,.musicproj" },
 };
 
 // kind: "audio" (Open MP3 / audio) or "project" (Open EUTERIA project).
@@ -456,9 +492,9 @@ async function pickFile(kind) {
   }
   let handle;
   try {
-    [handle] = await window.showOpenFilePicker({ id: "euteria-songs", multiple: false, types: [{ description: pick.description, accept: pick.accept }] });
+    [handle] = await window.showOpenFilePicker({ id: "euteria-songs", multiple: false, types: [{ description: pick.description(), accept: pick.accept }] });
   } catch (error) {
-    if (error && error.name !== "AbortError") notice(`The file could not be opened. ${error.message}`, "error");
+    if (error && error.name !== "AbortError") notice(tr("The file could not be opened. {error}", { error: error.message }), "error");
     return;
   }
   await openHandle(handle);
@@ -470,7 +506,7 @@ async function openHandle(handle) {
   try {
     file = await handle.getFile();
   } catch (error) {
-    notice(`${handle.name} could not be read. ${(error && error.message) || error}`, "error");
+    notice(tr("{name} could not be read. {error}", { name: handle.name, error: (error && error.message) || error }), "error");
     return;
   }
   const song = await openSong(file, { source: "file", handle });
@@ -491,8 +527,8 @@ async function openRecentItem(item) {
     if (error && error.name === "NotFoundError") {
       await removeRecent(item.id);
       renderRecent();
-      notice(`${item.name} is no longer where it was (moved, renamed or deleted). Open it again from its folder.`, "error");
-    } else notice(`${item.name} could not be opened. ${(error && error.message) || error}`, "error");
+      notice(tr("{name} is no longer where it was (moved, renamed or deleted). Open it again from its folder.", { name: item.name }), "error");
+    } else notice(tr("{name} could not be opened. {error}", { name: item.name, error: (error && error.message) || error }), "error");
     return;
   }
   const song = await openSong(file, { source: "file", handle: item.handle });
@@ -511,7 +547,7 @@ async function renderRecent() {
   if (phone) return;
   if (!recentSupported()) {
     $("recent-list").textContent = "";
-    $("recent-empty").textContent = "This browser cannot keep the list of the songs opened: open them again from their folder.";
+    $("recent-empty").textContent = tr("This browser cannot keep the list of the songs opened: open them again from their folder.");
     $("recent-empty").hidden = false;
     return;
   }
@@ -521,14 +557,14 @@ async function renderRecent() {
   for (const item of items) {
     const open = h("button", { type: "button", class: "open-it" }, h("span", { class: "title", text: item.title || item.name }), h("span", { class: "meta", text: recentMeta(item) }));
     open.addEventListener("click", () => openRecentItem(item));
-    const forget = h("button", { type: "button", class: "forget", "aria-label": `Remove ${item.name} from the list`, title: "Remove from the list", text: "✕" });
+    const forget = h("button", { type: "button", class: "forget", "aria-label": tr("Remove {name} from the list", { name: item.name }), title: tr("Remove from the list"), text: "✕" });
     forget.addEventListener("click", async () => {
       await removeRecent(item.id);
       renderRecent();
     });
     list.append(h("li", { class: "recent-item" }, open, forget));
   }
-  $("recent-empty").textContent = "The songs you open are listed here, to open them again with one click.";
+  $("recent-empty").textContent = tr("The songs you open are listed here, to open them again with one click.");
   $("recent-empty").hidden = items.length > 0;
 }
 
@@ -595,20 +631,20 @@ function wireLaunchQueue() {
 
 function buildControls() {
   const f = app.fields;
-  f.tempo = numberField({ label: "Tempo", min: 50, max: 200, step: 5, unit: "%", onChange: (v) => player.setRate(v / 100) });
+  f.tempo = numberField({ label: tr("Tempo"), min: 50, max: 200, step: 5, unit: "%", onChange: (v) => player.setRate(v / 100) });
   if (!phone) {
-    f.tempoSlider = h("input", { type: "range", min: "50", max: "200", step: "1", value: "100", "aria-label": "Tempo" });
+    f.tempoSlider = h("input", { type: "range", min: "50", max: "200", step: "1", value: "100", "aria-label": tr("Tempo") });
     f.tempoSlider.addEventListener("input", () => player.setRate(+f.tempoSlider.value / 100));
     f.tempoSlider.addEventListener("dblclick", () => player.setRate(1));
     $("tempo-box").append(f.tempoSlider);
   }
   $("tempo-box").append(f.tempo.el);
-  f.key = keyField({ label: "Key", min: KEY_RANGE[0], max: KEY_RANGE[1], onChange: (v) => player.setSemitones(v) });
+  f.key = keyField({ label: tr("Key"), min: KEY_RANGE[0], max: KEY_RANGE[1], onChange: (v) => player.setSemitones(v) });
   $("key-box").append(f.key.el);
   // The playhead, to the hundredth of a second: it follows the yellow line,
   // and typing a time or − and + (a hundredth) move the line.
   f.position = numberField({
-    label: "Playhead",
+    label: tr("Playhead"),
     min: 0,
     max: 0,
     step: 0.01,
@@ -704,6 +740,15 @@ function buildControls() {
   }
 }
 
+// The names of the fields above, in the language in use.
+function relabelControls() {
+  const f = app.fields;
+  f.tempo.relabel(tr("Tempo"));
+  if (f.tempoSlider) f.tempoSlider.setAttribute("aria-label", tr("Tempo"));
+  f.key.relabel(tr("Key"));
+  f.position.relabel(tr("Playhead"));
+}
+
 function updateZoom() {
   const t = app.timeline;
   $("zoom-level").textContent = `${Math.round(t.zoom * 100)}%`;
@@ -781,19 +826,24 @@ function revealPlayhead() {
 
 function trackRow(t) {
   const key = t.key;
+  const title = tr(t.title); // a stem's name in the language in use; a take's as it is
   const toggle = h(
     "button",
     { type: "button", class: "toggle", "aria-pressed": "false" },
     h("span", { class: "dot", "aria-hidden": "true" }),
-    h("span", { class: "name", text: t.title })
+    h("span", { class: "name", text: title })
   );
   toggle.addEventListener("click", () => {
     const track = player.track(key);
     if (track) player.setTrackOn(key, !track.on);
   });
-  const volume = numberField({ label: `${t.title} volume`, min: 0, max: 200, step: 5, unit: "%", onChange: (v) => player.setTrackGain(key, sliderToGain(v)) });
+  const volume = numberField({ label: tr("{title} volume", { title }), min: 0, max: 200, step: 5, unit: "%", onChange: (v) => player.setTrackGain(key, sliderToGain(v)) });
   // The grip: dragged, or the arrow keys on it, to put the track elsewhere.
-  const grip = h("button", { type: "button", class: "grip", title: "Drag to move the track (or ↑ ↓)", "aria-label": `Move ${t.title}: drag it, or press the up or down arrow` }, icon("grip"));
+  const grip = h(
+    "button",
+    { type: "button", class: "grip", title: tr("Drag to move the track (or ↑ ↓)"), "aria-label": tr("Move {title}: drag it, or press the up or down arrow", { title }) },
+    icon("grip")
+  );
   const parts = [grip, toggle];
   let slider = null;
   let del = null;
@@ -801,13 +851,13 @@ function trackRow(t) {
   if (t.take) {
     // A take: ✕ deletes it (a second tap confirms), Sync moves it in time.
     // On the phone ✕ comes between the grip and the name, on a computer after the name.
-    del = h("button", { type: "button", class: "take-del", title: `Delete ${t.title}`, "aria-label": `Delete ${t.title}`, text: "✕" });
-    confirmTap(del, "Delete", () => recording.deleteTake(key));
+    del = h("button", { type: "button", class: "take-del", title: tr("Delete {title}", { title }), "aria-label": tr("Delete {title}", { title }), text: "✕" });
+    confirmTap(del, () => tr("Delete"), () => recording.deleteTake(key));
     if (phone) parts.splice(1, 0, del);
     else parts.push(del);
   }
   if (!phone) {
-    slider = h("input", { type: "range", min: "0", max: "200", step: "1", "aria-label": `${t.title} volume` });
+    slider = h("input", { type: "range", min: "0", max: "200", step: "1", "aria-label": tr("{title} volume", { title }) });
     slider.addEventListener("input", () => player.setTrackGain(key, sliderToGain(+slider.value)));
     slider.addEventListener("dblclick", () => player.setTrackGain(key, 1));
     parts.push(slider);
@@ -815,7 +865,7 @@ function trackRow(t) {
   parts.push(volume.el);
   if (t.take) {
     sync = numberField({
-      label: `${t.title} sync`,
+      label: tr("{title} sync", { title }),
       min: -1000,
       max: 1000,
       step: 5,
@@ -825,7 +875,7 @@ function trackRow(t) {
       className: "sync",
       onChange: (v) => recording.setSync(key, v),
     });
-    sync.el.title = "Sync: moves the take earlier (−) or later (+), in milliseconds, to put it in time with the song. The next takes from the same input get the same Sync.";
+    sync.el.title = tr("Sync: moves the take earlier (−) or later (+), in milliseconds, to put it in time with the song. The next takes from the same input get the same Sync.");
     parts.push(h("div", { class: "sync-row" }, h("span", { class: "mini-label", text: "Sync" }), sync.el));
   }
   return { key, el: h("div", { class: `track${t.take ? " take" : ""}` }, ...parts), grip, toggle, volume, slider, del, sync };
@@ -847,7 +897,7 @@ function moveTrack(from, to, byKey) {
 function showSongMeta() {
   const song = player.song;
   const n = player.tracks.length;
-  $("song-meta").textContent = song ? `${song.kind === "audio" ? "Audio file" : `${n} track${n === 1 ? "" : "s"}`} · ${fmtTime(song.duration)}` : "";
+  $("song-meta").textContent = song ? `${song.kind === "audio" ? tr("Audio file") : trn(n, "{n} track", "{n} tracks")} · ${fmtTime(song.duration)}` : "";
 }
 
 function renderPlayer(view = null) {
@@ -886,28 +936,43 @@ function renderPlayer(view = null) {
 
 async function exportMp3() {
   if (!player.song || player.busy) return;
-  setExportStatus("Measuring the level…");
+  setExportStatus(tr("Measuring the level…"));
   try {
-    const r = await player.exportMp3((p) => setExportStatus(`${p.phase === "measure" ? "Measuring the level" : "Encoding"}… ${Math.round(p.fraction * 100)}%`));
+    const r = await player.exportMp3((p) => {
+      const pct = Math.round(p.fraction * 100);
+      setExportStatus(p.phase === "measure" ? tr("Measuring the level… {pct}%", { pct }) : tr("Encoding… {pct}%", { pct }));
+    });
     for (const e of songExports()) e.selected = false; // the new one is the selection
     const owner = app.current ? app.current.owner : null;
     app.exports.unshift({ id: Date.now(), owner, file: r.file, url: URL.createObjectURL(r.file), name: r.name, seconds: r.seconds, tempo: r.tempo, key: r.key, selected: true });
     while (app.exports.length > MAX_EXPORTS) URL.revokeObjectURL(app.exports.pop().url);
-    const lowered = r.reductionDb >= 0.1 ? ` · lowered ${r.reductionDb.toFixed(1)} dB to avoid clipping` : "";
-    const full = r.fullOn ? " · Original Track not included" : "";
-    setExportStatus(`Ready: ${r.name}\n${fmtTime(r.seconds)} · ${fmtSize(r.file.size)}${lowered}${full}`, "ok");
+    setExportStatus(() => {
+      const lowered = r.reductionDb >= 0.1 ? ` · ${tr("lowered {db} dB to avoid clipping", { db: r.reductionDb.toFixed(1) })}` : "";
+      const full = r.fullOn ? ` · ${tr("Original Track not included")}` : "";
+      return `${tr("Ready: {name}", { name: r.name })}\n${fmtTime(r.seconds)} · ${fmtSize(r.file.size)}${lowered}${full}`;
+    }, "ok");
     app.exportShown = app.exports[0].id;
     renderExports();
     countEvent("mp3-exported");
   } catch (error) {
-    setExportStatus(error.notice ? error.message : `The export failed: ${(error && error.message) || error}`, "error");
+    setExportStatus(error.notice ? error.message : tr("The export failed: {error}", { error: (error && error.message) || error }), "error");
   }
   if (player.lost.length) {
-    notice(`${player.lost.map((k) => TRACK_TITLES[k] || k).join(", ")}: lost after the failed export. Open the song again to get ${player.lost.length > 1 ? "them" : "it"} back.`, "error");
+    const names = player.lost.map((k) => (TRACK_TITLES[k] ? tr(TRACK_TITLES[k]) : k)).join(", ");
+    notice(
+      trn(
+        player.lost.length,
+        "{names}: lost after the failed export. Open the song again to get it back.",
+        "{names}: lost after the failed export. Open the song again to get them back.",
+        { names }
+      ),
+      "error"
+    );
   }
 }
 
-const EXPORT_HINT = "The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.";
+const EXPORT_HINT = () =>
+  tr("The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.");
 // The exports of the song open: each export belongs to the song it was made from.
 const songExports = () => app.exports.filter((e) => !!app.current && e.owner === app.current.owner);
 const selectedExports = () => songExports().filter((e) => e.selected);
@@ -924,14 +989,14 @@ function renderExports() {
   const box = $("exports");
   box.textContent = "";
   for (const e of songExports()) {
-    const tick = h("input", { type: "checkbox", "aria-label": `Select ${e.name}` });
+    const tick = h("input", { type: "checkbox", "aria-label": tr("Select {name}", { name: e.name }) });
     tick.checked = e.selected;
     tick.addEventListener("change", () => {
       e.selected = tick.checked;
       updateExportActions();
     });
-    const meta = `${fmtTime(e.seconds)} · ${fmtSize(e.file.size)} · tempo ${e.tempo}% · key ${e.key > 0 ? "+" : ""}${e.key}`;
-    const del = h("button", { type: "button", class: "export-del", title: "Delete", "aria-label": `Delete ${e.name}`, text: "✕" });
+    const meta = `${fmtTime(e.seconds)} · ${fmtSize(e.file.size)} · ${tr("tempo {tempo}%", { tempo: e.tempo })} · ${tr("key {key}", { key: `${e.key > 0 ? "+" : ""}${e.key}` })}`;
+    const del = h("button", { type: "button", class: "export-del", title: tr("Delete"), "aria-label": tr("Delete {title}", { title: e.name }), text: "✕" });
     del.addEventListener("click", () => deleteExports([e]));
     box.append(
       h("div", { class: "export-item" }, h("label", { class: "export-pick" }, tick, h("span", { class: "name", text: e.name }), h("span", { class: "meta", text: meta })), del)
@@ -960,16 +1025,16 @@ function updateExportActions() {
   $("exports-head").hidden = !count;
   if (count) {
     const size = shown.reduce((sum, e) => sum + e.file.size, 0);
-    $("exports-count").textContent = `${count} ${count === 1 ? "file" : "files"} · ${fmtSize(size)}`;
+    $("exports-count").textContent = trn(count, "{n} file · {size}", "{n} files · {size}", { size: fmtSize(size) });
   }
   $("export-actions").hidden = !count;
   const n = chosen.length;
   $("download").disabled = !n;
-  $("download").textContent = n > 1 ? `Download ${n} files` : "Download";
+  $("download").textContent = n > 1 ? tr("Download {n} files", { n }) : tr("Download");
   const share = $("share");
   share.hidden = !canShareFiles(n ? chosen.map((e) => e.file) : [new File([new Uint8Array(4)], "x.mp3", { type: "audio/mpeg" })]);
   share.disabled = !n;
-  share.textContent = n > 1 ? `Share ${n} files…` : "Share…";
+  share.textContent = n > 1 ? tr("Share {n} files…", { n }) : tr("Share…");
   $("download").classList.toggle("primary", share.hidden);
 }
 
@@ -989,9 +1054,9 @@ async function shareSelected() {
   const files = selectedExports().map((e) => e.file);
   if (!files.length) return;
   try {
-    await navigator.share({ files, title: files.length === 1 ? files[0].name : `${files.length} files from EUTERIA` });
+    await navigator.share({ files, title: files.length === 1 ? files[0].name : tr("{n} files from EUTERIA", { n: files.length }) });
   } catch (error) {
-    if (!error || error.name !== "AbortError") setExportStatus(`Sharing failed: ${(error && error.message) || error}`, "error");
+    if (!error || error.name !== "AbortError") setExportStatus(tr("Sharing failed: {error}", { error: (error && error.message) || error }), "error");
   }
 }
 
@@ -1049,12 +1114,12 @@ function saveTitle() {
   const mode = saveMode();
   const audio = !!player.song && player.song.kind === "audio";
   const what = {
-    library: audio ? "Save the song as an EUTERIA project, in the library" : "Save the changes in the song",
-    file: `Save the changes in ${app.current ? app.current.name : "the file"}`,
-    "new-file": "Save the song as an EUTERIA project (.euteria): you choose where",
-    copy: audio ? "This browser cannot write files: download the song as an EUTERIA project" : "This browser cannot write the file: download a copy with the changes",
+    library: audio ? tr("Save the song as an EUTERIA project, in the library") : tr("Save the changes in the song"),
+    file: app.current ? tr("Save the changes in {name}", { name: app.current.name }) : tr("Save the changes in the file"),
+    "new-file": tr("Save the song as an EUTERIA project (.euteria): you choose where"),
+    copy: audio ? tr("This browser cannot write files: download the song as an EUTERIA project") : tr("This browser cannot write the file: download a copy with the changes"),
   }[mode];
-  return what ? `${what} (${/Mac/.test(navigator.platform || "") ? "⌘S" : "Ctrl+S"})` : "Save";
+  return what ? `${what} (${/Mac/.test(navigator.platform || "") ? "⌘S" : "Ctrl+S"})` : tr("Save");
 }
 
 // Messages of Save and Share project: at the top, and in the card.
@@ -1086,7 +1151,7 @@ async function writePermission(handle) {
 // The file as written: its manifest must read back.
 async function checkSaved(file, id) {
   const m = JSON.parse(await (await openZip(file)).text("manifest.json"));
-  if (m.project_id !== id) throw new Error("the file read back is not the one written");
+  if (m.project_id !== id) throw new Error(tr("the file read back is not the one written"));
 }
 
 // The song is now `file` (saved in place): its settings follow it.
@@ -1122,7 +1187,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
   const cur = app.current;
   if (!song || !cur || player.busy || app.saving) return false;
   if (recording.busy) {
-    notice(recording.recording ? "Stop recording first, then save." : "Wait a moment: the take is being prepared.", "", 4000);
+    notice(recording.recording ? tr("Stop recording first, then save.") : tr("Wait a moment: the take is being prepared."), "", 4000);
     return false;
   }
   editor.commitInput();
@@ -1132,14 +1197,14 @@ async function saveSong({ quiet = false, made = null } = {}) {
   // What needs the click comes first: the permission to write, the place.
   if (mode === "file" && !(await writePermission(cur.handle))) {
     mode = "copy";
-    reportSave("EUTERIA may not write the file: a copy is downloaded instead.");
+    reportSave(tr("EUTERIA may not write the file: a copy is downloaded instead."));
   }
   if (mode === "new-file") {
     try {
       target = await window.showSaveFilePicker({
         id: "euteria-songs",
         suggestedName: `${safeName(song.title)}.euteria`,
-        types: [{ description: "EUTERIA project", accept: { "application/x-euteria": [".euteria"] } }],
+        types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
       });
     } catch (error) {
       if (error && error.name === "AbortError") return false;
@@ -1171,7 +1236,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
         const saved = await library.file(library.get(cur.entryId));
         await checkSaved(saved, id);
         savedInPlace(saved, manifest);
-        say("Saved: the song is now an EUTERIA project, with its bars and chords.", "ok");
+        say(tr("Saved: the song is now an EUTERIA project, with its bars and chords."), "ok");
         return mode;
       } else if (mode === "new-file") {
         const w = await target.createWritable();
@@ -1189,14 +1254,14 @@ async function saveSong({ quiet = false, made = null } = {}) {
         savedInPlace(saved, manifest);
         await addRecent(target, { title: song.title, size: saved.size });
         renderRecent();
-        say(`Saved in ${saved.name}.`, "ok");
+        say(tr("Saved in {name}.", { name: saved.name }), "ok");
         return mode;
       }
       downloadBlob(blob, name);
       editor.saved(false);
       recording.saved(false);
       rememberSettings();
-      say(`Downloaded: ${name}.`, "ok");
+      say(tr("Downloaded: {name}.", { name }), "ok");
       return "copy";
     }
     // A project: its manifest.json rewritten; the whole file written again
@@ -1212,7 +1277,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
         const saved = await library.file(library.get(cur.entryId));
         await checkSaved(saved, manifest.project_id);
         savedInPlace(saved, manifest);
-        say("Saved.", "ok");
+        say(tr("Saved."), "ok");
       } else if (mode === "file") {
         const w = await cur.handle.createWritable();
         try {
@@ -1227,13 +1292,13 @@ async function saveSong({ quiet = false, made = null } = {}) {
         savedInPlace(saved, manifest);
         await addRecent(cur.handle, { title: song.title, size: saved.size });
         renderRecent();
-        say(`Saved in ${saved.name}.`, "ok");
+        say(tr("Saved in {name}.", { name: saved.name }), "ok");
       } else {
         downloadBlob(blob, cur.name);
         editor.saved(false);
         recording.saved(false);
         rememberSettings();
-        say(`Downloaded a copy with the changes: ${cur.name}.`, "ok");
+        say(tr("Downloaded a copy with the changes: {name}.", { name: cur.name }), "ok");
       }
       return mode;
     }
@@ -1244,7 +1309,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
       const saved = await library.file(library.get(cur.entryId));
       await checkSaved(saved, manifest.project_id);
       savedInPlace(saved, manifest);
-      say("Saved.", "ok");
+      say(tr("Saved."), "ok");
     } else if (mode === "file") {
       const { at, bytes: tail } = await manifestPatch(zip, bytes);
       const w = await cur.handle.createWritable({ keepExistingData: true });
@@ -1261,21 +1326,21 @@ async function saveSong({ quiet = false, made = null } = {}) {
       savedInPlace(saved, manifest);
       await addRecent(cur.handle, { title: song.title, size: saved.size });
       renderRecent();
-      say(`Saved in ${saved.name}.`, "ok");
+      say(tr("Saved in {name}.", { name: saved.name }), "ok");
     } else {
       downloadBlob(composeEdited(file, await zipLayout(zip), { manifestBytes: bytes }), cur.name);
       editor.saved(false);
       recording.saved(false);
       rememberSettings();
-      say(`Downloaded a copy with the changes: ${cur.name}.`, "ok");
+      say(tr("Downloaded a copy with the changes: {name}.", { name: cur.name }), "ok");
     }
     return mode;
   } catch (error) {
     const changed = error && error.name === "NotReadableError";
     reportSave(
       changed
-        ? "The song could not be saved: its file changed since it was opened. Open it again (the edits are kept)."
-        : `The song could not be saved. ${(error && error.message) || error}`,
+        ? tr("The song could not be saved: its file changed since it was opened. Open it again (the edits are kept).")
+        : tr("The song could not be saved. {error}", { error: (error && error.message) || error }),
       "error",
       0
     );
@@ -1367,7 +1432,7 @@ async function projectFile() {
   await prepareShare();
   await recording.ready();
   const made = projectNow();
-  if (!made) throw new Error("Its file could not be read: open the song again.");
+  if (!made) throw new Error(tr("Its file could not be read: open the song again."));
   return made.file;
 }
 
@@ -1412,7 +1477,7 @@ async function sendProject(made, late = false) {
   app.sharing = false;
   if (late && settled && error && error.name === "NotAllowedError") {
     scheduleUi();
-    reportSave("The project is ready: tap Share project again to send it.");
+    reportSave(tr("The project is ready: tap Share project again to send it."));
     return;
   }
   // Refused although asked during the tap: a browser that cannot share
@@ -1424,7 +1489,7 @@ async function sendProject(made, late = false) {
   if (inLibrary && app.current === cur) {
     saved = !!(await saveSong({ quiet: true, made }));
     if (!saved) return; // saveSong says why
-    if (!settled) reportSave("Saved.", "ok"); // the share sheet still open
+    if (!settled) reportSave(tr("Saved."), "ok"); // the share sheet still open
   }
   if (!settled) error = await shared;
   reportShare(error, saved, refused);
@@ -1433,18 +1498,19 @@ async function sendProject(made, late = false) {
 function reportShare(error, saved, refused = false) {
   const again = !refused && !!error && error.name === "NotAllowedError"; // the tap no longer counted
   const failed = !!error && !again && error.name !== "AbortError"; // AbortError: closed without sending
+  const shared = !error && !refused;
   let text = refused
-    ? "This browser cannot share project files: Download project saves the song's file instead."
+    ? tr("This browser cannot share project files: Download project saves the song's file instead.")
     : again
-      ? "Tap Share project again to send it."
+      ? tr("Tap Share project again to send it.")
       : failed
-        ? `The project could not be shared. ${error.message || error}`
+        ? tr("The project could not be shared. {error}", { error: error.message || error })
         : error
           ? ""
-          : "Shared.";
-  if (saved) text = text === "Shared." ? "Saved and shared." : `Saved. ${text}`.trim();
+          : tr("Shared.");
+  if (saved) text = shared ? tr("Saved and shared.") : tr("Saved. {text}", { text }).trim();
   if (text) reportSave(text, failed ? "error" : again ? "" : "ok", failed ? 0 : 6000);
-  if (!error && !refused) countEvent("project-shared");
+  if (shared) countEvent("project-shared");
 }
 
 // Tapped before the song's file was read (just opened): read it, then try.
@@ -1452,7 +1518,7 @@ async function sendWhenReady() {
   app.sharing = true;
   scheduleUi();
   let made = null;
-  let why = "its file could not be read. Open the song again.";
+  let why = tr("its file could not be read. Open the song again.");
   try {
     await prepareShare();
     try {
@@ -1466,7 +1532,7 @@ async function sendWhenReady() {
   app.sharing = false;
   scheduleUi();
   if (!made) {
-    reportSave(`The project could not be put together: ${why}`, "error", 0);
+    reportSave(tr("The project could not be put together: {why}", { why }), "error", 0);
     return;
   }
   sendProject(made, true);
@@ -1481,16 +1547,16 @@ async function downloadProject() {
       const entry = library.get(cur.entryId);
       if (!entry) return;
       downloadBlob(new File([await library.file(entry)], entry.name, { type: "application/zip" }), entry.name);
-      reportSave(`Saved and downloaded: ${entry.name}.`, "ok");
+      reportSave(tr("Saved and downloaded: {name}.", { name: entry.name }), "ok");
       countEvent("project-downloaded");
       return;
     }
     const file = await projectFile();
     downloadBlob(file, file.name);
-    reportSave(`Downloaded: ${file.name}.`, "ok");
+    reportSave(tr("Downloaded: {name}.", { name: file.name }), "ok");
     countEvent("project-downloaded");
   } catch (error) {
-    reportSave(`The project could not be downloaded. ${(error && error.message) || error}`, "error", 0);
+    reportSave(tr("The project could not be downloaded. {error}", { error: (error && error.message) || error }), "error", 0);
   }
 }
 
@@ -1498,11 +1564,17 @@ async function downloadProject() {
 // is shared with the app wanted.
 function explainSharing() {
   const song = player.song;
-  const text = isAudioSong(song)
-    ? "Share project works on smartphones. On a computer, save the song with Save, at the top right (it becomes an EUTERIA project, .euteria), then share that file with the app you want: email, WhatsApp and so on."
-    : `Share project works on smartphones. On a computer, share the project file you saved (${app.current.name}) with the app you want: email, WhatsApp and so on.${
-        songDirty() ? ` Save first, at the top right: the changes${recording.dirty ? "" : " to the bars and chords"} are not in the file yet.` : ""
-      }`;
+  let text;
+  if (isAudioSong(song)) {
+    text = tr(
+      "Share project works on smartphones. On a computer, save the song with Save, at the top right (it becomes an EUTERIA project, .euteria), then share that file with the app you want: email, WhatsApp and so on."
+    );
+  } else {
+    text = tr("Share project works on smartphones. On a computer, share the project file you saved ({name}) with the app you want: email, WhatsApp and so on.", { name: app.current.name });
+    if (songDirty()) {
+      text += ` ${recording.dirty ? tr("Save first, at the top right: the changes are not in the file yet.") : tr("Save first, at the top right: the changes to the bars and chords are not in the file yet.")}`;
+    }
+  }
   reportSave(text, "", 15000);
 }
 
@@ -1522,11 +1594,15 @@ async function latestVersion() {
   return m[1];
 }
 
+let shownLatest = null; // the newest version found, as the Update button says
 function showUpdate(latest) {
+  shownLatest = latest;
   const b = $("update");
   const newer = !!latest && latest !== VERSION;
   b.classList.toggle("available", newer);
-  b.title = newer ? `Version ${latest} is available: update now (this is ${VERSION})` : `EUTERIA ${VERSION}: look for a new version and switch to it`;
+  b.title = newer
+    ? tr("Version {latest} is available: update now (this is {version})", { latest, version: VERSION })
+    : tr("EUTERIA {version}: look for a new version and switch to it", { version: VERSION });
 }
 
 async function checkForUpdate() {
@@ -1568,17 +1644,17 @@ async function updateApp() {
     try {
       latest = await latestVersion();
     } catch (_) {
-      notice("EUTERIA cannot look for a new version now: there is no connection.", "error", 5000);
+      notice(tr("EUTERIA cannot look for a new version now: there is no connection."), "error", 5000);
       return;
     }
     lastCheck = Date.now();
     showUpdate(latest);
     if (latest === VERSION) {
-      notice(`EUTERIA is up to date: version ${VERSION}.`, "ok", 4000);
+      notice(tr("EUTERIA is up to date: version {version}.", { version: VERSION }), "ok", 4000);
       return;
     }
     if (!(await confirmLeave())) return;
-    notice(`Updating EUTERIA to version ${latest}…`);
+    notice(tr("Updating EUTERIA to version {version}…", { version: latest }));
     rememberSettings();
     await renewServiceWorker();
     leaving = true;
@@ -1603,11 +1679,11 @@ function versionTapped() {
   versionTaps = 0;
   const on = toggleCounting();
   showCounting();
-  notice(on ? "This device is counted again by the visit counter." : "This device is no longer counted by the visit counter.", "ok", 5000);
+  notice(on ? tr("This device is counted again by the visit counter.") : tr("This device is no longer counted by the visit counter."), "ok", 5000);
 }
 
 function showCounting() {
-  $("app-version").title = counted() ? "" : "This device is not counted by the visit counter";
+  $("app-version").title = counted() ? "" : tr("This device is not counted by the visit counter");
 }
 
 // ----- updating the page -------------------------------------------------------------------
@@ -1635,7 +1711,7 @@ function updateUi() {
   const playIcon = player.playing ? "pause" : "play";
   setIcon(play, playIcon);
   play.classList.toggle("playing", player.playing);
-  play.setAttribute("aria-label", player.playing ? "Pause" : "Play");
+  play.setAttribute("aria-label", player.playing ? tr("Pause") : tr("Play"));
   const duration = song ? song.duration : 0;
   if (!app.seeking) {
     $("time-now").textContent = fmtTime(app.scrub ?? player.position, true);
@@ -1681,8 +1757,8 @@ function updateUi() {
   const eye = $("grid-eye");
   setIcon(eye, app.gridVisible ? "eye" : "eyeClosed");
   eye.setAttribute("aria-pressed", String(app.gridVisible));
-  eye.title = app.gridVisible ? "The grid is shown: click to hide it" : "The grid is hidden: click to show it";
-  const hint = editor.on && song ? HINTS.edit : HINTS.view;
+  eye.title = app.gridVisible ? tr("The grid is shown: click to hide it") : tr("The grid is hidden: click to show it");
+  const hint = (editor.on && song ? HINTS.edit : HINTS.view)();
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
   // Separating the instruments (a song without stems, on a computer).
@@ -1692,17 +1768,17 @@ function updateUi() {
   if (separable) {
     sep.disabled = !separation.supported || separation.running || busy || takesBusy;
     sep.classList.toggle("running", separation.running);
-    const label = separation.running ? "Separating…" : "Separate instruments";
+    const label = separation.running ? tr("Separating…") : tr("Separate instruments");
     if (sep.textContent !== label) sep.textContent = label;
-    const title = separation.supported ? "Separate the six instruments of this song and save them with it in an EUTERIA project (.euteria)" : separation.reason;
+    const title = separation.supported ? tr("Separate the six instruments of this song and save them with it in an EUTERIA project (.euteria)") : separation.reason;
     if (sep.title !== title) sep.title = title;
   }
   if (song && !player.hasStems) {
     const note = phone
-      ? "This song has no separate instruments: tempo, key and loop work on the whole song. To separate them, open it in EUTERIA on a computer, with Chrome or Edge."
+      ? tr("This song has no separate instruments: tempo, key and loop work on the whole song. To separate them, open it in EUTERIA on a computer, with Chrome or Edge.")
       : separation.supported
-        ? "This song has no separate instruments yet: Separate instruments makes the six stems, and saves them with the song in an EUTERIA project (.euteria)."
-        : `This song has no separate instruments: tempo, key and loop work on the whole song. ${separation.reason}`.trim();
+        ? tr("This song has no separate instruments yet: Separate instruments makes the six stems, and saves them with the song in an EUTERIA project (.euteria).")
+        : `${tr("This song has no separate instruments: tempo, key and loop work on the whole song.")} ${separation.reason}`.trim();
     if ($("tracks-note").textContent !== note) $("tracks-note").textContent = note;
   }
   separation.refresh();
@@ -1738,43 +1814,43 @@ function updateUi() {
   const stems = player.hasStems;
   const takes = player.takes.length > 0;
   $("export").disabled = !ready || takesBusy || !(stems || takes);
-  $("export").textContent = player.busy === "exporting" ? "Exporting…" : "Export MP3";
-  const exportHint = !song || stems || takes ? EXPORT_HINT : "The export combines stems and takes: an audio file has no stems, and no take was recorded yet.";
+  $("export").textContent = player.busy === "exporting" ? tr("Exporting…") : tr("Export MP3");
+  const exportHint = !song || stems || takes ? EXPORT_HINT() : tr("The export combines stems and takes: an audio file has no stems, and no take was recorded yet.");
   if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
   $("key-hint").hidden = !!song && !stems;
 
   // Save, at the top right, and Share project.
   const save = $("save-top");
-  const saveText = app.saving ? "Saving…" : "Save";
+  const saveText = app.saving ? tr("Saving…") : tr("Save");
   if (save.textContent !== saveText) save.textContent = saveText;
   save.disabled = !song || busy || app.saving || takesBusy;
   save.classList.toggle("dirty", songDirty());
-  const saveTip = song ? saveTitle() : "Save";
+  const saveTip = song ? saveTitle() : tr("Save");
   if (save.title !== saveTip) save.title = saveTip;
   const shareProj = $("share-song");
   const shareWay = shareMode();
   const inLibrary = !!app.current && app.current.source === "library";
-  const shareText = app.sharing ? "Sharing…" : shareWay === "download" ? "Download project" : "Share project…";
+  const shareText = app.sharing ? tr("Sharing…") : shareWay === "download" ? tr("Download project") : tr("Share project…");
   if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
   shareProj.disabled = !song || busy || app.saving || app.sharing || takesBusy;
   const projectHint =
     shareWay === "share"
       ? inLibrary
-        ? "Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on."
-        : "Sends the song's file (.euteria) as it is now, with its bars, chords and practice settings, by email, WhatsApp and so on."
+        ? tr("Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.")
+        : tr("Sends the song's file (.euteria) as it is now, with its bars, chords and practice settings, by email, WhatsApp and so on.")
       : shareWay === "download"
-        ? "Saves the song and downloads its file (.euteria), with its bars, chords and practice settings: this browser cannot share it."
-        : "Share project works on smartphones. On a computer, share the project file you saved (Save, at the top right) with the app you want: email, WhatsApp and so on.";
+        ? tr("Saves the song and downloads its file (.euteria), with its bars, chords and practice settings: this browser cannot share it.")
+        : tr("Share project works on smartphones. On a computer, share the project file you saved (Save, at the top right) with the app you want: email, WhatsApp and so on.");
   if ($("project-hint").textContent !== projectHint) $("project-hint").textContent = projectHint;
   const m = app.projectMessage && performance.now() < app.projectMessage.until ? app.projectMessage : null;
   const status = $("project-status");
   const dirtyText = !songDirty()
     ? ""
     : editor.dirty && recording.dirty
-      ? "Changes to the bars and chords, and to the takes, not saved yet."
+      ? tr("Changes to the bars and chords, and to the takes, not saved yet.")
       : editor.dirty
-        ? "Changes to the bars and chords not saved yet."
-        : "Changes to the takes not saved yet.";
+        ? tr("Changes to the bars and chords not saved yet.")
+        : tr("Changes to the takes not saved yet.");
   const statusText = m ? m.text : dirtyText;
   if (status.textContent !== statusText) status.textContent = statusText;
   const statusClass = `status ${m ? m.kind : dirtyText ? "dirty" : ""}`.trim();
@@ -1787,7 +1863,7 @@ function updateUi() {
     $("now-title").textContent = song.title;
     $("now-time").textContent = `${fmtTime(player.position)} / ${fmtTime(duration)}`;
     setIcon($("now-play"), playIcon);
-    $("now-play").setAttribute("aria-label", player.playing ? "Pause" : "Play");
+    $("now-play").setAttribute("aria-label", player.playing ? tr("Pause") : tr("Play"));
     $("now-play").disabled = !ready;
   }
 }
@@ -1804,8 +1880,8 @@ function wire() {
       if (file) addSong(file);
     });
   }
-  if (library) confirmTap($("lib-clear"), "Tap again to delete every song", deleteAll);
-  confirmTap($("exports-clear"), phone ? "Tap again to delete all" : "Click again to delete all", () => deleteExports(songExports()));
+  if (library) confirmTap($("lib-clear"), () => tr("Tap again to delete every song"), deleteAll);
+  confirmTap($("exports-clear"), () => (phone ? tr("Tap again to delete all") : tr("Click again to delete all")), () => deleteExports(songExports()));
   $("back").addEventListener("click", goHome);
   $("save-top").addEventListener("click", () => saveSong());
   $("share-song").addEventListener("click", shareProject);
@@ -1956,7 +2032,7 @@ function onKey(e) {
 function wireLayoutSwitch() {
   const link = $("layout-switch");
   const other = phone ? "computer" : "phone";
-  link.textContent = `Use the ${other} layout`;
+  labelLayoutSwitch();
   link.addEventListener("click", async (e) => {
     e.preventDefault();
     if (!(await confirmLeave())) return;
@@ -1970,6 +2046,53 @@ function wireLayoutSwitch() {
     url.searchParams.delete("layout");
     location.href = url.href;
   });
+}
+
+function labelLayoutSwitch() {
+  $("layout-switch").textContent = phone ? tr("Use the computer layout") : tr("Use the phone layout");
+}
+
+// ----- the language ----------------------------------------------------------------------------
+//
+// At the top right: "Language:" and its menu on a computer, a small "EN ▾"
+// on the phone (the menu itself, invisible, laid over it). The language
+// changes at once: the texts of index.html are translated where they are
+// (src/i18n.js), and those the code writes are written again.
+
+function wireLanguage() {
+  const select = $("lang-select");
+  for (const [code, name] of Object.entries(LANGUAGES)) {
+    const option = new Option(name, code);
+    option.setAttribute("translate", "no");
+    select.append(option);
+  }
+  showLanguage();
+  select.addEventListener("change", () => setLang(select.value));
+  onLangChange(() => {
+    showLanguage();
+    relabel();
+  });
+}
+
+function showLanguage() {
+  $("lang-select").value = lang();
+  $("lang-short").textContent = lang().toUpperCase();
+}
+
+// Every text the code wrote, again in the language now in use.
+function relabel() {
+  if (!editor) return; // this browser cannot run EUTERIA: only its notice
+  relabelControls();
+  labelLayoutSwitch();
+  showCounting();
+  showUpdate(shownLatest);
+  app.timeline.relabel();
+  editor.relabel();
+  recording.relabel();
+  renderLibrary();
+  renderRecent();
+  paintExportStatus();
+  renderPlayer(player.song ? app.timeline.getView() : null);
 }
 
 // --appbar-h: the height of the bar at the top; --app-h: the window's.
@@ -1994,6 +2117,8 @@ function registerServiceWorker() {
 }
 
 async function init() {
+  translatePage(); // the texts of index.html in the language in use, before the code changes any
+  wireLanguage();
   if (!Player.supported()) {
     $("unsupported").hidden = false;
     return;
@@ -2012,7 +2137,7 @@ async function init() {
       const gone = await library.verify();
       for (const e of gone) if (e.settingsKey && !library.entries.some((x) => x.settingsKey === e.settingsKey)) forgetSettings(e.settingsKey);
       const n = gone.length;
-      if (n) notice(`${n} song${n === 1 ? " was" : "s were"} no longer in the storage of the browser and left the library.`, "error");
+      if (n) notice(trn(n, "{n} song was no longer in the storage of the browser and left the library.", "{n} songs were no longer in the storage of the browser and left the library."), "error");
     } catch (_) {}
     app.persisted = await isPersisted();
     renderLibrary();

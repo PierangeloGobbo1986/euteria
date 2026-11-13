@@ -70,16 +70,35 @@ b { font-weight: 650; }
 .brand .acronym b { color: var(--gold); font-weight: 750; }
 .brand .author { color: var(--dim); }
 [data-layout=phone] .brand .acronym span { display: block; }
-.library-btn { flex: none; min-height: 40px; padding: 8px 14px; border-radius: 999px; color: var(--accent); font-weight: 650; border-color: #355a52; background: var(--accent-bg); }
+.library-btn { flex: none; min-height: 40px; padding: 8px 14px; color: var(--accent); font-weight: 650; border-color: #355a52; background: var(--accent-bg); }
 .spacer { flex: 1; }
+/* At the top right, in a grid: the language at the left of Update (the
+   library) or of Library (a song), Save under Library. */
+.appbar-actions { flex: none; margin-left: auto; display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 10px; row-gap: 6px; }
+[data-layout=phone] .appbar-actions { column-gap: 6px; }
+.appbar-actions .lang { grid-column: 1; grid-row: 1; }
+.appbar-actions #back, .appbar-actions #update { grid-column: 2; grid-row: 1; }
+.appbar-actions #save-top { grid-column: 2; grid-row: 2; }
 .update-btn { flex: none; position: relative; }
 .update-btn.available::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
-[data-layout=phone] .update-btn { min-height: 40px; padding: 8px 14px; border-radius: 999px; }
+[data-layout=phone] .update-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; border-radius: 999px; }
 body:not([data-view=library]):not([data-view=welcome]) .update-btn { display: none; }
-/* In a song: Library, and Save under it (on the left on a computer, on the right on a phone). */
-.song-nav { display: flex; flex-direction: column; gap: 6px; flex: none; min-width: 104px; }
-.song-nav button { min-height: 32px; padding: 5px 16px; font-size: 14px; }
-.song-nav .library-btn { min-height: 32px; }
+/* In a song: Library, and Save under it, of one shape and size. */
+.song-nav { display: contents; }
+.song-nav button { min-width: 104px; min-height: 32px; padding: 5px 16px; font-size: 14px; }
+/* The phone: as narrow as their names, to leave the name of the app its room. */
+[data-layout=phone] .song-nav button { min-width: 0; padding: 5px 10px; }
+/* The language: "Language:" and its menu (a computer); a small "EN ▾" with
+   the menu itself, invisible, laid over it (the phone). */
+.lang { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.lang-pick { position: relative; display: inline-flex; align-items: center; }
+.lang-pick::after { content: "▾"; position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 11px; pointer-events: none; }
+.lang-pick select { -webkit-appearance: none; appearance: none; height: 32px; padding: 0 26px 0 10px; background: var(--field); color: var(--text); border: 1px solid var(--border); border-radius: 9px; font: inherit; font-size: 14px; cursor: pointer; }
+.lang-pick select option { background: var(--panel); color: var(--text); }
+.lang-short { display: inline-flex; align-items: center; height: 32px; padding: 0 15px 0 7px; background: var(--field); border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-size: 13px; font-weight: 650; letter-spacing: .04em; }
+[data-layout=phone] .lang-pick::after { right: 5px; font-size: 9px; }
+[data-layout=phone] .lang-pick select { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; font-size: 16px; /* 16px: iOS does not zoom into it */ }
+[data-layout=phone] .lang-pick:focus-within .lang-short { outline: 2px solid var(--accent); outline-offset: 2px; }
 .save-top { position: relative; }
 .save-top.dirty::after { content: ""; position: absolute; top: 4px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #17140e; }
 [data-layout=phone] .computer-only { display: none !important; }
@@ -304,6 +323,9 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 /* ----- timeline ----- */
 /* --tl-col: the column of the tracks (computer); --tl-gap: under the overview. */
 .timeline-card { padding: 12px; --tl-col: 186px; --tl-gap: 8px; }
+/* In Italian a little wider: "Tutti gli stem" and "Solo originale" over the tracks
+   (with room for wider fonts, such as the Mac's). */
+:lang(it) .timeline-card { --tl-col: 214px; }
 .tl-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; margin-bottom: 10px; }
 .tl-toolbar .spacer { flex: 1; }
 /* A group with its name over it: Zoom. */
@@ -696,6 +718,7 @@ button.eye .icon { width: 18px; height: 18px; }
 @media (max-width: 640px) {
   [data-layout=computer] .transport-inner { grid-template-columns: auto 1fr auto; grid-template-areas: "now . total" "seek seek seek" "buttons buttons buttons"; gap: 4px 10px; }
   .timeline-card { --tl-col: 150px; }
+  :lang(it) .timeline-card { --tl-col: 194px; }
   [data-layout=computer] .edit-bar > button, .tl-side > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
 }
 @media (max-width: 900px) {

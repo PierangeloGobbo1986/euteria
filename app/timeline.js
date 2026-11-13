@@ -23,6 +23,7 @@
 
 import { barNumber, barAt, nearestBar } from "../src/grid.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
+import { tr } from "../src/i18n.js";
 
 const C = {
   ruler: "#141a1b",
@@ -126,7 +127,6 @@ export class Timeline {
     this.main = document.createElement("div");
     this.main.className = "tl-main";
     this.main.setAttribute("role", "img");
-    this.main.setAttribute("aria-label", "Timeline: tap or drag to move the playhead, drag inside the loop to move it, drag the bar numbers to scroll, pinch to zoom");
     this.base = document.createElement("canvas");
     this.base.className = "tl-base";
     this.top = document.createElement("canvas");
@@ -134,11 +134,18 @@ export class Timeline {
     this.main.append(this.base, this.top);
     this.over = document.createElement("canvas");
     this.over.className = "tl-overview";
-    this.over.setAttribute("aria-label", "Overview of the whole song: drag the frame of the view or of the loop to move it, tap elsewhere to bring the view there");
+    this.relabel();
     host.append(this.over, this.main);
     this._bind();
     this.resizer = new ResizeObserver(() => this.layout());
     this.resizer.observe(this.main);
+  }
+
+  // What the timeline and the overview are, for screen readers (again in
+  // another language).
+  relabel() {
+    this.main.setAttribute("aria-label", tr("Timeline: tap or drag to move the playhead, drag inside the loop to move it, drag the bar numbers to scroll, pinch to zoom"));
+    this.over.setAttribute("aria-label", tr("Overview of the whole song: drag the frame of the view or of the loop to move it, tap elsewhere to bring the view there"));
   }
 
   // ----- content ------------------------------------------------------------

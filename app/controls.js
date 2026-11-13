@@ -2,6 +2,8 @@
 // buttons (hold a button to repeat; tap the number to type it), the key
 // selector, and formatting helpers.
 
+import { tr } from "../src/i18n.js";
+
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -136,6 +138,8 @@ function stepButton(text, label) {
 // A number with − and + buttons around it. The number is a text field: a tap
 // selects it and brings up the keypad; the value is applied when the field is
 // left or Return is pressed. The buttons move to the next multiple of `step`.
+// `label` names it for screen readers (relabel() names it again, in another
+// language).
 export function numberField({
   label,
   min = 0,
@@ -211,8 +215,8 @@ export function numberField({
   let dec = null;
   let inc = null;
   if (buttons) {
-    dec = stepButton("−", `${label}: less`);
-    inc = stepButton("+", `${label}: more`);
+    dec = stepButton("−", tr("{label}: less", { label }));
+    inc = stepButton("+", tr("{label}: more", { label }));
     holdRepeat(dec, () => stepBy(-1));
     holdRepeat(inc, () => stepBy(1));
     el.append(dec, h("div", { class: "value" }, ...parts), inc);
@@ -239,17 +243,22 @@ export function numberField({
       if (inc) inc.disabled = off;
       el.classList.toggle("disabled", off);
     },
+    relabel(name) {
+      input.setAttribute("aria-label", name);
+      if (dec) dec.setAttribute("aria-label", tr("{label}: less", { label: name }));
+      if (inc) inc.setAttribute("aria-label", tr("{label}: more", { label: name }));
+    },
   };
 }
 
 // The key, in semitones: a list (a wheel on phones) between − and +.
-export function keyField({ label = "Key", min = -12, max = 12, onChange = () => {} }) {
-  const select = h("select", { "aria-label": `${label} in semitones` });
+export function keyField({ label, min = -12, max = 12, onChange = () => {} }) {
+  const select = h("select", { "aria-label": tr("{label} in semitones", { label }) });
   for (let v = max; v >= min; v--) select.append(new Option(fmtSigned(v), String(v)));
   select.value = "0";
   select.addEventListener("change", () => onChange(+select.value));
-  const dec = stepButton("−", `${label}: down a semitone`);
-  const inc = stepButton("+", `${label}: up a semitone`);
+  const dec = stepButton("−", tr("{label}: down a semitone", { label }));
+  const inc = stepButton("+", tr("{label}: up a semitone", { label }));
   const move = (d) => {
     const v = Math.min(max, Math.max(min, +select.value + d));
     if (v !== +select.value) {
@@ -272,19 +281,30 @@ export function keyField({ label = "Key", min = -12, max = 12, onChange = () => 
       inc.disabled = off;
       el.classList.toggle("disabled", off);
     },
+    relabel(name) {
+      select.setAttribute("aria-label", tr("{label} in semitones", { label: name }));
+      dec.setAttribute("aria-label", tr("{label}: down a semitone", { label: name }));
+      inc.setAttribute("aria-label", tr("{label}: up a semitone", { label: name }));
+    },
   };
 }
 
-// A button that asks for a second tap before doing something that cannot be undone.
+// A button that asks for a second tap before doing something that cannot be
+// undone. confirmText: the text it shows meanwhile, or a function giving it
+// (in the language in use). The button's own content comes back as it was
+// (the same nodes: the page's translation keeps finding them).
 export function confirmTap(button, confirmText, action, ms = 4000) {
-  const normal = { html: button.innerHTML, label: button.getAttribute("aria-label") };
   let timer = null;
+  let normal = null; // {nodes, label}: the button's content, while it asks
   const reset = () => {
     clearTimeout(timer);
     timer = null;
     button.classList.remove("confirm");
-    button.innerHTML = normal.html;
+    if (!normal) return;
+    button.replaceChildren(...normal.nodes);
     if (normal.label) button.setAttribute("aria-label", normal.label);
+    else button.removeAttribute("aria-label");
+    normal = null;
   };
   button.addEventListener("click", () => {
     if (timer) {
@@ -292,9 +312,11 @@ export function confirmTap(button, confirmText, action, ms = 4000) {
       action();
       return;
     }
+    const text = typeof confirmText === "function" ? confirmText() : confirmText;
+    normal = { nodes: [...button.childNodes], label: button.getAttribute("aria-label") };
     button.classList.add("confirm");
-    button.textContent = confirmText;
-    button.setAttribute("aria-label", confirmText);
+    button.textContent = text;
+    button.setAttribute("aria-label", text);
     timer = setTimeout(reset, ms);
   });
   return reset;

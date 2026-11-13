@@ -6,6 +6,8 @@
 // stored as they are and members compressed with deflate are supported
 // (DecompressionStream "deflate-raw"); ZIP64 is not needed for projects.
 
+import { tr } from "./i18n.js";
+
 const EOCD = 0x06054b50;
 const CENTRAL = 0x02014b50;
 const LOCAL = 0x04034b50;
@@ -21,11 +23,11 @@ export async function openZip(blob) {
       break;
     }
   }
-  if (eocd < 0) throw new Error("This file is not a project (it is not a zip archive).");
+  if (eocd < 0) throw new Error(tr("This file is not a project (it is not a zip archive)."));
   const count = tail.getUint16(eocd + 10, true);
   const directorySize = tail.getUint32(eocd + 12, true);
   const directoryOffset = tail.getUint32(eocd + 16, true);
-  if (count === 0xffff || directoryOffset === 0xffffffff) throw new Error("ZIP64 archives are not supported.");
+  if (count === 0xffff || directoryOffset === 0xffffffff) throw new Error(tr("ZIP64 archives are not supported."));
 
   const directory = new DataView(await blob.slice(directoryOffset, directoryOffset + directorySize).arrayBuffer());
   const raw = new Uint8Array(directory.buffer, directory.byteOffset, directory.byteLength);
@@ -33,7 +35,7 @@ export async function openZip(blob) {
   const entries = new Map();
   let p = 0;
   for (let n = 0; n < count; n++) {
-    if (directory.getUint32(p, true) !== CENTRAL) throw new Error("The project file is damaged (zip directory).");
+    if (directory.getUint32(p, true) !== CENTRAL) throw new Error(tr("The project file is damaged (zip directory)."));
     const nameLength = directory.getUint16(p + 28, true);
     const extraLength = directory.getUint16(p + 30, true);
     const commentLength = directory.getUint16(p + 32, true);
@@ -53,7 +55,7 @@ export async function openZip(blob) {
 
   async function dataRange(entry) {
     const head = new DataView(await blob.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
-    if (head.getUint32(0, true) !== LOCAL) throw new Error(`The project file is damaged (${entry.name}).`);
+    if (head.getUint32(0, true) !== LOCAL) throw new Error(tr("The project file is damaged ({name}).", { name: entry.name }));
     const start = entry.localOffset + 30 + head.getUint16(26, true) + head.getUint16(28, true);
     return [start, start + entry.compressedSize];
   }
@@ -68,7 +70,7 @@ export async function openZip(blob) {
     // A fresh Uint8Array (its own ArrayBuffer) with the member's content.
     async bytes(name) {
       const entry = entries.get(name);
-      if (!entry) throw new Error(`The project has no ${name}.`);
+      if (!entry) throw new Error(tr("The project has no {name}.", { name }));
       const [a, b] = await dataRange(entry);
       const raw = blob.slice(a, b);
       if (entry.method === 0) return new Uint8Array(await raw.arrayBuffer());
@@ -76,7 +78,7 @@ export async function openZip(blob) {
         const stream = raw.stream().pipeThrough(new DecompressionStream("deflate-raw"));
         return new Uint8Array(await new Response(stream).arrayBuffer());
       }
-      throw new Error(`Unsupported compression in ${name}.`);
+      throw new Error(tr("Unsupported compression in {name}.", { name }));
     },
     async text(name) {
       return new TextDecoder().decode(await this.bytes(name));

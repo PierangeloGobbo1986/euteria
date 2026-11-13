@@ -11,10 +11,10 @@
 
 import { h, numberField, fmtTime, parseTime, confirmTap } from "./controls.js";
 import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, clearedGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
+import { tr, trn } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // Keys that start typing a chord when bars are selected (a computer).
 const CHORD_KEY = /^[A-Ga-gN%]$/;
 const MESSAGE_MS = 4000;
@@ -54,7 +54,7 @@ export class Editor {
   _build() {
     const phone = this.ctx.phone;
     this.bpm = numberField({
-      label: "Tempo of the grid",
+      label: tr("Tempo of the grid"),
       min: BPM_RANGE[0],
       max: BPM_RANGE[1],
       step: 0.5,
@@ -62,15 +62,15 @@ export class Editor {
       unit: "bpm",
       inputMode: "decimal",
       className: "bpm",
-      onChange: (v) => this.rebuild({ bpm: v }, `Grid at ${v.toFixed(1)} BPM.`),
+      onChange: (v) => this.rebuild({ bpm: v }, tr("Grid at {bpm} BPM.", { bpm: v.toFixed(1) })),
     });
     $("bpm-box").append(this.bpm.el);
-    this.meter = h("select", { "aria-label": "Meter" });
+    this.meter = h("select", { "aria-label": tr("Meter") });
     for (const m of METERS) this.meter.append(new Option(m, m));
-    this.meter.addEventListener("change", () => this.rebuild({ meter: this.meter.value }, `Meter ${this.meter.value}: grid rebuilt from the anchor.`));
+    this.meter.addEventListener("change", () => this.rebuild({ meter: this.meter.value }, tr("Meter {meter}: grid rebuilt from the anchor.", { meter: this.meter.value })));
     $("meter-box").append(h("div", { class: "num meter" }, h("div", { class: "value" }, this.meter)));
     this.anchor = numberField({
-      label: "Anchor",
+      label: tr("Anchor"),
       min: 0,
       max: 0,
       step: 0.01,
@@ -79,17 +79,17 @@ export class Editor {
       format: (v) => fmtTime(v, 3),
       parse: parseTime,
       className: "time anchor",
-      onChange: (v) => this.rebuild({ firstBeat: v }, `Anchor at ${fmtTime(v, 3)}.`),
+      onChange: (v) => this.rebuild({ firstBeat: v }, tr("Anchor at {time}.", { time: fmtTime(v, 3) })),
     });
     $("anchor-box").append(this.anchor.el);
     $("set-anchor").addEventListener("click", () => {
       const t = clamp(this.ctx.player.position, 0, this.duration);
-      this.rebuild({ firstBeat: t }, `Anchor at ${fmtTime(t, 3)}: a bar starts there, the grid goes both ways.`);
+      this.rebuild({ firstBeat: t }, tr("Anchor at {time}: a bar starts there, the grid goes both ways.", { time: fmtTime(t, 3) }));
     });
-    confirmTap($("clear-grid"), phone ? "Tap again to clear" : "Click again to clear", () => this.clearGrid());
+    confirmTap($("clear-grid"), () => (phone ? tr("Tap again to clear") : tr("Click again to clear")), () => this.clearGrid());
 
     this.bar = numberField({
-      label: "Number of the selected bar",
+      label: tr("Number of the selected bar"),
       min: -9999,
       max: 9999,
       step: 1,
@@ -97,7 +97,7 @@ export class Editor {
       className: "bar",
       onChange: (v) => this.renumber(v),
     });
-    this.bar.input.title = "Type a number to renumber the bars from here";
+    this.bar.input.title = tr("Type a number to renumber the bars from here");
     $("bar-box").append(this.bar.el);
     $("bar-prev").addEventListener("click", () => this.move(-1, false));
     $("bar-next").addEventListener("click", () => this.move(1, false));
@@ -121,6 +121,17 @@ export class Editor {
     input.addEventListener("keydown", (e) => this._inputKey(e));
 
     $("edit-toggle").addEventListener("click", () => this.setOn(!this.on));
+  }
+
+  // The names of the controls, again in the language in use.
+  relabel() {
+    this.bpm.relabel(tr("Tempo of the grid"));
+    this.meter.setAttribute("aria-label", tr("Meter"));
+    this.anchor.relabel(tr("Anchor"));
+    this.bar.relabel(tr("Number of the selected bar"));
+    this.bar.input.title = tr("Type a number to renumber the bars from here");
+    if (this.ctx.player.song) this.chord.placeholder = this._placeholder(); // else the page's own
+    this.refresh();
   }
 
   // Return: the next bar (Shift: the previous one), the keyboard stays up.
@@ -275,11 +286,11 @@ export class Editor {
   // differ).
   loadInput() {
     const input = this.chord;
+    input.placeholder = this._placeholder();
     if (!this.sel) {
       this.target = null;
       this.shown = "";
       input.value = "";
-      input.placeholder = this.grid.bars.length ? "Select a bar" : "No grid";
       return;
     }
     const { lo, hi } = this.sel;
@@ -289,8 +300,17 @@ export class Editor {
     this.target = { lo, hi };
     this.shown = value;
     input.value = value;
-    input.placeholder = texts.size > 1 ? "Several chords" : "Chord";
     if (document.activeElement === input) input.select();
+  }
+
+  // What the chord field says while empty: what to do, or that the bars
+  // selected have different chords.
+  _placeholder() {
+    if (!this.sel) return this.grid.bars.length ? tr("Select a bar") : tr("No grid");
+    const { lo, hi } = this.sel;
+    const first = this.grid.chords.get(lo) || "";
+    for (let i = lo + 1; i <= hi; i++) if ((this.grid.chords.get(i) || "") !== first) return tr("Several chords");
+    return tr("Chord");
   }
 
   // What was typed in the chord field goes to its bars (empty: no chord).
@@ -351,14 +371,14 @@ export class Editor {
     this.built = true;
     this.sel = null;
     this.loadInput();
-    this._edited("Grid and chords cleared. Set the anchor to make a new grid.");
+    this._edited(tr("Grid and chords cleared. Set the anchor to make a new grid."));
   }
 
   // The selected bar gets number n; the others follow (bar_number_offset).
   renumber(n) {
     if (!this.sel || !Number.isInteger(n)) return;
     this.ctx.app.grid = { ...this.grid, offset: n - (this.sel.lo + 1) };
-    this._edited(`Bars renumbered: this one is ${n}.`);
+    this._edited(tr("Bars renumbered: this one is {n}.", { n }));
   }
 
   clearSelection() {
@@ -374,7 +394,7 @@ export class Editor {
     const { lo, hi } = this.sel;
     this.clip = [];
     for (let i = lo; i <= hi; i++) this.clip.push(this.grid.chords.get(i) || "");
-    this.say(`Chords of ${plural(this.clip.length, "bar")} copied.`);
+    this.say(trn(this.clip.length, "Chords of {n} bar copied.", "Chords of {n} bars copied."));
   }
 
   // Into the bars selected, repeating the chords copied to fill them (EUTERIA
@@ -387,7 +407,7 @@ export class Editor {
     if (lo === hi) hi = Math.min(this.grid.bars.length - 1, lo + n - 1);
     this._setChords(lo, hi, (k) => this.clip[k % n]);
     this.select({ anchor: lo, lo, hi }, { reveal: true });
-    this.say(`Chords pasted into ${plural(hi - lo + 1, "bar")}.`);
+    this.say(trn(hi - lo + 1, "Chords pasted into {n} bar.", "Chords pasted into {n} bars."));
   }
 
   // Keys while editing (the focus is not in a field). Returns true if used.
@@ -450,7 +470,7 @@ export class Editor {
     toggle.classList.toggle("dirty", !!song && this.dirty);
     setAttr(toggle, "aria-pressed", String(show));
     toggle.disabled = !song;
-    setAttr(toggle, "title", this.dirty ? "Edit the bars and the chords (changes not saved)" : "Edit the bars and the chords");
+    setAttr(toggle, "title", this.dirty ? tr("Edit the bars and the chords (changes not saved)") : tr("Edit the bars and the chords"));
     $("grid-edit").hidden = !show;
     $("chord-edit").hidden = !show;
     if (!show) return;
@@ -481,12 +501,12 @@ export class Editor {
     const text = m
       ? m.text
       : this.dirty
-        ? "Changes not saved yet: Save is at the top right."
+        ? tr("Changes not saved yet: Save is at the top right.")
         : has
           ? ""
           : phone
-            ? "No grid: set the anchor at the first beat of a bar."
-            : "No grid: put the playhead on the first beat of a bar and set the anchor.";
+            ? tr("No grid: set the anchor at the first beat of a bar.")
+            : tr("No grid: put the playhead on the first beat of a bar and set the anchor.");
     setText(status, text);
     setAttr(status, "class", `edit-status ${m ? m.kind : this.dirty ? "dirty" : ""}`.trim());
   }

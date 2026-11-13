@@ -10,6 +10,7 @@
 import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder } from "./project.js";
 import { int16Peaks } from "./peaks.js";
+import { tr } from "./i18n.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
 const TEMPO_RANGE = [0.5, 2];
@@ -37,9 +38,9 @@ async function openAudio(file, context, onProgress) {
   try {
     buffer = await context.decodeAudioData(await file.arrayBuffer());
   } catch (_) {
-    throw new Error(`This browser cannot read ${file.name}: it is neither an EUTERIA project nor an audio file it knows.`);
+    throw new Error(tr("This browser cannot read {name}: it is neither an EUTERIA project nor an audio file it knows.", { name: file.name }));
   }
-  if (!buffer.length) throw new Error(`${file.name} contains no audio.`);
+  if (!buffer.length) throw new Error(tr("{name} contains no audio.", { name: file.name }));
   const channels = toInt16(buffer, 0, buffer.length);
   const title = file.name.replace(/\.[^.]+$/, "") || "Song";
   onProgress(1, 1, null);
@@ -71,7 +72,7 @@ export function runRenderWorker(message, onProgress) {
     };
     worker.onerror = (event) => {
       worker.terminate();
-      reject(new Error(event.message || "The export stopped."));
+      reject(new Error(event.message || tr("The export stopped.")));
     };
     worker.postMessage(message, transfer);
   });
@@ -148,7 +149,7 @@ export class Player {
   }
 
   async _startEngine(context) {
-    const engine = await withTimeout(Engine.create(context), 15000, "The audio engine did not start. Reload the page and try again.");
+    const engine = await withTimeout(Engine.create(context), 15000, tr("The audio engine did not start. Reload the page and try again."));
     engine.node.connect(context.destination);
     engine.onposition = (heard, playing) => {
       this.position = heard;
@@ -170,7 +171,7 @@ export class Player {
   // open is closed first, so that two songs are never in memory together.
   // onProgress(done, total, trackKey) is called before each track is decoded.
   async open(file, onProgress = () => {}) {
-    if (this.busy) throw new Error("Wait for the current operation to finish.");
+    if (this.busy) throw new Error(tr("Wait for the current operation to finish."));
     this.busy = "opening";
     this._update();
     try {
@@ -516,15 +517,15 @@ export class Player {
   // on, the Original Track goes with the takes. The tracks are lent to the
   // export worker meanwhile (their memory is moved, not copied).
   async exportMp3(onProgress) {
-    if (!this.song || this.busy || this.recording) throw new Error("Wait for the current operation to finish.");
+    if (!this.song || this.busy || this.recording) throw new Error(tr("Wait for the current operation to finish."));
     const stems = this.tracks.filter((t) => t.on && STEM_NAMES.includes(t.key)).map((t) => t.key);
     const takes = this.tracks.filter((t) => t.on && t.take);
     const fullOn = this.tracks.some((t) => t.on && t.key === "original");
     if (!stems.length && !takes.length) {
       let text;
-      if (!this.hasStems && !this.takes.length) text = "This song has no stems: the export combines stems, and the Original Track alone is the file you already have.";
-      else if (fullOn) text = "Exporting the Original Track alone is basically pointless: it is the file you already have. Switch on the stems or the takes you want to combine.";
-      else text = "No track is switched on. Switch on the stems or the takes you want to combine.";
+      if (!this.hasStems && !this.takes.length) text = tr("This song has no stems: the export combines stems, and the Original Track alone is the file you already have.");
+      else if (fullOn) text = tr("Exporting the Original Track alone is basically pointless: it is the file you already have. Switch on the stems or the takes you want to combine.");
+      else text = tr("No track is switched on. Switch on the stems or the takes you want to combine.");
       throw Object.assign(new Error(text), { notice: true });
     }
     const withOriginal = !stems.length && fullOn;
