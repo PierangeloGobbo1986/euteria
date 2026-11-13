@@ -43,8 +43,9 @@ under it, *Save* (gold) sit at the top right.
   opened before, to open them again with one click (the browser asks once for
   permission). The transport stays in view as the page scrolls, the song's name at its
   top (its tracks and length on the same line). Under it comes *Recording input* (see
-  below), then the card of the timeline. Over the timeline, *Bars and Chords* (the editor, see below) has a row
-  of its own, then comes the overview; the column of the tracks starts with *All stems*
+  below), then the card of the timeline. Over the timeline, *Bars and Chords* (the
+  editor, see below) has a row of its own, with *Grid* and its eye beside it, then
+  comes the overview; the column of the tracks starts with *All stems*
   and *Original only*, beside the time scale. *Tempo and key* and *File export and
   sharing* follow, each across the page in two columns. Volumes and tempo also have
   sliders; keyboard: Space play or pause, ← → 5 seconds, Home back to the start, L loop
@@ -103,7 +104,9 @@ starts at the bar being played (or in the middle of the view if the playhead is
 elsewhere) and lasts 16 seconds, at most half of what is in view, in whole bars; a loop
 already placed and in view stays where it is. While the song plays, the view follows
 the playhead, except for a few seconds after it was moved by hand.
-*Grid* hides the grid lines and the chords. Bar numbers start from the number saved by
+*Grid* shows or hides the grid lines and the chords: on a computer the eye beside the
+word *Grid*, next to *Bars and Chords* (open: shown, closed: hidden); on the phone the
+*Grid* button of the timeline's toolbar. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
 **Editing the grid and the chords.** *Bars and Chords* (on a computer, in its own row

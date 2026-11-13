@@ -37,6 +37,9 @@ const ICONS = {
   pause: '<rect x="5.6" y="4.8" width="4.3" height="14.4" rx="1"/><rect x="14.1" y="4.8" width="4.3" height="14.4" rx="1"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
   grip: '<circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/>',
+  // An eye open, and closed (its lid and lashes).
+  eye: '<path d="M2 12C5.5 6.4 18.5 6.4 22 12C18.5 17.6 5.5 17.6 2 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2"/>',
+  eyeClosed: '<path d="M2 10.5C5.5 16 18.5 16 22 10.5M5.6 13.9 4 16.4M12 15.2V18M18.4 13.9 20 16.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
 };
 
 export function icon(name) {

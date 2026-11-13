@@ -1670,10 +1670,18 @@ function updateUi() {
     app.timeline.setLoop(player.loop);
     app.timeline.setPosition(player.position, player.playing);
   }
+  // The grid shown or hidden: Grid in the toolbar (phone), the eye beside
+  // Bars and Chords (computer).
+  const hasGrid = !!(song && app.grid.bars.length);
   const grid = $("grid-toggle");
-  grid.hidden = !(song && app.grid.bars.length);
+  grid.hidden = !hasGrid;
   grid.classList.toggle("on", app.gridVisible);
   grid.setAttribute("aria-pressed", String(app.gridVisible));
+  $("grid-view").hidden = !hasGrid;
+  const eye = $("grid-eye");
+  setIcon(eye, app.gridVisible ? "eye" : "eyeClosed");
+  eye.setAttribute("aria-pressed", String(app.gridVisible));
+  eye.title = app.gridVisible ? "The grid is shown: click to hide it" : "The grid is hidden: click to show it";
   const hint = editor.on && song ? HINTS.edit : HINTS.view;
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
@@ -1864,12 +1872,14 @@ function wire() {
     app.timeline.setView({ zoom: 1, start: 0 });
     settingsChanged();
   });
-  $("grid-toggle").addEventListener("click", () => {
+  const toggleGrid = () => {
     app.gridVisible = !app.gridVisible;
     app.timeline.setGridVisible(app.gridVisible);
     settingsChanged();
     scheduleUi();
-  });
+  };
+  $("grid-toggle").addEventListener("click", toggleGrid);
+  $("grid-eye").addEventListener("click", toggleGrid);
   $("set-a").addEventListener("click", setLoopStartHere);
   $("set-b").addEventListener("click", setLoopEndHere);
   $("export").addEventListener("click", exportMp3);

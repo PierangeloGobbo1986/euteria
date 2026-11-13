@@ -395,9 +395,16 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .tl-main canvas { position: absolute; left: 0; top: 0; display: block; }
 .tl-overview { display: block; margin-bottom: var(--tl-gap); border-radius: 6px; touch-action: none; cursor: pointer; }
 /* Computer: Bars and Chords over the timeline, as wide as the column of the
-   tracks; the column starts beside the time scale, under the overview. */
+   tracks, and beside it Grid with its eye (the grid shown or hidden); the
+   column starts beside the time scale, under the overview. */
 .edit-bar { display: flex; flex-direction: column; }
-[data-layout=computer] .edit-bar { width: calc(var(--tl-col) - 10px); margin-bottom: 10px; }
+[data-layout=computer] .edit-bar { flex-direction: row; align-items: center; gap: 12px; margin-bottom: 10px; }
+[data-layout=computer] #edit-toggle { flex: none; width: calc(var(--tl-col) - 10px); }
+.grid-view { display: flex; align-items: center; gap: 6px; }
+.grid-view[hidden] { display: none; }
+.grid-view-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+button.eye { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 8px; }
+button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .edit-bar { margin-top: 12px; }
 [data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 70px)); }
 .tl-side {

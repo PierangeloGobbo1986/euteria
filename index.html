@@ -149,7 +149,7 @@
 
     <section class="card timeline-card">
       <div class="tl-toolbar">
-        <button id="grid-toggle" type="button" class="small toggle-pill on" aria-pressed="true" hidden>Grid</button>
+        <button id="grid-toggle" type="button" class="small toggle-pill on phone-only" aria-pressed="true" hidden>Grid</button>
         <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
         <div id="loop-controls" class="loop-controls">
           <div id="position-box" class="position-box"></div>
@@ -168,9 +168,14 @@
           </div>
         </div>
       </div>
-      <!-- Bars and Chords (the editor): over the timeline on a computer, at the bottom of this card on the phone -->
+      <!-- Bars and Chords (the editor): over the timeline on a computer, Grid and its eye beside it
+           (shown or hidden); at the bottom of this card on the phone, whose Grid is in the toolbar -->
       <div id="edit-bar" class="edit-bar">
         <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the bars and the chords">Bars and Chords</button>
+        <div id="grid-view" class="grid-view computer-only" hidden>
+          <span class="grid-view-label" aria-hidden="true">Grid</span>
+          <button id="grid-eye" type="button" class="small eye" aria-pressed="true" aria-label="Show the grid"></button>
+        </div>
       </div>
       <!-- Separating the instruments (computer) -->
       <div id="sep-panel" class="sep-panel computer-only" hidden>
