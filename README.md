@@ -75,23 +75,25 @@ library. Each has a red ✕ that deletes it, and *Delete all* above the list del
 all (after a second tap). An audio file opens as a single track: tempo, key and loop
 work on the whole song.
 
-**The timeline** shows the song as EUTERIA (Python) does: the bar numbers and the time,
+**The timeline** shows the song as EUTERIA (Python) does: the time and the bar numbers
+(each number just over its chord, in line with it; the phone shows the numbers only),
 the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
 computer every track has its own row, with its switch and volume beside it (a track that
 is off is drawn dimmed); on the phone the row is the Original Track. Mouse and finger
 work alike on the waveforms: a tap or a click places the playhead (the yellow line),
 dragging from inside the loop moves the loop and keeps its length, dragging from
-anywhere else drags the playhead, to place it exactly. Dragging the bar numbers scrolls
-(with momentum on a touch screen); pinching, ctrl+wheel (a trackpad pinch) or the
-buttons of *Zoom* (at the right of the timeline's toolbar) go from the whole song (100%)
-to about 100 pixels per second, and a tap on the percentage goes back to the whole song.
-The overview, the grey strip above the bar numbers, shows the whole song, the part in
+anywhere else drags the playhead, to place it exactly. Dragging the time and the bar
+numbers scrolls (with momentum on a touch screen); pinching, ctrl+wheel (a trackpad
+pinch) or the buttons of *Zoom* (at the right of the timeline's toolbar) go from the
+whole song (100%) to about 100 pixels per second, and a tap on the percentage goes back
+to the whole song.
+The overview, the grey strip above the time, shows the whole song, the part in
 view and the loop: dragging the frame of the view or of the loop moves it (the loop
 snaps to the bars), a tap elsewhere brings the view there.
 
 The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
-them freely): with a finger by the handles in the band under the bar numbers, with a
-mouse anywhere along them; the green bar in that band moves the loop too. Next to
+them freely): with a finger by the handles at the foot of the bar numbers, with a
+mouse anywhere along them; the green bar there moves the loop too. Next to
 *Loop* (in the timeline's toolbar on a computer, under the timeline on the phone, after
 the editing tools) one field shows the playhead to the hundredth of a second: it
 follows the yellow line, and typing a time or − and + (a hundredth at a time, held to

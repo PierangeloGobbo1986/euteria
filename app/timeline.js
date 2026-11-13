@@ -1,7 +1,7 @@
-// The timeline of the player, drawn as EUTERIA (Python) draws it: bar numbers
-// and time, the chords, the waveform of each track (one row on the phone, one
-// per track on a computer) with the bar grid over it, the loop and the
-// playhead. Only the part of the song in view is drawn. While a take is
+// The timeline of the player, drawn as EUTERIA (Python) draws it: time and
+// bar numbers (here the numbers sit just over the chords), the chords, the
+// waveform of each track (one row on the phone, one per track on a computer)
+// with the bar grid over it, the loop and the playhead. Only the part of the song in view is drawn. While a take is
 // recorded, its waveform grows in a row of its own at the bottom.
 //
 // The same with a mouse and a finger: on the waveforms, a tap or a click
@@ -100,7 +100,8 @@ export class Timeline {
     this.onLoop = onLoop || (() => {});
     this.onView = onView || (() => {});
     this.onChange = onChange || (() => {});
-    this.dims = compact ? { ruler: 32, chords: 22, row: 64, overview: 24 } : { ruler: 46, chords: 24, row: 60, overview: 26 };
+    // tab: the handles of the loop at its ends.
+    this.dims = compact ? { ruler: 32, chords: 22, row: 64, overview: 24, tab: { w: 12, h: 20 } } : { ruler: 46, chords: 24, row: 60, overview: 26, tab: { w: 9, h: 16 } };
     this.duration = 0;
     this.sampleRate = 48000;
     this.rows = [];
@@ -251,6 +252,12 @@ export class Timeline {
   }
 
   // ----- geometry -------------------------------------------------------------
+
+  // How far right of its bar line a bar's number and its chord start: in line
+  // with each other, and clear of the loop's handle when the loop starts there.
+  get textX() {
+    return Math.ceil(this.dims.tab.w / 2) + 1;
+  }
 
   get headHeight() {
     return this.dims.ruler + (this.showChords ? this.dims.chords : 0);
@@ -418,6 +425,10 @@ export class Timeline {
     return EVERY.find((k) => spacingPx * k >= minPx) || EVERY[EVERY.length - 1];
   }
 
+  // The ruler. With a grid: the time along its top (not on the phone), the
+  // beats and the bars as ticks, and the bar numbers along its bottom, just
+  // over the chord lane and in line with the chords, so that each bar's
+  // number and chord go together. Without a grid: the time alone.
   _ruler(ctx) {
     const R = this.dims.ruler;
     const W = this.width;
@@ -426,13 +437,12 @@ export class Timeline {
     const g = this.grid;
     const barPx = this.barSec * this.pps;
     const beatPx = this.beatSec * this.pps;
-    const tickTop = this.compact ? 18 : 19;
-    const tickBottom = this.compact ? R : 31;
+    const tickTop = this.compact ? 6 : 19; // the ticks of the beats and the bars start here
     if (this.hasGrid) {
       if (beatPx >= 5) {
         ctx.fillStyle = C.dim;
         const [a, b] = this._range(g.beats, 0);
-        for (let i = a; i < b; i++) ctx.fillRect(Math.round(this.x(g.beats[i])), tickTop + 5, 1, tickBottom - tickTop - 5);
+        for (let i = a; i < b; i++) ctx.fillRect(Math.round(this.x(g.beats[i])), tickTop, 1, 8);
       }
       const lines = this._every(barPx, 6);
       const labels = this._every(barPx, this.compact ? 24 : 28);
@@ -444,24 +454,23 @@ export class Timeline {
         const x = Math.round(this.x(g.bars[i]));
         if (mod(n - 1, lines) === 0) {
           ctx.fillStyle = C.text;
-          ctx.fillRect(x, tickTop, 1, tickBottom - tickTop);
+          ctx.fillRect(x, tickTop, 1, R - tickTop);
         }
         if (mod(n - 1, labels) === 0) {
           ctx.fillStyle = C.text;
-          ctx.fillText(String(n), x + 3, 13);
+          ctx.fillText(String(n), x + this.textX, R - 5);
         }
       }
     }
     if (!this.compact || !this.hasGrid) {
       const step = TIME_STEPS.find((s) => s * this.pps >= 64) || 600;
-      const y = this.hasGrid ? R - 5 : 14;
       ctx.font = `500 11px ${FONT}`;
       ctx.fillStyle = C.time;
       for (let s = Math.floor(this.start / step) * step; s <= this.start + this.span; s += step) {
         const x = Math.round(this.x(s));
         if (x < -40) continue;
-        ctx.fillRect(x, this.hasGrid ? R - 16 : 18, 1, this.hasGrid ? 4 : R - 18);
-        ctx.fillText(fmtClock(s), x + 3, y);
+        ctx.fillRect(x, this.hasGrid ? 2 : 18, 1, this.hasGrid ? 4 : R - 18);
+        ctx.fillText(fmtClock(s), x + 3, this.hasGrid ? 13 : 14);
       }
     }
     ctx.fillStyle = C.border;
@@ -506,19 +515,20 @@ export class Timeline {
       while (j < g.bars.length && !g.chords.has(j) && this.x(g.bars[j]) - x0 < 160) j++;
       const x1 = j < g.bars.length ? this.x(g.bars[j]) : this.x(this.duration);
       if (x1 < 0) continue;
-      const room = x1 - x0 - 6;
+      const pad = this.textX;
+      const room = x1 - x0 - pad - 2;
       if (room < 9) continue;
       ctx.fillStyle = C.chord;
       const fitted = this._fit(ctx, text, room);
       if (fitted) {
-        ctx.fillText(fitted, Math.round(x0) + 4, y0 + h / 2 + 1);
+        ctx.fillText(fitted, Math.round(x0) + pad, y0 + h / 2 + 1);
       } else {
         // Too narrow even for one letter and "…": the beginning, cut at the next chord.
         ctx.save();
         ctx.beginPath();
-        ctx.rect(x0 + 1, y0, room + 4, h);
+        ctx.rect(x0 + 1, y0, room + pad, h);
         ctx.clip();
-        ctx.fillText(text, Math.round(x0) + 4, y0 + h / 2 + 1);
+        ctx.fillText(text, Math.round(x0) + pad, y0 + h / 2 + 1);
         ctx.restore();
       }
     }
@@ -626,7 +636,7 @@ export class Timeline {
         ctx.fillRect(x1, R, x2 - x1, H - R);
         ctx.fillStyle = C.loop;
         ctx.fillRect(x1, R - 4, x2 - x1, 3);
-        const tab = this.compact ? { w: 12, h: 20 } : { w: 9, h: 16 };
+        const tab = this.dims.tab;
         for (const x of [x1, x2]) {
           ctx.fillStyle = C.loopGlow;
           ctx.fillRect(x - 2.5, R, 5, H - R);
