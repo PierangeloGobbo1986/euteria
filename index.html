@@ -51,7 +51,9 @@
       </div>
     </div>
     <!-- The language, at the left of Update (the library) or of Library (a song, Save under it).
-         On the phone a small "EN ▾": the menu itself, invisible, lies over it. -->
+         On the phone a small "EN ▾": the menu itself, invisible, lies over it.
+         Instructions: between the language and Update (the library), under the language (a
+         song); on the phone a small "?" under the language, on both screens. -->
     <div class="appbar-actions">
       <label class="lang">
         <span class="lang-label computer-only">Language:</span>
@@ -60,6 +62,7 @@
           <span id="lang-short" class="lang-short phone-only" aria-hidden="true" translate="no"></span>
         </span>
       </label>
+      <button id="help" class="help-btn" type="button" aria-label="Instructions" aria-haspopup="dialog"><span class="computer-only">Instructions</span><span class="phone-only" aria-hidden="true" translate="no">?</span></button>
       <div id="song-nav" class="song-nav" hidden>
         <button id="back" class="library-btn" type="button">Library</button>
         <button id="save-top" class="primary save-top" type="button">Save</button>
@@ -318,6 +321,60 @@
       <button value="cancel">Cancel</button>
     </div>
   </form>
+</dialog>
+<!-- The instructions (the button at the top right), in both languages: the page shows the
+     one of the language in use (app.css, by the lang of the page). -->
+<dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title">
+  <div class="help-head">
+    <h2 id="help-title">Instructions</h2>
+    <button id="help-close" class="help-close" type="button" aria-label="Close"><span aria-hidden="true" translate="no">✕</span></button>
+  </div>
+  <div id="help-body" class="help-body" tabindex="-1" autofocus>
+    <div class="help-text" lang="it" translate="no">
+      <h3>Benvenuti in EUTERIA!</h3>
+      <p>EUTERIA separa una canzone nei suoi strumenti (stem). Voce, batteria e basso vengono molto bene, chitarra e piano discretamente. Il risultato non è perfetto e l’audio ne risente un po’, ma l’algoritmo usato è tra i migliori oggi disponibili.</p>
+      <p>La separazione dipende dalla potenza del processore: servono da 5-10 minuti a 30-45 minuti, e il programma mostra a che punto è. Una volta finita, il lavoro si salva in un file *.euteria (circa 60 MB) che può essere riaperto, senza separare di nuovo, e che si può condividere con altri, anche via WhatsApp.</p>
+      <p>EUTERIA serve soprattutto per studio di brani e trascrizioni. Per esempio, puoi togliere uno strumento e suonare al suo posto sopra il brano, oppure ascoltare solo quello strumento per trascrivere un assolo o un riff.</p>
+      <h3>Le altre funzioni</h3>
+      <ol>
+        <li><b>Mixer.</b> Alza o abbassa il volume di ogni stem a piacere.</li>
+        <li><b>Esporta MP3.</b> Crea un file MP3 da salvare o condividere, con gli stem e i volumi che hai scelto.</li>
+        <li><b>Loop.</b> Disegna sulle tracce una finestra azzurra. Quando la riproduzione arriva alla fine della finestra, riparte dall’inizio. È utile per provare una sezione, o per isolare una frase, rallentarla e trascriverla con comodo.</li>
+        <li><b>Tempo.</b> Rallenta o velocizza il brano.</li>
+        <li><b>Tonalità.</b> Alza o abbassa il brano di quanti semitoni vuoi.</li>
+        <li><b>Registrazione.</b> Scegli l’ingresso, poi premi il tasto rosso: la registrazione (take) si aggiunge in fondo agli stem. Con il loop attivo, ogni giro crea una take nuova. Registrando con il loop, il programma fa tre giri e poi si ferma da solo.</li>
+        <li><b>Battute e accordi</b> (ancora sperimentale). Porta la barra di play sul primo battere di una battuta, zoomando sull’audio per essere precisi, e premi Imposta àncora: la traccia audio viene divisa in battute. Per farle combaciare con la musica, regola la lunghezza delle battute con i BPM accanto. Il lavoro è manuale. I numeri delle battute compaiono sopra la linea del tempo e sotto si apre una riga dove puoi scrivere gli accordi, battuta per battuta. Con copia e incolla puoi ripetere velocemente un giro di accordi su tutto il brano. Quando hai finito, premi Salva in alto a destra per non perdere nulla. Il pulsante Griglia, con l’occhio, mostra o nasconde battute e accordi; Cancella griglia elimina tutto per ricominciare.</li>
+        <li><b>Caffè.</b> Quello no, non lo fa… ;)</li>
+      </ol>
+      <h3>EUTERIA su smartphone</h3>
+      <p>La versione per smartphone è semplificata. Non include la separazione degli stem, perché richiede molta potenza e memoria, ma ha tutte le altre funzioni con una grafica più essenziale.</p>
+      <p class="help-gap"><b>Il flusso di lavoro consigliato è questo:</b> separa gli stem dal computer, prepara le battute e gli accordi, salva il file *.euteria e mandalo al telefono, per esempio via WhatsApp. Poi apri EUTERIA dal browser del telefono e carica il file. Conviene salvare il link tra i preferiti. Su iPhone puoi anche creare un’icona sulla schermata Home: tocca Condividi, scorri il menu e scegli Aggiungi alla schermata Home.</p>
+      <p class="help-gap">Divertitevi, evviva la musica!</p>
+      <p class="help-sign">Pierangelo Gobbo</p>
+    </div>
+    <div class="help-text" lang="en" translate="no">
+      <h3>Welcome to EUTERIA!</h3>
+      <p>EUTERIA splits a song into its instruments (stems). Vocals, drums and bass come out very well, guitar and piano reasonably well. The result is not perfect and the audio suffers a little, but the algorithm it uses is among the best available today.</p>
+      <p>Separation depends on the power of the processor: it takes from 5-10 minutes to 30-45 minutes, and the app shows how far along it is. Once done, the work is saved in a *.euteria file (about 60 MB) that can be reopened without a new separation, and shared with others, even via WhatsApp.</p>
+      <p>EUTERIA is meant above all for studying songs and transcribing them. For example, you can take out an instrument and play its part yourself over the song, or listen to that instrument alone to transcribe a solo or a riff.</p>
+      <h3>The other features</h3>
+      <ol>
+        <li><b>Mixer.</b> Turns the volume of each stem up or down as you like.</li>
+        <li><b>Export MP3.</b> Creates an MP3 file to save or share, with the stems and the volumes you chose.</li>
+        <li><b>Loop.</b> Draws a light blue window over the tracks. When playback reaches the end of the window, it starts again from its beginning. Useful to practise a section, or to isolate a phrase, slow it down and transcribe it at your ease.</li>
+        <li><b>Tempo.</b> Slows the song down or speeds it up.</li>
+        <li><b>Key.</b> Raises or lowers the song by as many semitones as you like.</li>
+        <li><b>Recording.</b> Choose the input, then press the red button: the recording (take) is added below the stems. With the loop on, every pass makes a new take. When you record with the loop, the app plays three passes and then stops by itself.</li>
+        <li><b>Bars and Chords</b> (still experimental). Put the playhead on the first beat of a bar, zooming into the audio to be precise, and press Set anchor: the audio track is divided into bars. To make them match the music, adjust the length of the bars with the BPM beside it. The work is manual. The bar numbers appear above the timeline, and below it a lane opens where you can write the chords, bar by bar. With copy and paste you can quickly repeat a chord progression over the whole song. When you are done, press Save at the top right so as not to lose anything. The Grid button, with the eye, shows or hides the bars and chords; Clear grid deletes everything to start again.</li>
+        <li><b>Coffee.</b> No, it doesn’t make that… ;)</li>
+      </ol>
+      <h3>EUTERIA on a smartphone</h3>
+      <p>The smartphone version is simplified. It does not include stem separation, which needs a lot of power and memory, but it has all the other features, with a leaner interface.</p>
+      <p class="help-gap"><b>The recommended workflow is this:</b> separate the stems on the computer, prepare the bars and chords, save the *.euteria file and send it to your phone, for example via WhatsApp. Then open EUTERIA in the phone’s browser and load the file. It is worth bookmarking the link. On iPhone you can also put an icon on the Home Screen: tap Share, scroll down the menu and choose Add to Home Screen.</p>
+      <p class="help-gap">Have fun, and long live music!</p>
+      <p class="help-sign">Pierangelo Gobbo</p>
+    </div>
+  </div>
 </dialog>
 <noscript><p class="notice error">EUTERIA needs JavaScript.</p></noscript>
 </body>

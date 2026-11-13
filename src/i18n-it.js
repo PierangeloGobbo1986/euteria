@@ -9,6 +9,8 @@ export const IT = {
   "Library": "Libreria",
   "Save": "Salva",
   "Update": "Aggiorna",
+  "Instructions": "Istruzioni",
+  "Close": "Chiudi",
   "This browser cannot run EUTERIA: it needs a recent version of Safari, Chrome, Edge or Firefox.": "Questo browser non può eseguire EUTERIA: serve una versione recente di Safari, Chrome, Edge o Firefox.",
   "Play": "Riproduci",
   "Open MP3 / audio": "Apri MP3 / audio",

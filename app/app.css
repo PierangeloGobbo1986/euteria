@@ -72,13 +72,20 @@ b { font-weight: 650; }
 [data-layout=phone] .brand .acronym span { display: block; }
 .library-btn { flex: none; min-height: 40px; padding: 8px 14px; color: var(--accent); font-weight: 650; border-color: #355a52; background: var(--accent-bg); }
 .spacer { flex: 1; }
-/* At the top right, in a grid: the language at the left of Update (the
-   library) or of Library (a song), Save under Library. */
+/* At the top right, in a grid: the language, Instructions and Update (the
+   library); the language and Library, Instructions and Save under them (a
+   song). On the phone, Instructions is a small "?" under the language on
+   both screens, Update beside the two. */
 .appbar-actions { flex: none; margin-left: auto; display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 10px; row-gap: 6px; }
 [data-layout=phone] .appbar-actions { column-gap: 6px; }
 .appbar-actions .lang { grid-column: 1; grid-row: 1; }
-.appbar-actions #back, .appbar-actions #update { grid-column: 2; grid-row: 1; }
+.appbar-actions #help { grid-column: 2; grid-row: 1; }
+.appbar-actions #update { grid-column: 3; grid-row: 1; }
+.appbar-actions #back { grid-column: 2; grid-row: 1; }
 .appbar-actions #save-top { grid-column: 2; grid-row: 2; }
+[data-layout=computer] body[data-view=player] .appbar-actions #help { grid-column: 1; grid-row: 2; justify-self: end; min-width: 104px; min-height: 32px; padding: 5px 16px; font-size: 14px; }
+[data-layout=phone] .appbar-actions #help { grid-column: 1; grid-row: 2; justify-self: stretch; min-width: 0; min-height: 32px; height: 32px; padding: 0; background: var(--field); border-radius: 9px; font-size: 15px; font-weight: 750; }
+[data-layout=phone] .appbar-actions #update { grid-column: 2; grid-row: 1 / span 2; }
 .update-btn { flex: none; position: relative; }
 .update-btn.available::after { content: ""; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
 [data-layout=phone] .update-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; border-radius: 999px; }
@@ -653,6 +660,44 @@ button.eye .icon { width: 18px; height: 18px; }
 .leave-dialog p { margin: 0; }
 .leave-dialog #leave-text { font-size: 17px; font-weight: 650; }
 .leave-dialog .hint { margin: 8px 0 16px; }
+
+/* ----- the instructions: a window over the page, its text scrolling under its title ----- */
+.help-dialog {
+  width: min(680px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(var(--app-h, 100vh) - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 0;
+  overflow: hidden;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+}
+.help-dialog[open] { display: flex; flex-direction: column; }
+/* A window open: the page under it stays still (the place of its scroll bar kept). */
+html:has(dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
+.help-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+.help-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 20px; border-bottom: 1px solid var(--border); }
+.help-head h2 { margin: 0; }
+.help-close { width: 40px; min-height: 40px; padding: 0; border-color: transparent; background: transparent; color: var(--muted); font-size: 17px; }
+.help-close:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
+.help-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px 22px; scrollbar-width: thin; scrollbar-color: var(--border-hi) transparent; }
+.help-body:focus { outline: none; }
+.help-text { line-height: 1.55; }
+/* The text of the language in use (the lang of the page, src/i18n.js). */
+html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { display: none; }
+.help-text h3 { margin: 20px 0 6px; font-size: 16px; font-weight: 750; }
+.help-text h3:first-child { margin-top: 0; }
+.help-text p { margin: 0 0 8px; }
+.help-text ol { margin: 0; padding-left: 26px; }
+.help-text li { margin: 0 0 8px; padding-left: 2px; }
+.help-text li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+.help-text .help-gap { margin-top: 16px; }
+.help-text .help-sign { margin: 0; color: var(--muted); }
+[data-layout=phone] .help-head { padding-left: 16px; }
+[data-layout=phone] .help-body { padding: 14px 16px 20px; }
+[data-layout=phone] .help-text ol { padding-left: 22px; }
 
 /* ----- exports ----- */
 .exports-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 13px; }

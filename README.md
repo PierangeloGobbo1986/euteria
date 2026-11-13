@@ -29,6 +29,12 @@ keeps the choice. On a computer it reads *Language:* with its menu, on the phone
 *EN ▾* (or *IT ▾*). In Italian too, *Take*, *Stem*, *Sync*, *Loop* and *Zoom* keep their
 English names, and so does the tagline.
 
+**Instructions**: the button at the top right, between the language menu and *Update* in
+the Library and under the language menu in a song (on the phone a small *?* under the
+language, on both screens), opens a window with how to use EUTERIA, in the language in
+use. Its text scrolls under its title; ✕, Esc or a click beside it closes it. While it is
+open, the keys of the player do nothing and the page under it stays still.
+
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
   *Open MP3 / audio* and *Open EUTERIA project* copy an audio file or a `.euteria`
   project from the Files app, a download or a chat into the app's private storage and
@@ -557,7 +563,9 @@ key of its translation (`src/i18n-it.js`). The code writes its texts through `tr
 `{name}` for the values in them) and `trn()` (one, or any other number), and writes them
 again when the language changes; the texts of `index.html` are translated where they are
 (`data-i18n-html` for a sentence with words in bold, `translate="no"` for what stays as
-it is). A text missing from a dictionary shows in English. The names of the files the
+it is). A text missing from a dictionary shows in English. The instructions are written
+whole in both languages in `index.html`, and the page shows the one of the language in
+use. The names of the files the
 app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gives them.
 
 ## Roadmap

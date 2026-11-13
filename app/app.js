@@ -1977,6 +1977,8 @@ function wire() {
 
 function onKey(e) {
   if (e.defaultPrevented) return;
+  if (document.querySelector("dialog[open]")) return; // the keys belong to the window open over the song
+
   const target = e.target || {};
   const tag = target.tagName || "";
   const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(tag) || target.isContentEditable;
@@ -2079,6 +2081,37 @@ function showLanguage() {
   $("lang-short").textContent = lang().toUpperCase();
 }
 
+// ----- the instructions --------------------------------------------------------------------------
+//
+// Instructions, at the top right, opens a window with how to use EUTERIA, in
+// the language in use (both texts are in index.html). It scrolls when the
+// text is longer than the window; ✕, Esc or a click beside it closes it.
+// Closed with the mouse, the button gives the focus back, so that the Space
+// bar plays and pauses instead of opening the window again.
+
+function wireHelp() {
+  const button = $("help");
+  const dialog = $("help-dialog");
+  let pointer = "";
+  let downBeside = false; // pressed beside the window, not in its text (selecting it)
+  button.addEventListener("click", () => {
+    if (!dialog.open) dialog.showModal();
+  });
+  $("help-close").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("pointerdown", (e) => {
+    pointer = e.pointerType;
+    downBeside = e.target === dialog;
+  });
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog && downBeside) dialog.close(); // beside the window: its backdrop
+  });
+  dialog.addEventListener("keydown", () => (pointer = "key"));
+  dialog.addEventListener("close", () => {
+    if (pointer === "mouse") setTimeout(() => document.activeElement === button && button.blur(), 0);
+    pointer = "";
+  });
+}
+
 // Every text the code wrote, again in the language now in use.
 function relabel() {
   if (!editor) return; // this browser cannot run EUTERIA: only its notice
@@ -2119,6 +2152,7 @@ function registerServiceWorker() {
 async function init() {
   translatePage(); // the texts of index.html in the language in use, before the code changes any
   wireLanguage();
+  wireHelp();
   if (!Player.supported()) {
     $("unsupported").hidden = false;
     return;
