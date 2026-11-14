@@ -124,11 +124,13 @@
 
   <!-- The player -->
   <section id="player-view" class="view" hidden>
-    <!-- The transport stays in view; at its top, the song's name, its tracks and length;
-         on a computer, the keys under the buttons. -->
+    <!-- The transport stays in view; at its top, the song's name (a click turns it into a
+         field to rename the project), its tracks and length; on a computer, the keys under
+         the buttons. -->
     <div id="transport" class="transport">
       <div class="song-head">
-        <h1 id="song-title"></h1>
+        <h1 id="song-title-h"><button id="song-title" type="button" class="title-btn" title="Click to rename the project" disabled></button></h1>
+        <input id="song-title-input" class="title-input" type="text" maxlength="120" aria-label="Name of the project" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" hidden>
         <p id="song-meta" class="meta"></p>
       </div>
       <div class="transport-inner">

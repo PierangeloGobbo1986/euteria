@@ -248,6 +248,42 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
    the same line, its tracks and length; a long name is cut short. */
 .song-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin: 0 0 6px; }
 .song-head h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+/* The song's name: a click (a tap) turns it into a field to rename the project. */
+.song-head .title-btn {
+  display: block;
+  max-width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.song-head .title-btn:disabled { opacity: 1; color: inherit; }
+.song-head .title-btn:hover:not(:disabled) { text-decoration: underline dotted var(--dim); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.song-head .title-input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 0 8px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 22px;
+  font-weight: 750;
+}
 .song-head .meta { flex: none; margin: 0; white-space: nowrap; }
 [data-layout=phone] .song-head { max-width: 648px; margin: 6px auto 0; }
 
@@ -425,7 +461,7 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .tl-overview { display: block; margin-bottom: var(--tl-gap); border-radius: 6px; touch-action: none; cursor: pointer; }
 /* Computer: Bars and Chords over the timeline, as wide as the column of the
    tracks, and beside it Grid with its eye (the grid shown or hidden); the
-   column starts beside the time scale, under the overview. */
+   column starts beside the bars and the time scale, under the overview. */
 .edit-bar { display: flex; flex-direction: column; }
 [data-layout=computer] .edit-bar { flex-direction: row; align-items: center; gap: 12px; margin-bottom: 10px; }
 [data-layout=computer] #edit-toggle { flex: none; width: calc(var(--tl-col) - 10px); }
@@ -435,13 +471,14 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 button.eye { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 8px; }
 button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .edit-bar { margin-top: 12px; }
-[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 70px)); }
+[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 72px)); }
+/* Beside everything over the tracks: the bar numbers, the chords and the time scale. */
 .tl-side {
   position: absolute;
   top: calc(var(--tl-over, 26px) + var(--tl-gap));
   left: 0;
   right: 10px;
-  height: var(--tl-ruler, 46px);
+  height: var(--tl-head, 72px);
   display: flex;
   flex-direction: column;
   justify-content: center;

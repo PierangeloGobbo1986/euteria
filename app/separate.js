@@ -280,7 +280,7 @@ export class SeparationFlow {
       if (song.kind === "audio" || !song.manifest) {
         manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: originalName, member: originalMember, grid, state, analysis: app.analysis });
       } else {
-        manifest = savedManifest(song.manifest, grid, state, [], app.analysis);
+        manifest = savedManifest(song.manifest, grid, state, [], app.analysis, song.title);
         manifest.format_version = 4;
         manifest.variant = "web";
       }

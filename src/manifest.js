@@ -76,9 +76,10 @@ function withAnalysis(music, analysis) {
 }
 
 // The project's manifest with the grid, the chords, the practice settings,
-// the tempo detection and the takes of now.
-export function savedManifest(manifest, grid, state, takes = [], analysis = null) {
+// the tempo detection, the takes and the name (title) of now.
+export function savedManifest(manifest, grid, state, takes = [], analysis = null, title = null) {
   const out = JSON.parse(JSON.stringify(manifest));
+  if (title) out.title = title;
   out.music = withAnalysis({ ...(out.music || {}), ...musicFields(grid) }, analysis);
   out.practice = practiceFields(out.practice || {}, grid, state);
   out.edited_with = EDITED_WITH;

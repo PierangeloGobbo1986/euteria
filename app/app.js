@@ -48,15 +48,15 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const HINTS = phone
   ? {
       view: () =>
-        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles under the bar numbers to change it (they snap to the bars). Pinch to zoom, drag the bar numbers to scroll. In the overview, drag the frame of the view or of the loop to move it."),
+        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a bar or its chord to write the chord. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
       edit: () =>
-        tr("Tap a bar in the chord lane to select it, drag along the lane to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+        tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     }
   : {
       view: () =>
-        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Drag the bar numbers to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
+        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a bar or its chord to write the chord. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
       edit: () =>
-        tr("Click a bar in the chord lane and type its chord (Return: the next bar); shift-click or drag along the lane to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+        tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     };
 
 const player = new Player();
@@ -93,8 +93,14 @@ let separation = null; // app/separate.js
 let detection = null; // app/detect.js
 let recording = null; // app/recording.js
 
-// Changes not saved in the song's file yet: the bars and chords, the takes.
-const songDirty = () => !!player.song && (editor.dirty || (!!recording && recording.dirty));
+// The project's name changed and not saved yet (the bar at the top).
+const retitled = () => {
+  const s = player.song;
+  return !!s && typeof s.fileTitle === "string" && s.title !== s.fileTitle;
+};
+// Changes not saved in the song's file yet: the name, the bars and chords,
+// the takes.
+const songDirty = () => !!player.song && (editor.dirty || retitled() || (!!recording && recording.dirty));
 
 // ----- messages -------------------------------------------------------------------
 
@@ -142,22 +148,28 @@ function showView(view) {
 // ----- leaving a song with changes not saved ---------------------------------------
 //
 // As in EUTERIA (Python): before the library or another song, a song whose
-// bars, chords or takes changed asks whether to save them. Don't save brings
-// back the song as its file has it. (Tempo, key, loop and volumes are kept on
+// name, bars, chords or takes changed asks whether to save them. Don't save
+// brings back the song as its file has it. (Tempo, key, loop and volumes are kept on
 // the device anyway, and go in the file at the next Save.) A take being
 // recorded ends first.
 
 let leaving = false; // the page is going away on purpose: no question from the browser
 
+// What changed since the song was last saved, for the question before
+// leaving it.
+function leaveHint(name, grid, takes) {
+  if (name && grid && takes) return tr("The name of the project, the grid, the bar numbers or the chords, and the takes, changed since the song was last saved.");
+  if (name && grid) return tr("The name of the project, the grid, the bar numbers or the chords changed since the song was last saved.");
+  if (name && takes) return tr("The name of the project and the takes changed since the song was last saved.");
+  if (name) return tr("The name of the project changed since the song was last saved.");
+  if (grid && takes) return tr("The grid, the bar numbers or the chords, and the takes, changed since the song was last saved.");
+  if (takes) return tr("The takes changed since the song was last saved.");
+  return tr("The grid, the bar numbers or the chords changed since the song was last saved.");
+}
+
 function askToSave() {
   const dialog = $("leave-dialog");
-  const takes = !!recording && recording.dirty;
-  $("leave-hint").textContent =
-    editor.dirty && takes
-      ? tr("The grid, the bar numbers or the chords, and the takes, changed since the song was last saved.")
-      : takes
-        ? tr("The takes changed since the song was last saved.")
-        : tr("The grid, the bar numbers or the chords changed since the song was last saved.");
+  $("leave-hint").textContent = leaveHint(retitled(), editor.dirty, !!recording && recording.dirty);
   return new Promise((resolve) => {
     const done = () => {
       dialog.removeEventListener("close", done);
@@ -186,15 +198,20 @@ async function confirmLeave() {
 async function discardEdits() {
   const song = player.song;
   const takes = recording.dirty;
+  const named = retitled();
   if (editor.dirty) {
     editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
     // A tempo detection not in the file goes too: it runs again next time.
     if (!app.analysisInFile) app.analysis = null;
   }
+  if (named) {
+    song.title = song.fileTitle;
+    showTitle();
+  }
   if (takes) await recording.revert();
   rememberSettings();
   notice(
-    takes ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
+    takes || named ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
     "",
     5000
   );
@@ -224,6 +241,7 @@ function rememberSettings() {
       edits: editor.edits(),
       dirty: editor.dirty,
       analysis: app.analysisInFile ? null : app.analysis,
+      title: retitled() ? player.song.title : null,
     });
   }
 }
@@ -248,6 +266,7 @@ async function openSong(file, origin) {
     return null;
   }
   if (recording.busy) await recording.recorder.settle();
+  endRename(false);
   rememberSettings();
   detection.cancel();
   app.current = null;
@@ -266,6 +285,9 @@ async function openSong(file, origin) {
     const key = settingsKey(song, file);
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
+    // The name the file gives, and a new one not saved in it yet.
+    song.fileTitle = song.title;
+    if (saved && typeof saved.title === "string" && saved.title.trim()) song.title = saved.title.trim();
     // The grid of the file, with the edits not saved in it yet.
     const edits = saved && saved.edits;
     app.grid = readGrid(song.manifest, song.duration);
@@ -338,6 +360,7 @@ function trackWarning() {
 }
 
 async function closeSong() {
+  endRename(false);
   detection.cancel();
   app.current = null; // nothing to save for a song that is going away
   if (recording.busy) await recording.recorder.settle();
@@ -401,7 +424,7 @@ async function openEntry(entry, fresh = false) {
   }
   const song = await openSong(file, { source: "library", entryId: entry.id });
   if (song) {
-    library.update(entry.id, { title: song.title, duration: song.duration, tracks: player.tracks.length, kind: song.kind, settingsKey: app.current.key, opened: Date.now() });
+    library.update(entry.id, { title: song.fileTitle, duration: song.duration, tracks: player.tracks.length, kind: song.kind, settingsKey: app.current.key, opened: Date.now() });
   } else if (fresh) {
     // A file this browser cannot read takes no space.
     try {
@@ -551,7 +574,7 @@ async function openHandle(handle) {
   }
   const song = await openSong(file, { source: "file", handle });
   if (song) {
-    await addRecent(handle, { title: song.title, size: file.size });
+    await addRecent(handle, { title: song.fileTitle, size: file.size });
     renderRecent();
   }
 }
@@ -573,7 +596,7 @@ async function openRecentItem(item) {
   }
   const song = await openSong(file, { source: "file", handle: item.handle });
   if (song) {
-    await addRecent(item.handle, { title: song.title, size: file.size });
+    await addRecent(item.handle, { title: song.fileTitle, size: file.size });
     renderRecent();
   }
 }
@@ -652,7 +675,7 @@ async function openDropped(file, handlePromise) {
   if (!(await confirmLeave())) return;
   const song = await openSong(file, { source: "file", handle });
   if (song && handle) {
-    await addRecent(handle, { title: song.title, size: file.size });
+    await addRecent(handle, { title: song.fileTitle, size: file.size });
     renderRecent();
   }
 }
@@ -724,6 +747,11 @@ function buildControls() {
     onView: settingsChanged,
     onChange: updateZoom,
     onSelect: (sel, info) => editor.onSelect(sel, info),
+    // A bar tapped while Bars and Chords is closed: it opens on that bar.
+    onBarTap: (i, info) => {
+      if (editor.locked) notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
+      else editor.openAt(i, info);
+    },
   });
   detection = new TempoDetection({
     app,
@@ -745,7 +773,7 @@ function buildControls() {
     openFile: async (file, handle) => {
       const song = await openSong(file, { source: "file", handle, separated: true });
       if (song) {
-        await addRecent(handle, { title: song.title, size: file.size });
+        await addRecent(handle, { title: song.fileTitle, size: file.size });
         renderRecent();
       }
       return song;
@@ -784,7 +812,8 @@ function buildControls() {
   } else {
     // On a computer the tracks are the rows of the timeline. Over it, in a row
     // of its own, Bars and Chords (the editor); at the top of the column of
-    // the tracks, beside the time scale, All stems and Original only.
+    // the tracks, beside the bars and the time scale, All stems and Original
+    // only.
     $("tl-side").prepend($("quick"));
     $("tl-hint").before($("tracks-note"));
   }
@@ -956,8 +985,7 @@ function renderPlayer(view = null) {
   box.textContent = "";
   app.rows = [];
   renderExports(); // the exports of this song
-  $("song-title").textContent = song ? song.title : "";
-  $("song-title").title = song ? song.title : ""; // in full, should it be cut short
+  showTitle();
   if (!song) {
     $("song-meta").textContent = "";
     app.timeline.setSong({ duration: 0, sampleRate: 48000, rows: [], grid: emptyGrid() });
@@ -1211,6 +1239,7 @@ function savedInPlace(file, manifest) {
   const oldOwner = cur.owner;
   player.song.manifest = manifest;
   player.song.kind = "project";
+  player.song.fileTitle = player.song.title; // and its name
   app.analysisInFile = !!app.analysis; // the file has the tempo detection now
   cur.file = file;
   cur.name = file.name;
@@ -1224,7 +1253,7 @@ function savedInPlace(file, manifest) {
   rememberSettings();
   if (cur.source === "library") {
     if (cur.key !== oldKey) forgetSettings(oldKey);
-    library.update(cur.entryId, { settingsKey: cur.key, kind: "project" });
+    library.update(cur.entryId, { settingsKey: cur.key, kind: "project", title: player.song.title });
     renderLibrary();
   }
   showSongMeta();
@@ -1317,7 +1346,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
     }
     // A project: its manifest.json rewritten; the whole file written again
     // if takes were recorded or deleted.
-    const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis);
+    const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, song.title);
     const bytes = manifestBytes(manifest);
     const zip = await openZip(file);
     if (recording.rewrite) {
@@ -1473,7 +1502,7 @@ function projectNow() {
     return { manifest, blob, file: new File([blob], `${safeName(song.title)}.euteria`, { type: "application/zip" }) };
   }
   if (!ready.layout) return null;
-  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis);
+  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, song.title);
   const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: recording.dropMembers, add });
   return { manifest, blob, file: new File([blob], cur.name, { type: "application/zip" }) };
 }
@@ -1623,7 +1652,7 @@ function explainSharing() {
   } else {
     text = tr("Share project works on smartphones. On a computer, share the project file you saved ({name}) with the app you want: email, WhatsApp and so on.", { name: app.current.name });
     if (songDirty()) {
-      text += ` ${recording.dirty ? tr("Save first, at the top right: the changes are not in the file yet.") : tr("Save first, at the top right: the changes to the bars and chords are not in the file yet.")}`;
+      text += ` ${recording.dirty || retitled() ? tr("Save first, at the top right: the changes are not in the file yet.") : tr("Save first, at the top right: the changes to the bars and chords are not in the file yet.")}`;
     }
   }
   reportSave(text, "", 15000);
@@ -2176,6 +2205,58 @@ function wireHelp() {
   });
 }
 
+// ----- the name of the project ------------------------------------------------------
+//
+// The song's name at the top is the project's: a click (a tap) on it turns it
+// into a field to rename it. Return or leaving the field keeps the new name,
+// Escape the old one. A new name is a change to save, as the bars and chords
+// are: Save writes it in the project (a song saved as a project for the first
+// time also takes it as its file's name), Don't save brings back the file's.
+
+function showTitle() {
+  const song = player.song;
+  $("song-title").textContent = song ? song.title : "";
+  $("song-title").disabled = !song;
+}
+
+function startRename() {
+  const song = player.song;
+  if (!song || app.saving) return;
+  const input = $("song-title-input");
+  input.value = song.title;
+  $("song-title-h").hidden = true;
+  input.hidden = false;
+  input.focus();
+  input.select();
+}
+
+// keep: the name typed becomes the project's (an empty one changes nothing).
+function endRename(keep) {
+  const input = $("song-title-input");
+  if (input.hidden) return;
+  input.hidden = true;
+  $("song-title-h").hidden = false;
+  const song = player.song;
+  const name = input.value.trim().replace(/\s+/g, " ");
+  if (!keep || !song || !name || name === song.title) return;
+  song.title = name;
+  showTitle();
+  rememberSettings();
+  scheduleUi();
+}
+
+function wireTitle() {
+  const input = $("song-title-input");
+  $("song-title").addEventListener("click", startRename);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "Escape") {
+      e.preventDefault();
+      endRename(e.key === "Enter");
+    }
+  });
+  input.addEventListener("blur", () => endRename(true));
+}
+
 // Every text the code wrote, again in the language now in use.
 function relabel() {
   if (!editor) return; // this browser cannot run EUTERIA: only its notice
@@ -2217,6 +2298,7 @@ async function init() {
   translatePage(); // the texts of index.html in the language in use, before the code changes any
   wireLanguage();
   wireHelp();
+  wireTitle();
   if (!Player.supported()) {
     $("unsupported").hidden = false;
     return;

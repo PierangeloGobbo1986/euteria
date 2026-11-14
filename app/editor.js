@@ -9,9 +9,10 @@
 // first time a song opens: Bars and Chords waits for it (ctx.locked()), and
 // detected() puts the new grid in place of the one the song had.
 //
-// Bars are selected in the chord lane of the timeline: a tap or a click
-// selects one, dragging along the lane (or shift-click) several. The chord
-// typed applies to every bar selected; Return goes on to the next bar.
+// Bars are selected in the timeline, by their numbers or their chords: a tap
+// or a click selects one, dragging along them (or shift-click) several; a
+// bar tapped while Bars and Chords is closed opens it there. The chord typed
+// applies to every bar selected; Return goes on to the next bar.
 
 import { h, numberField, fmtTime, parseTime, confirmTap } from "./controls.js";
 import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
@@ -267,12 +268,27 @@ export class Editor {
     this.refresh();
   }
 
-  // From the timeline: bars selected in the chord lane. On a computer a
-  // click puts the cursor in the chord field.
+  // From the timeline: bars selected (by their numbers or their chords). On a
+  // computer a click puts the cursor in the chord field.
   onSelect(sel, info = {}) {
     if (!this.on) return;
     this.select(sel);
     if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone) this.chord.focus();
+  }
+
+  // A bar tapped in the timeline while Bars and Chords is closed: it opens
+  // with that bar selected (and, with a mouse, the cursor in the chord field).
+  // On a computer its tools open over the timeline: the page scrolls with
+  // them, so that the timeline stays where it was under the mouse.
+  openAt(index, { pointerType = "" } = {}) {
+    const host = this.ctx.timeline.main;
+    const before = host.getBoundingClientRect().top;
+    this.setOn(true);
+    if (!this.on) return;
+    this.select({ anchor: index, lo: index, hi: index });
+    const shift = host.getBoundingClientRect().top - before;
+    if (shift) window.scrollBy(0, shift);
+    if (pointerType === "mouse" && !this.ctx.phone) this.chord.focus({ preventScroll: true });
   }
 
   // The next or previous bar; with extend, the selection grows or shrinks.

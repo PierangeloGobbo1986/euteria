@@ -55,11 +55,12 @@ open, the keys of the player do nothing and the page under it stays still.
   you are studying stays the only copy. In Chrome and Edge the Library lists the songs
   opened before, to open them again with one click (the browser asks once for
   permission). The transport stays in view as the page scrolls, the song's name at its
-  top (its tracks and length on the same line). Under it comes *Recording input* (see
+  top (its tracks and length on the same line; a click on the name renames the project,
+  see Saving). Under it comes *Recording input* (see
   below), then the card of the timeline. Over the timeline, *Bars and Chords* (the
   editor, see below) has a row of its own, with *Grid* and its eye beside it, then
   comes the overview; the column of the tracks starts with *All stems*
-  and *Original only*, beside the time scale. *Tempo and key* and *File export and
+  and *Original only*, beside the bars and the time scale. *Tempo and key* and *File export and
   sharing* follow, each across the page in two columns. Volumes and tempo also have
   sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, [ and ] loop start and end at the current position, R record a take (again:
@@ -90,25 +91,28 @@ library. Each has a red ✕ that deletes it, and *Delete all* above the list del
 all (after a second tap). An audio file opens as a single track: tempo, key and loop
 work on the whole song, and *Export MP3* gives it at the tempo and in the key chosen.
 
-**The timeline** shows the song as EUTERIA (Python) does: the time and the bar numbers
-(each number just over its chord, in line with it; the phone shows the numbers only),
-the chords, and the waveform with the bar grid over it, the loop and the playhead. On a
-computer every track has its own row, with its switch and volume beside it (a track that
-is off is drawn dimmed); on the phone the row is the Original Track. Mouse and finger
-work alike on the waveforms: a tap or a click places the playhead (the yellow line),
-dragging from inside the loop moves the loop and keeps its length, dragging from
-anywhere else drags the playhead, to place it exactly. Dragging the time and the bar
-numbers scrolls (with momentum on a touch screen); pinching, ctrl+wheel (a trackpad
-pinch) or the buttons of *Zoom* (at the right of the timeline's toolbar) go from the
-whole song (100%) to about 100 pixels per second, and a tap on the percentage goes back
-to the whole song.
-The overview, the grey strip above the time, shows the whole song, the part in
+**The timeline** shows, from the top: the bar numbers, the chords under them (each
+chord in line with its number), the time scale, then the waveform with the bar grid over
+it, the loop and the playhead. The loop and the playhead are drawn over the waveforms
+only, so that the bars and their chords stay free to be clicked. On a computer every
+track has its own row, with its switch and volume beside it (a track that is off is
+drawn dimmed); on the phone the row is the Original Track. Mouse and finger work alike
+on the waveforms: a tap or a click places the playhead (the yellow line), dragging from
+inside the loop moves the loop and keeps its length, dragging from anywhere else drags
+the playhead, to place it exactly. A tap or a click on the time scale places the
+playhead too; a tap or a click on a bar (its number or its chord) opens *Bars and
+Chords* on that bar, to write its chord (with a mouse, the cursor goes in the chord
+field). Dragging the time scale or the bars scrolls (with momentum on a touch screen);
+pinching, ctrl+wheel (a trackpad pinch) or the buttons of *Zoom* (at the right of the
+timeline's toolbar) go from the whole song (100%) to about 100 pixels per second, and a
+tap on the percentage goes back to the whole song.
+The overview, the grey strip above the bars, shows the whole song, the part in
 view and the loop: dragging the frame of the view or of the loop moves it (the loop
 snaps to the bars), a tap elsewhere brings the view there.
 
 The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
-them freely): with a finger by the handles at the foot of the bar numbers, with a
-mouse anywhere along them; the green bar there moves the loop too. Next to
+them freely): with a finger by their handles at the foot of the time scale, with a
+mouse also anywhere along them. Next to
 *Loop* (in the timeline's toolbar on a computer, under the timeline on the phone, after
 the editing tools) one field shows the playhead to the hundredth of a second: it
 follows the yellow line, and typing a time or − and + (a hundredth at a time, held to
@@ -139,8 +143,8 @@ tools opening under it) opens the editor of EUTERIA (Python), the same in both l
   elsewhere a song without one starts at 180 BPM as in EUTERIA (Python), and *Set
   anchor* makes it. Beside *Tempo*, the grid's beats a minute at the tempo set (for
   example *96 BPM* at 80% of a song at 120).
-- **The chords**: a tap or a click in the chord lane selects a bar, dragging along the
-  lane (or shift-click) several. The chord typed goes to every bar selected (an empty
+- **The chords**: a tap or a click on a bar, on its number or its chord, selects it;
+  dragging along the bars (or shift-click) selects several. The chord typed goes to every bar selected (an empty
   chord removes it); Return (*next* on the phone keyboard) goes on to the following
   bar, so a song is entered chord after chord without leaving the keyboard. ‹ and ›
   move the selection. *Copy* and *Paste* copy the chords of the bars selected: pasted
@@ -155,8 +159,12 @@ tools opening under it) opens the editor of EUTERIA (Python), the same in both l
 Every edit is kept in the browser at once, so nothing is lost if the page closes; until
 it is saved, a dot on *Bars and Chords* and on *Save* says so. Leaving the song for the
 Library or another song then asks, as EUTERIA (Python) does: *Save*, *Don't save* (the
-song goes back to what its file has) or *Cancel*. **Save** (top right, Ctrl+S or ⌘S)
-writes the grid, the chords and the practice settings (tempo, key, loop, volumes, tracks
+song goes back to what its file has) or *Cancel*. A song opens with the name its file
+gives it (an audio file, its file name); a click or a tap on the name at the top turns it
+into a field to rename the project (Return or leaving the field keeps the new name,
+Escape the old one). A new name is a change to save, as the bars and chords are.
+**Save** (top right, Ctrl+S or ⌘S) writes the name, the grid, the chords and the
+practice settings (tempo, key, loop, volumes, tracks
 on, the order of the tracks) in the song's `manifest.json`, in the fields EUTERIA
 (Python) uses, and the takes recorded (see below) in the project:
 
@@ -166,8 +174,8 @@ on, the order of the tracks) in the song's `manifest.json`, in the fields EUTERI
 - computer, Safari and Firefox, which cannot write files: *Save a copy* downloads the
   song with the changes;
 - an audio file becomes an EUTERIA project (`.euteria`) holding it, with its grid and
-  chords: in the library on the phone, where you choose in Chrome and Edge, downloaded
-  elsewhere.
+  chords, named as the song (renamed or not): in the library on the phone, where you
+  choose in Chrome and Edge, downloaded elsewhere.
 
 Every song reopens as it was left (tracks, volumes, tempo, key, loop, position, zoom,
 the part in view, the grid shown or hidden, the edits not saved yet): the settings are
