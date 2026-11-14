@@ -145,7 +145,10 @@
           break;
         }
         case "play":
-          core.play(m.at);
+          core.play(m.at, m.countIn);
+          break;
+        case "metro":
+          core.setMetronome(m);
           break;
         case "pause":
           core.pause();
@@ -193,7 +196,7 @@
     // as a take), tail}.
     recStart(m) {
       if (this.rec) this.recEnd("stop");
-      if (m.play !== null && m.play !== undefined) this.core.play(m.play);
+      if (m.play !== null && m.play !== undefined) this.core.play(m.play, m.countIn);
       this.rec = {
         id: m.id,
         latency: Math.max(0, m.latency || 0),

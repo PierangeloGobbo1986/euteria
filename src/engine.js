@@ -117,8 +117,9 @@ export class Engine {
     return reply.tracks.map((t) => ({ ...t, channels: t.channels.map((b) => new Int16Array(b)) }));
   }
 
-  play(at) {
-    this.send({ type: "play", at });
+  // countIn: bars of metronome clicks before the song starts.
+  play(at, countIn = 0) {
+    this.send({ type: "play", at, countIn });
   }
 
   pause() {
@@ -141,8 +142,15 @@ export class Engine {
     this.send({ type: "loop", on, start, end });
   }
 
-  // Recording (see src/engine-processor.js): params {id, play, latency,
-  // takes, minFirst, tail}.
+  // The metronome (src/engine-core.js setMetronome()): {on, volume, times
+  // (song seconds, Float64Array), kinds, firsts (Uint8Array), play, mute,
+  // bar}; the arrays may be left out to keep the clicks as they are.
+  setMetronome(m) {
+    this.send({ type: "metro", ...m });
+  }
+
+  // Recording (see src/engine-processor.js): params {id, play, countIn,
+  // latency, takes, minFirst, tail}.
   recStart(params) {
     this.send({ type: "rec-start", ...params });
   }

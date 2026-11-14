@@ -90,6 +90,10 @@ export class Player {
     this.rate = 1;
     this.semitones = 0;
     this.loop = { on: false, start: 0, end: 0 };
+    // The metronome as the engine has it (setMetronome()), and the bars of
+    // count-in before playback and recording start.
+    this.metronome = null;
+    this.countIn = 0;
     this.busy = null; // null, "opening" or "exporting"
     this.recording = false; // a take is being recorded
     this.recordingSeek = false; // Stop's jump, allowed while the take ends
@@ -163,6 +167,25 @@ export class Player {
       this._changed();
     };
     this.engine = engine;
+    if (this.metronome) engine.setMetronome(this.metronome);
+  }
+
+  // The metronome (src/metronome.js, src/engine-core.js): {on, volume (0 to
+  // 1), play, mute, and the clicks: times, kinds, firsts, bar}; clicks null:
+  // none (no grid).
+  setMetronome({ on, volume, play, mute, clicks }) {
+    const m = { on: !!on && !!clicks, volume, play, mute };
+    if (clicks !== undefined) {
+      m.times = clicks ? clicks.times : new Float64Array(0);
+      m.kinds = clicks ? clicks.kinds : new Uint8Array(0);
+      m.firsts = clicks ? clicks.firsts : new Uint8Array(0);
+      m.bar = clicks ? clicks.bar : 0;
+    } else if (this.metronome) {
+      for (const k of ["times", "kinds", "firsts", "bar"]) if (k in this.metronome) m[k] = this.metronome[k];
+      m.on = !!on && !!(this.metronome.times && this.metronome.times.length);
+    }
+    this.metronome = m;
+    if (this.engine) this.engine.setMetronome(m);
   }
 
   // ----- songs ------------------------------------------------------------
@@ -386,7 +409,7 @@ export class Player {
     }
     const id = ++this.recordId;
     this.recording = true;
-    this.engine.recStart({ ...params, id, play });
+    this.engine.recStart({ ...params, id, play, countIn: play === null ? 0 : this.countIn });
     this.playing = true;
     this._wake(true);
     this._update();
@@ -415,7 +438,7 @@ export class Player {
     let at = this.position;
     if (at >= this.song.duration - 0.05) at = this.loop.on ? this.loop.start : 0;
     this.position = at;
-    this.engine.play(at);
+    this.engine.play(at, this.countIn);
     this.playing = true;
     this._wake(true);
     this._update();

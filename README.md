@@ -335,6 +335,20 @@ the same. The changes they make are changes to save. On the phone, and in the ot
 browsers, a song never analysed has no buttons: its grid is the one it brings, or one
 made by hand.
 
+**The metronome** (in the *Tempo and key* card, every device) clicks on the beats of the
+grid, each on the beat found in the song when there is one near it (*Detect BPM*), so
+it stays with a recording whose tempo moves, a live one above all, as one steady tempo
+would not; it follows the tempo set, the loop and every jump. *Metronome* switches it on
+and off, with its volume beside it and the meter of the grid (changing it rebuilds the
+grid, as in *Bars and Chords*). A button per beat of the bar sets it as an accent (a
+higher click), a beat or silent (a click goes on to the next), for example the first
+beat accented, or only 2 and 4. *Clicks for* N bars, *then silent for* M bars (0:
+always on) alternates them, counted from where playback starts. *Count-in* plays 1 or 2
+bars of clicks before the song starts (every beat, the first accented), also with the
+metronome off, before playback and before a take. Without a grid it waits, and says how
+to make one. Its settings are kept in this browser, the same for every song; the
+accents are kept per meter.
+
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
 
@@ -430,6 +444,16 @@ their pitch, as in EUTERIA (Python). Volumes above 100% use the same soft limite
 EUTERIA (Python). During playback the sum goes through a limiter: where it would go over
 −0.9 dB the gain drops at once, just enough, and comes back over 120 ms, so the peaks of
 a song and a take played together are lowered rather than cut.
+
+The metronome is mixed after the stretchers, at its own pitch: the engine has the
+song times of its clicks (`src/metronome.js`: the beats of the grid, moved onto the
+beats found, two bars more before the first) and sounds each as the song moment it
+belongs to comes out of the stretchers, from the same position as the playhead and the
+takes, so it is in step with the audio at any tempo (checked offline, rendered with the
+engine: within 0.1 ms at 100%, a few milliseconds at other tempos) and follows the loop
+and every jump. A count-in is output time before the song starts: the clicks of the
+bars before the start point, the song silent, then the song on the next beat; a take
+recorded with it begins where playback starts.
 
 The stretchers run at Signalsmith's default quality (120 ms blocks every 30 ms) with
 the work of each block spread over the audio callbacks: done all at once, it
@@ -689,7 +713,8 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   (`engine*.js`), the player (`player.js`), the export worker (`render-worker.js`), the
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
-  (`grid.js`), chord names read and transposed (`chordnames.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
+  (`grid.js`), chord names read and transposed (`chordnames.js`), the metronome's
+  settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
   `onnx-rewrite.js`), the tempo and chord detection (`beats.js`, `beats-worker.js`,
@@ -725,8 +750,9 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   files and recent files (computer), settings kept per song, MP3 export, offline use.
   Step 2: the timeline (waveforms, bar grid and numbers, chords, loop dragged on it,
   zoom, overview). Step 3: editing the grid, the bar numbers and the chords, saved in
-  the `.euteria` file. All tested on smartphone and computer. The metronome is left out:
-  recordings, live ones above all, do not keep a mathematical tempo.
+  the `.euteria` file. All tested on smartphone and computer. The metronome came later
+  (0.10), once the beats found in the song let it follow recordings, live ones above
+  all, that do not keep a mathematical tempo.
 - **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
   saving them in a project (online, being tested). Step 2: recording takes over a song,
   on every device, saved in the project (version 0.5, online, being tested).

@@ -283,6 +283,28 @@
               <div id="tempo-box" class="control-box"></div>
               <p id="tempo-bpm" class="tempo-bpm" hidden></p>
             </div>
+            <!-- The metronome, on the beats of the grid (src/metronome.js): on and off, its
+                 volume, the meter of the grid; each beat of the bar an accent, a beat or
+                 silent; bars on, then bars off; the bars of count-in before playback. -->
+            <div id="metro" class="metro">
+              <div class="metro-row">
+                <button id="metro-on" type="button" class="small metro-on" aria-pressed="false">Metronome</button>
+                <input id="metro-volume" class="metro-volume" type="range" min="0" max="100" step="1" value="60" aria-label="Metronome volume" title="Metronome volume">
+                <div class="num meter metro-meter"><div class="value"><select id="metro-meter" aria-label="Meter of the grid" title="Meter of the grid"></select></div></div>
+              </div>
+              <div id="metro-beats" class="metro-beats" role="group" aria-label="The beats of the bar: a click changes accent, beat and silent"></div>
+              <div class="metro-row metro-cycle">
+                <span class="mini-label">Clicks for</span>
+                <div id="metro-play-box"></div>
+                <span class="mini-label">bars, then silent for</span>
+                <div id="metro-mute-box"></div>
+              </div>
+              <div class="metro-row">
+                <span class="mini-label">Count-in</span>
+                <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
+              </div>
+              <p id="metro-hint" class="hint" hidden>The metronome follows the grid: Detect BPM, above, or Bars and Chords makes it.</p>
+            </div>
           </div>
           <div class="card-col">
             <div class="field">

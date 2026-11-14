@@ -26,6 +26,13 @@
  * A track may start later than the song (a take recorded over it): `start`
  * is the song sample of its first sample, negative if it begins before the
  * song.
+ *
+ * The metronome clicks at the song times it is given (the beats of the grid,
+ * or the beats found in the song: src/metronome.js), as they come out, so it
+ * follows the tempo, the loop and every jump with the song; it is mixed after
+ * the stretchers, at its own pitch. A count-in plays the clicks of the bars
+ * before the start point, with the song silent, then the song starts on time
+ * with them: "emission" runs through it as through the stretcher's delay.
  */
 (function () {
   "use strict";
@@ -55,6 +62,14 @@
   const TONALITY_HZ = 8000; // Signalsmith's default tonality limit
   const MIN_LOOP_SECONDS = 0.25;
   const MAX_BLOCK = 2048; // largest block render() accepts
+
+  // The metronome's click: a sine burst, higher for an accent, with a fast
+  // attack and a short decay.
+  const CLICK_HZ = [1046.5, 1568]; // C6 for a beat, G6 for an accent
+  const CLICK_LEVEL = [0.32, 0.45];
+  const CLICK_ATTACK = 0.0015;
+  const CLICK_DECAY = 0.018;
+  const CLICK_SECONDS = 0.09;
 
   // One Signalsmith Stretch instance (its own WebAssembly memory), stereo.
   class Stretcher {
@@ -159,6 +174,16 @@
       this.limitRelease = 1 - Math.exp(-1 / (sampleRate * RELEASE_SECONDS));
       this.length = 0; // samples of the longest track
       this.list = []; // the tracks as an array, for the audio loop
+      // The metronome (setMetronome()): its clicks as song samples, their
+      // kind (0 a beat, 1 an accent, 2 silent) and whether each starts a bar;
+      // play/mute: bars on, then bars silent (mute 0: always on); bar: song
+      // samples of a bar, for the count-in.
+      this.metro = { on: false, volume: 0.6, times: new Float64Array(0), kinds: new Uint8Array(0), firsts: new Uint8Array(0), play: 0, mute: 0, bar: 0 };
+      this.click = { left: 0, t: 0, w: 0, level: 0 }; // the click sounding
+      this.nextClick = 0; // index of the next click along the playback path
+      this.lastPos = -Infinity; // the song sample of the last output sample
+      this.barsHeard = 0; // bars started since playback started
+      this.preroll = 0; // output samples of count-in left
     }
 
     // ----- tracks -----------------------------------------------------------
@@ -228,7 +253,8 @@
       return this.length / this.sampleRate;
     }
 
-    play(at) {
+    // countIn: bars of clicks before the song starts.
+    play(at, countIn) {
       if (at !== undefined && at !== null) this.out = this._sample(at);
       if (this.out >= this.length) this.out = 0;
       // As in EUTERIA (Python): playing with the loop on starts inside it.
@@ -236,6 +262,13 @@
       this.playing = true;
       this.ended = false;
       this._restart();
+      const bars = Math.max(0, Math.min(4, Math.round(+countIn || 0)));
+      if (bars && this.metro.bar > 0 && this.metro.times.length) {
+        // Whole audio blocks of 128 samples, so that it ends with a block.
+        const samples = Math.max(0, (bars * this.metro.bar) / this.rate - this.delay);
+        this.preroll = Math.ceil(samples / 128) * 128;
+        this._findClick(this.emission());
+      }
     }
 
     // Stops where the listener is: the audio still on its way to the output
@@ -243,6 +276,8 @@
     pause() {
       if (this.playing) this.out = Math.round(this.heard() * this.sampleRate);
       this.playing = false;
+      this.preroll = 0;
+      this.click.left = 0;
     }
 
     seek(to) {
@@ -292,11 +327,11 @@
     }
 
     // The song sample coming out now, along the playback path and not clamped:
-    // before the start point while the first `delay` samples come out, still
-    // at the end of the loop just after "out" went back to its start. A
-    // recording lines up with the song from it.
+    // before the start point during a count-in and while the first `delay`
+    // samples come out, still at the end of the loop just after "out" went
+    // back to its start. A recording lines up with the song from it.
     emission() {
-      if (this.sinceStart < this.delay) return this.startOut - (this.delay - this.sinceStart) * this.rate;
+      if (this.sinceStart < this.delay) return this.startOut - (this.preroll + this.delay - this.sinceStart) * this.rate;
       let e = this.out - this.delay * this.rate;
       if (this.loop.on && e < this.loopA && this.out >= this.loopA) e += this.loopB - this.loopA;
       return e;
@@ -312,6 +347,10 @@
       this.startOut = this.out;
       this.sinceStart = 0;
       this.frac = 0;
+      this.preroll = 0;
+      this.barsHeard = 0;
+      this.click.left = 0;
+      this._findClick(this.emission());
       this.feed = this._advance(this.out, this.inputLatency);
       for (const bus of this.buses) {
         if (bus.hasAudio) this._prime(bus);
@@ -336,6 +375,14 @@
       out0.fill(0, 0, n);
       out1.fill(0, 0, n);
       if (!this.playing) return;
+      // A count-in: its clicks only, the song waiting.
+      if (this.preroll > 0) {
+        this._clicks(out0, out1, n, this.emission(), true);
+        this.preroll = Math.max(0, this.preroll - n);
+        if (!this.preroll) this.barsHeard = 0; // the bars of the song are counted from here
+        return;
+      }
+      const e0 = this.metro.on && this.metro.times.length ? this.emission() : null;
       this.frac += this.rate * n;
       const k = Math.floor(this.frac);
       this.frac -= k;
@@ -352,6 +399,8 @@
         this._mix(bus, this.feed, k, s.input[0], s.input[1]);
         s.stream(k, n, out0, out1);
       }
+      if (e0 !== null) this._clicks(out0, out1, n, e0, false);
+      else this.click.left = 0;
       if (this.masterLimit) this._limit(out0, out1, n);
       this.feed = this._advance(this.feed, k);
       this.out = this._advance(this.out, k);
@@ -360,6 +409,85 @@
         this.playing = false;
         this.ended = true;
       }
+    }
+
+    // ----- metronome --------------------------------------------------------
+
+    // m: {on, volume (0 to 1), times (song seconds, in order), kinds, firsts,
+    // play, mute (bars), bar (song seconds of a bar)}; arrays as above.
+    setMetronome(m) {
+      const sr = this.sampleRate;
+      const metro = this.metro;
+      metro.on = !!m.on;
+      metro.volume = Math.max(0, Math.min(1, +m.volume || 0));
+      if (m.times) {
+        const t = m.times;
+        metro.times = new Float64Array(t.length);
+        for (let i = 0; i < t.length; i++) metro.times[i] = t[i] * sr;
+        metro.kinds = m.kinds ? new Uint8Array(m.kinds) : new Uint8Array(t.length);
+        metro.firsts = m.firsts ? new Uint8Array(m.firsts) : new Uint8Array(t.length);
+      }
+      metro.play = Math.max(0, Math.round(+m.play || 0));
+      metro.mute = Math.max(0, Math.round(+m.mute || 0));
+      metro.bar = Math.max(0, (+m.bar || 0) * sr);
+      this._findClick(this.lastPos === -Infinity ? this.emission() : this.lastPos);
+    }
+
+    // The next click from song sample `pos` on.
+    _findClick(pos) {
+      const t = this.metro.times;
+      let lo = 0;
+      let hi = t.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (t[mid] < pos) lo = mid + 1;
+        else hi = mid;
+      }
+      this.nextClick = lo;
+      this.lastPos = pos;
+    }
+
+    // Adds the clicks of the n output samples from song sample e0 on (the
+    // loop's jump back followed). countIn: every beat sounds, the first of a
+    // bar accented, whatever the metronome's settings.
+    _clicks(out0, out1, n, e0, countIn) {
+      const metro = this.metro;
+      const t = metro.times;
+      const c = this.click;
+      const sr = this.sampleRate;
+      const r = this.rate;
+      const wrap = this.loop.on && !countIn ? this.loopB - this.loopA : 0;
+      let pos = e0;
+      if (pos < this.lastPos - r * 2 || pos > this.lastPos + r * (n + 2) + 1) this._findClick(pos);
+      for (let i = 0; i < n; i++, pos += r) {
+        if (wrap && pos >= this.loopB && e0 < this.loopB) {
+          pos -= wrap;
+          this._findClick(pos);
+        }
+        while (this.nextClick < t.length && t[this.nextClick] <= pos) {
+          const k = this.nextClick++;
+          if (pos - t[k] > r * 2) continue; // passed while jumping
+          if (metro.firsts[k]) this.barsHeard++;
+          let kind = metro.kinds[k];
+          if (countIn) kind = metro.firsts[k] ? 1 : 0;
+          else if (metro.mute > 0 && metro.play > 0 && this.barsHeard > 0 && (this.barsHeard - 1) % (metro.play + metro.mute) >= metro.play) kind = 2;
+          if (kind === 2) continue;
+          c.left = Math.round(CLICK_SECONDS * sr);
+          c.t = 0;
+          c.w = (2 * Math.PI * CLICK_HZ[kind]) / sr;
+          c.level = CLICK_LEVEL[kind] * metro.volume;
+        }
+        if (c.left > 0) {
+          const time = c.t / sr;
+          const env = (time < CLICK_ATTACK ? time / CLICK_ATTACK : 1) * Math.exp(-time / CLICK_DECAY);
+          const v = c.level * env * Math.sin(c.w * c.t);
+          out0[i] += v;
+          out1[i] += v;
+          c.t++;
+          c.left--;
+        }
+      }
+      this.lastPos = pos;
     }
 
     // The mix kept under LIMIT (see RELEASE_SECONDS).
