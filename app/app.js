@@ -1888,6 +1888,9 @@ function updateUi() {
   }
   f.key.set(player.semitones);
   f.key.disable(!song || locked);
+  // The chords follow the key: shown, and typed, in the key of now.
+  app.timeline.setChordShift(player.semitones);
+  editor.setShift(player.semitones);
 
   const lp = player.loop;
   const loop = $("loop");

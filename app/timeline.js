@@ -22,9 +22,11 @@
 // The bars (their numbers and their chords) are for the chords: while the
 // grid and the chords are edited, a tap or a click selects a bar, dragging
 // along them (or shift-click) selects several; otherwise a tap on a bar asks
-// for its chord to be edited (onBarTap) and dragging scrolls.
+// for its chord to be edited (onBarTap) and dragging scrolls. The chords are
+// shown in the key the song is played in (setChordShift, src/chordnames.js).
 
 import { barNumber, barAt, nearestBar } from "../src/grid.js";
+import { chordView } from "../src/chordnames.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
 import { tr } from "../src/i18n.js";
 
@@ -117,6 +119,10 @@ export class Timeline {
     this.rows = [];
     this.live = null; // the take being recorded
     this.grid = { beats: [], bars: [], offset: 0, chords: new Map(), bpm: null, meter: "4/4" };
+    // The chords as they are shown: in the key of now, the song moved by
+    // chordShift semitones (src/chordnames.js).
+    this.chordShift = 0;
+    this.chordNames = chordView([], 0);
     this.gridVisible = true;
     this.zoom = 1;
     this.start = 0;
@@ -167,6 +173,7 @@ export class Timeline {
     this.sampleRate = sampleRate || 48000;
     this.rows = rows;
     this.grid = grid;
+    this.chordNames = chordView(grid.chords.values(), this.chordShift);
     this.gridVisible = gridVisible;
     this.barSec = spacing(grid.bars, grid.bpm ? (60 / grid.bpm) * 4 : 2);
     this.beatSec = spacing(grid.beats, grid.bpm ? 60 / grid.bpm : 0.5);
@@ -220,6 +227,7 @@ export class Timeline {
   setGrid(grid) {
     const head = this.headHeight;
     this.grid = grid;
+    this.chordNames = chordView(grid.chords.values(), this.chordShift);
     this.barSec = spacing(grid.bars, grid.bpm ? (60 / grid.bpm) * 4 : 2);
     this.beatSec = spacing(grid.beats, grid.bpm ? 60 / grid.bpm : 0.5);
     const n = grid.bars.length;
@@ -227,6 +235,20 @@ export class Timeline {
     if (sel) this.selection = n ? { anchor: clamp(sel.anchor, 0, n - 1), lo: clamp(sel.lo, 0, n - 1), hi: clamp(sel.hi, 0, n - 1) } : null;
     if (this.headHeight !== head) this.layout();
     else this.requestDraw();
+  }
+
+  // The song moved by `semitones`: its chords shown in the new key.
+  setChordShift(semitones) {
+    const shift = Math.round(+semitones || 0);
+    if (shift === this.chordShift) return;
+    this.chordShift = shift;
+    this.chordNames = chordView(this.grid.chords.values(), shift);
+    if (this.showChords) this.requestDraw();
+  }
+
+  // A bar's chord as it is shown (in the key of now).
+  chordShown(index) {
+    return this.chordNames.show(this.grid.chords.get(index));
   }
 
   // Editing: a tap on the bars selects them.
@@ -538,7 +560,7 @@ export class Timeline {
         ctx.fillStyle = C.sep;
         ctx.fillRect(Math.round(x0), y0, 1, h);
       }
-      const text = g.chords.get(i);
+      const text = this.chordNames.show(g.chords.get(i));
       if (!text) continue;
       // A chord may use the following bars that have none.
       let j = i + 1;

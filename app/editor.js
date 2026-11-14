@@ -12,9 +12,13 @@
 // Bars are selected in the timeline, by their numbers or their chords: a tap
 // or a click selects one, dragging along them (or shift-click) several; a
 // bar tapped while Bars and Chords is closed opens it there. The chord typed
-// applies to every bar selected; Return goes on to the next bar.
+// applies to every bar selected; Return goes on to the next bar. With the
+// song transposed (Key), the chord field shows and takes the chords in the
+// key of now, and the bars keep them in the song's own key
+// (src/chordnames.js), so that the song saved is the same in any key.
 
-import { h, numberField, fmtTime, parseTime, confirmTap } from "./controls.js";
+import { h, numberField, fmtTime, fmtSigned, parseTime, confirmTap } from "./controls.js";
+import { chordView } from "../src/chordnames.js";
 import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
 import { tr, trn } from "../src/i18n.js";
 
@@ -39,6 +43,7 @@ export class Editor {
     this.clip = []; // chords copied, one per bar ("" for none)
     this.target = null; // the bars whose chord the chord field shows
     this.shown = ""; // what it showed
+    this.shift = 0; // the song moved by these semitones (Key)
     this.dirty = false; // edits not saved in the file yet
     this.differs = false; // the grid is not the file's (kept in this browser)
     this.built = false; // its beats and bars were rebuilt here
@@ -48,6 +53,22 @@ export class Editor {
 
   get grid() {
     return this.ctx.app.grid;
+  }
+
+  // The chords of the song seen in the key of now.
+  get names() {
+    return chordView(this.grid.chords.values(), this.shift);
+  }
+
+  // The song moved by `semitones` (Key): what was typed goes in first, in the
+  // key it was typed in, then the chord field shows the new key.
+  setShift(semitones) {
+    const shift = Math.round(+semitones || 0);
+    if (shift === this.shift) return;
+    this.commitInput();
+    this.shift = shift;
+    this.loadInput();
+    this.refresh();
   }
 
   get duration() {
@@ -323,7 +344,7 @@ export class Editor {
     const { lo, hi } = this.sel;
     const texts = new Set();
     for (let i = lo; i <= hi; i++) texts.add(this.grid.chords.get(i) || "");
-    const value = texts.size === 1 ? [...texts][0] : "";
+    const value = texts.size === 1 ? this.names.show([...texts][0]) : "";
     this.target = { lo, hi };
     this.shown = value;
     input.value = value;
@@ -347,7 +368,8 @@ export class Editor {
     const text = this.chord.value.trim().replace(/\s+/g, " ");
     if (text === this.shown) return;
     this.shown = text;
-    this._setChords(t.lo, t.hi, () => text);
+    const stored = this.names.store(text); // in the song's own key
+    this._setChords(t.lo, t.hi, () => stored);
   }
 
   // ----- edits ------------------------------------------------------------------------
@@ -545,6 +567,13 @@ export class Editor {
     $("grid-edit").hidden = !show;
     $("chord-edit").hidden = !show;
     if (!show) return;
+    // The song transposed: the chords are in the key of now.
+    const keyNote = $("chord-key");
+    keyNote.hidden = !this.shift;
+    if (this.shift) {
+      const text = tr("Key {shift}: the chords are shown, and typed, in the new key; the song keeps them in its own key.", { shift: fmtSigned(this.shift) });
+      if (keyNote.textContent !== text) keyNote.textContent = text;
+    }
 
     const busy = !!player.busy;
     this.bpm.set(g.bpm || DEFAULT_BPM);

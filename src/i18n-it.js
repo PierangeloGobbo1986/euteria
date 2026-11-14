@@ -278,6 +278,7 @@ export const IT = {
   "Chords pasted into {n} bar.": "Accordi incollati in {n} battuta.",
   "Chords pasted into {n} bars.": "Accordi incollati in {n} battute.",
   "Edit the bars and the chords (changes not saved)": "Modifica le battute e gli accordi (modifiche non salvate)",
+  "Key {shift}: the chords are shown, and typed, in the new key; the song keeps them in its own key.": "Tonalità {shift}: gli accordi si vedono, e si scrivono, nella nuova tonalità; il brano li conserva nella sua tonalità originale.",
   "Changes not saved yet: Save is at the top right.": "Modifiche non ancora salvate: Salva è in alto a destra.",
   "No grid: set the anchor at the first beat of a bar.": "Nessuna griglia: imposta l'àncora sul primo battito di una battuta.",
   "No grid: put the playhead on the first beat of a bar and set the anchor.": "Nessuna griglia: porta la barra di play sul primo battito di una battuta e imposta l'àncora.",

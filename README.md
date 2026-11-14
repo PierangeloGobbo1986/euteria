@@ -152,6 +152,16 @@ tools opening under it) opens the editor of EUTERIA (Python), the same in both l
   bar they all go in from there. On a computer: a click puts the cursor in the chord
   field, a key from A to G starts a chord, ← → move the selection (Shift: extend it),
   Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
+- **The chords follow the key**: with the song transposed (*Key*), the timeline and the
+  chord field show the chords in the new key, and a line under the chord field says so; a
+  chord typed then is kept in the song's own key, so the project saved is the same in any
+  key and the chords move again with the next change of key. Only chord names move: a
+  root (C to B, or Do to Si), its sharp or flat, what follows it as it is (m7, maj7,
+  7(b9), sus4, ø, 6/9…) and a bass after "/"; other words (N.C., %, x2, Coda, Solo) stay
+  as they are. The new names are spelled from the key of the song, estimated from its
+  chords: the notes of the key, then the others as b2, b3, b5, b6 and b7 (Bb7, not A#7,
+  in G), raised for diminished and half-diminished chords (C#°7, F#ø7 in C), and a bass
+  as a note of its chord (D7/F#). With the key at 0 the chords are shown as typed.
 - **Bar numbers**: *Bar* shows the number of the bar selected; typing another number
   renumbers every bar from it (the bar number offset of EUTERIA (Python)), for a pickup
   bar or a song that starts in the middle.
@@ -619,7 +629,7 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   (`engine*.js`), the player (`player.js`), the export worker (`render-worker.js`), the
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
-  (`grid.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
+  (`grid.js`), chord names read and transposed (`chordnames.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
   `onnx-rewrite.js`), the tempo detection (`beats.js`, `beats-worker.js`,

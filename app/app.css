@@ -841,3 +841,5 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=phone] .track.take .take-del { min-width: 34px; }
   [data-layout=phone] .track.take .toggle .dot { display: none; }
 }
+/* With the song transposed, under the chord field: the chords are in the new key. */
+.chord-edit .chord-key { margin: 8px 0 0; }
