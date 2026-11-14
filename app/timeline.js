@@ -92,9 +92,10 @@ export class Timeline {
   // hi}, done) while bars are selected (done: the press ended, tap: it did
   // not move), onBarTap(index, {pointerType}) when a bar is tapped while not
   // editing.
-  // varsOn: the element that gets --tl-over, --tl-ruler, --tl-head and
-  // --tl-row (the height of the overview, of the time scale, of everything
-  // over the tracks, and of a row), so that a column beside can line up.
+  // varsOn: the element that gets --tl-over, --tl-ruler, --tl-head, --tl-row,
+  // --tl-nums and --tl-chords (the height of the overview, of the time scale,
+  // of everything over the tracks, of a row, of the lane of the bar numbers
+  // and of the chord lane), so that a column beside can line up.
   constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange, onSelect, onBarTap } = {}) {
     this.onSelect = onSelect || (() => {});
     this.onBarTap = onBarTap || (() => {});
@@ -429,6 +430,9 @@ export class Timeline {
     this.varsOn.style.setProperty("--tl-ruler", `${this.dims.ruler}px`);
     this.varsOn.style.setProperty("--tl-head", `${this.headHeight}px`);
     this.varsOn.style.setProperty("--tl-row", `${this.dims.row}px`);
+    // The lanes of the bar numbers and of the chords (none without a grid shown).
+    this.varsOn.style.setProperty("--tl-nums", `${this.barsHeight ? this.dims.nums : 0}px`);
+    this.varsOn.style.setProperty("--tl-chords", `${this.barsHeight ? this.dims.chords : 0}px`);
     this.zoom = clamp(this.zoom, 1, this.zoomMax);
     this.start = this.clampStart(this.start);
     this.draw();

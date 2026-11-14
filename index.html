@@ -218,13 +218,13 @@
         </div>
         <div class="edit-row save-row">
           <span id="edit-status" class="edit-status" role="status" aria-live="polite"></span>
-          <button id="suggest-chords" type="button" class="small ghost" title="Write the chords found in the song in the bars that have none" hidden>Suggest chords</button>
           <button id="clear-chords" type="button" class="small ghost danger" title="Remove all the chords: the grid stays">Clear chords</button>
         </div>
       </div>
       <!-- Editing: the chords of the bars selected in the chord lane -->
       <div id="chord-edit" class="edit-panel chord-edit" hidden>
         <div class="edit-row">
+          <button id="find-chords" type="button" class="small find-btn" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
           <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
           <div class="bar-nav">
             <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
@@ -242,8 +242,14 @@
       </div>
       <div id="tl-wrap" class="tl-wrap">
         <div id="tl-heads" class="tl-heads computer-only">
+          <!-- Beside the lanes over the tracks: their names (the bars, the chords), then,
+               beside the time scale, the buttons of the tracks. -->
           <div id="tl-side" class="tl-side">
-            <button id="separate" type="button" class="small" hidden>Separate instruments</button>
+            <span class="lane-name lane-bars">Bars</span>
+            <span class="lane-name lane-chords">Chords</span>
+            <div id="tl-side-tools" class="tl-side-tools">
+              <button id="separate" type="button" class="small" hidden>Separate instruments</button>
+            </div>
           </div>
           <div id="tl-rows"></div>
         </div>
@@ -269,6 +275,9 @@
         <h2>Tempo and key</h2>
         <div class="card-cols">
           <div class="card-col">
+            <div class="find-row">
+              <button id="find-bpm" type="button" class="small find-btn" title="Find the tempo of the song and make the grid of its bars" hidden>Detect BPM</button>
+            </div>
             <div class="field">
               <span class="label">Tempo</span>
               <div id="tempo-box" class="control-box"></div>

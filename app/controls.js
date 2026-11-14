@@ -293,7 +293,8 @@ export function keyField({ label, min = -12, max = 12, onChange = () => {} }) {
 // undone. confirmText: the text it shows meanwhile, or a function giving it
 // (in the language in use). The button's own content comes back as it was
 // (the same nodes: the page's translation keeps finding them).
-export function confirmTap(button, confirmText, action, ms = 4000) {
+// needed(): whether this click must be confirmed (no: the action at once).
+export function confirmTap(button, confirmText, action, ms = 4000, needed = null) {
   let timer = null;
   let normal = null; // {nodes, label}: the button's content, while it asks
   const reset = () => {
@@ -307,7 +308,7 @@ export function confirmTap(button, confirmText, action, ms = 4000) {
     normal = null;
   };
   button.addEventListener("click", () => {
-    if (timer) {
+    if (timer || (needed && !needed())) {
       reset();
       action();
       return;

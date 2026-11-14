@@ -1,15 +1,16 @@
-// Finding the tempo and the chords of a song as it opens (a computer, Chrome
-// or Edge with WebGPU): the beats and the downbeats (Beat This!,
-// src/beats.js), the grid made from them (src/tempo.js), then the chords
-// (BTC, kept as segments: src/chords.js), which go in the bars of a grid that
-// has none. It runs once per song: the result is kept in the song
-// (manifest.music.beat_tracking and chord_recognition, written by Save and
-// by the separation) and, until then, in this browser; a song whose tempo was
-// found before the chords were (EUTERIA Web 0.8) gets its chords only. The
-// song plays meanwhile; Bars and Chords waits for it (app/editor.js), and so
-// does a separation. The progress is told in the line under the bar at the
-// top, as the opening of the song. The models (about 191 MB and 12 MB) are
-// downloaded the first time and kept in the browser.
+// Finding the tempo and the chords of a song, when asked (a computer, Chrome
+// or Edge with WebGPU): Detect BPM (the Tempo card) finds the beats and the
+// downbeats (Beat This!, src/beats.js) and makes a new grid from them
+// (src/tempo.js); Detect chords (Bars and Chords) finds the chords (BTC, kept
+// as segments: src/chords.js) and writes them in the bars, finding the tempo
+// first for a song without a grid. The result is kept in the song
+// (manifest.music.beat_tracking and chord_recognition, written by Save and by
+// the separation) and, until then, in this browser; pressed again, the
+// buttons use it, with no new analysis (app/app.js). The song plays
+// meanwhile; Bars and Chords waits for it (app/editor.js), and so does a
+// separation. The progress is told in the line under the bar at the top. The
+// models (about 191 MB and 12 MB) are downloaded the first time and kept in
+// the browser.
 //
 // On a phone, and in the browsers that cannot run it, nothing runs: the grid
 // is the one the song brings, or one made by hand.
@@ -33,22 +34,29 @@ function detectionSupport(phoneLayout) {
   return "gpu" in navigator;
 }
 
+// What a detection found: the beats ({beats, downbeats…}) and the chords
+// (`chords`: {segments…}), either or both.
+export const hasBeats = (a) => !!(a && Array.isArray(a.beats));
+export const hasChords = (a) => !!(a && a.chords && Array.isArray(a.chords.segments));
+
 // The detection kept in a project (manifest.music.beat_tracking, with its
 // chords from manifest.music.chord_recognition as `chords`), or null.
 export function readAnalysis(manifest) {
   const music = manifest && manifest.music;
-  const a = music && music.beat_tracking;
-  if (!(a && typeof a === "object" && Array.isArray(a.beats))) return null;
+  if (!music) return null;
+  const a = music.beat_tracking && typeof music.beat_tracking === "object" && Array.isArray(music.beat_tracking.beats) ? { ...music.beat_tracking } : {};
   const c = music.chord_recognition;
-  return c && typeof c === "object" && Array.isArray(c.segments) ? { ...a, chords: c } : { ...a };
+  if (c && typeof c === "object" && Array.isArray(c.segments)) a.chords = c;
+  return hasBeats(a) || hasChords(a) ? a : null;
 }
 
 const ms3 = (list) => list.map((t) => Math.round(t * 1000) / 1000);
 
 export class TempoDetection {
-  // ctx: {app, player, phone, notice(text, kind, ms), apply(analysis, fit)
-  // (the result, for the song open; returns {filled, kept}: how many bars got
-  // a chord, and whether they were left to Suggest chords), refreshPage()}.
+  // ctx: {app, player, phone, notice(text, kind, ms), apply(analysis, fit,
+  // {tempo, chords}) (the result, for the song open: a new grid, the chords
+  // written in its bars; returns how many bars got a chord), finished()
+  // (after every run, whatever its end), refreshPage()}.
   constructor(ctx) {
     this.ctx = ctx;
     this.supported = false;
@@ -77,13 +85,14 @@ export class TempoDetection {
     this.ctx.notice(text, kind, ms);
   }
 
-  // Runs on `song` (just opened from `file`, named `name`): the tempo and the
-  // chords, or (tempo: false, the song has its tempo already) the chords only.
-  start(song, file, name, { tempo = true } = {}) {
+  // Runs on `song` (open from `file`, named `name`): the tempo (a new grid),
+  // the chords, or both; write: the chords (found now, or kept in the song)
+  // written in the bars at the end.
+  start(song, file, name, { tempo = false, chords = false, write = chords } = {}) {
     this.cancel();
-    if (!this.supported || !song) return;
+    if (!this.supported || !song || !(tempo || chords)) return;
     const tracker = new BeatTracker();
-    const job = { song, tracker, tempo, model: null };
+    const job = { song, tracker, tempo, chords, write, model: null };
     job.done = this._run(job, file, name);
     this.job = job;
     this.ctx.refreshPage();
@@ -116,7 +125,7 @@ export class TempoDetection {
     const { player, app } = this.ctx;
     const current = () => this.job === job && player.song === job.song && !job.cancelled;
     let stage = job.tempo ? "tempo" : "chords";
-    let analysis = job.tempo ? null : app.analysis;
+    let analysis = app.analysis ? { ...app.analysis } : {};
     let fit = null;
     try {
       this.say(job.tempo ? tr("Finding the tempo of {name}…", { name }) : tr("Finding the chords of {name}…", { name }));
@@ -127,10 +136,12 @@ export class TempoDetection {
       if (job.tempo) {
         await this._model(job, config.model);
         if (!current()) return;
-        const result = await tracker.detect(audio.slice());
+        const result = await tracker.detect(job.chords ? audio.slice() : audio);
         if (!current()) return;
         fit = gridFromBeats(result.beats, result.downbeats, job.song.duration);
+        // The chords found before stay: they do not depend on the beats.
         analysis = {
+          ...(analysis.chords ? { chords: analysis.chords } : {}),
           version: 1,
           model: config.model.key,
           detected_with: `EUTERIA Web ${VERSION()}`.trim(),
@@ -146,51 +157,59 @@ export class TempoDetection {
           downbeats: ms3(result.downbeats),
         };
       }
-      // The chords; should they fail, the tempo found stays.
-      stage = "chords";
+      // The chords (after the tempo: should they fail, the tempo found stays).
       let chordError = null;
-      try {
-        this.say(tr("Finding the chords of {name}…", { name }));
-        await this._model(job, config.chordModel);
-        if (!current()) return;
-        const result = await tracker.chords(audio);
-        if (!current()) return;
-        analysis = {
-          ...analysis,
-          chords: {
-            version: 1,
-            model: config.chordModel.key,
-            detected_with: `EUTERIA Web ${VERSION()}`.trim(),
-            detected_at: new Date().toISOString(),
-            backend: result.backend,
-            seconds: Math.round(result.totalMs / 100) / 10,
-            segments: segmentsFrom(result),
-          },
-        };
-      } catch (error) {
-        if (!current()) return;
-        if (!job.tempo) throw error;
-        chordError = (error && error.message) || String(error);
+      if (job.chords && (!job.tempo || fit)) {
+        stage = "chords";
+        try {
+          this.say(tr("Finding the chords of {name}…", { name }));
+          await this._model(job, config.chordModel);
+          if (!current()) return;
+          const result = await tracker.chords(audio);
+          if (!current()) return;
+          analysis = {
+            ...analysis,
+            chords: {
+              version: 1,
+              model: config.chordModel.key,
+              detected_with: `EUTERIA Web ${VERSION()}`.trim(),
+              detected_at: new Date().toISOString(),
+              backend: result.backend,
+              seconds: Math.round(result.totalMs / 100) / 10,
+              segments: segmentsFrom(result),
+            },
+          };
+        } catch (error) {
+          if (!current()) return;
+          if (!job.tempo) throw error;
+          chordError = (error && error.message) || String(error);
+        }
       }
       this.job = null;
-      const { filled, kept } = this.ctx.apply(analysis, fit) || { filled: 0, kept: false };
-      const chordsSaid = chordError
-        ? tr("The chords could not be found: {error}", { error: chordError })
-        : filled
-          ? trn(filled, "Chord suggested in {n} bar: check it by ear.", "Chords suggested in {n} bars: check them by ear.")
-          : kept
-            ? tr("Suggest chords, in Bars and Chords, fills the empty bars with the chords found.")
-            : tr("No chords found in this song.");
-      if (!job.tempo) this.say(chordsSaid, chordError ? "error" : "ok", 10000);
-      else if (!fit) this.say(tr("No steady beat found in this song: Bars and Chords works by hand."), "", 8000);
-      else {
-        const v = { bpm: fit.bpm.toFixed(1), meter: fit.meter };
-        const tempoSaid =
-          fit.quality.driftMs > DRIFT_MS
-            ? tr("Tempo found: {bpm} BPM in {meter} on average. It varies in this song: check the grid, towards the end above all.", v)
-            : tr("Tempo found: {bpm} BPM in {meter}. Bars and Chords is ready.", v);
-        this.say(`${tempoSaid} ${chordsSaid}`, chordError ? "error" : "ok", 10000);
+      const write = job.write && !chordError && (!job.tempo || !!fit);
+      const written = this.ctx.apply(analysis, fit, { tempo: job.tempo, chords: write }) || 0;
+      const said = [];
+      if (job.tempo) {
+        if (!fit) said.push(tr("No steady beat found in this song: Bars and Chords works by hand."));
+        else {
+          const v = { bpm: fit.bpm.toFixed(1), meter: fit.meter };
+          said.push(
+            fit.quality.driftMs > DRIFT_MS
+              ? tr("Tempo found: {bpm} BPM in {meter} on average. It varies in this song: check the grid, towards the end above all.", v)
+              : tr("Tempo found: {bpm} BPM in {meter}. Bars and Chords is ready.", v)
+          );
+        }
       }
+      if (job.write && (!job.tempo || fit)) {
+        said.push(
+          chordError
+            ? tr("The chords could not be found: {error}", { error: chordError })
+            : written
+              ? trn(written, "Chord found in {n} bar: check it by ear.", "Chords found in {n} bars: check them by ear.")
+              : tr("No chords found in this song.")
+        );
+      }
+      this.say(said.join(" "), chordError ? "error" : job.tempo && !fit ? "" : "ok", 10000);
     } catch (error) {
       if (!current()) return;
       this.job = null;
@@ -203,6 +222,7 @@ export class TempoDetection {
     } finally {
       job.tracker.terminate();
       if (this.job === job) this.job = null;
+      if (this.ctx.finished) this.ctx.finished();
       this.ctx.refreshPage();
     }
   }

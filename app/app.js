@@ -25,7 +25,8 @@ import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
-import { TempoDetection, readAnalysis } from "./detect.js";
+import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
+import { gridFromBeats } from "../src/tempo.js";
 import { RecordingFlow } from "./recording.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
@@ -298,17 +299,12 @@ async function openSong(file, origin) {
     if (edits) app.grid = applyGridEdits(app.grid, edits, song.duration);
     const practice = (song.manifest && song.manifest.practice) || {};
     app.gridVisible = saved && typeof saved.grid === "boolean" ? saved.grid : practice.grid_visible !== false;
-    // The tempo and chord detection: the file's, else the one kept in this
-    // browser, which may be the file's with the chords found since.
+    // The tempo and chord detection: the one kept in this browser (found
+    // since the song was last saved), else the file's.
     const inFile = readAnalysis(song.manifest);
-    const kept = saved && saved.analysis && Array.isArray(saved.analysis.beats) ? saved.analysis : null;
-    if (inFile && !inFile.chords && kept && kept.chords && kept.detected_at === inFile.detected_at) {
-      app.analysis = kept;
-      app.analysisInFile = false;
-    } else {
-      app.analysis = inFile || kept;
-      app.analysisInFile = !!inFile;
-    }
+    const kept = saved && (hasBeats(saved.analysis) || hasChords(saved.analysis)) ? saved.analysis : null;
+    app.analysis = kept || inFile;
+    app.analysisInFile = !kept && !!inFile;
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null };
     app.current.owner = songOwner();
     if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
@@ -320,13 +316,6 @@ async function openSong(file, origin) {
     const warning = trackWarning();
     if (warning) notice(warning, "error");
     else notice("");
-    // The tempo and the chords, found the first time the song opens (a
-    // computer; the chords only, for a song whose tempo was found before
-    // there were chords): Bars and Chords waits for them.
-    if (detection.supported && (!app.analysis || !app.analysis.chords)) {
-      editor.setOn(false);
-      detection.start(song, file, file.name, { tempo: !app.analysis });
-    }
     return song;
   } catch (error) {
     renderPlayer();
@@ -337,20 +326,85 @@ async function openSong(file, origin) {
 }
 
 // The tempo and chord detection of the open song (app/detect.js): kept with
-// it, the grid made from it in place of the song's, the chords found in its
-// bars if it has none. Returns {filled: how many bars got a chord, kept: the
-// bars were left to Suggest chords (the song has chords, or no grid)}.
-function applyDetection(analysis, fit) {
-  if (!player.song) return { filled: 0, kept: false };
-  app.analysis = analysis;
-  app.analysisInFile = false;
-  const dirty = player.song.kind !== "audio";
-  if (fit) editor.detected(fit, { dirty });
-  const kept = !!app.grid.chords.size || !app.grid.bars.length;
-  const filled = analysis.chords && !kept ? editor.suggestChords({ dirty, quiet: true }) : 0;
+// it; tempo: the grid made from it in place of the song's; chords: the chords
+// found written in its bars. Returns how many bars got a chord.
+function applyDetection(analysis, fit, { tempo = false, chords = false } = {}) {
+  if (!player.song) return 0;
+  if (hasBeats(analysis) || hasChords(analysis)) {
+    app.analysis = analysis;
+    app.analysisInFile = false;
+  }
+  if (tempo && fit) editor.detected(fit);
+  const written = chords ? editor.writeChords({ quiet: true }) : 0;
   rememberSettings();
   scheduleUi();
-  return { filled, kept };
+  return written;
+}
+
+// ----- Detect BPM and Detect chords ---------------------------------------------------
+//
+// Detect BPM (the Tempo card) puts in place of the grid the one made from the
+// beats found; Detect chords (Bars and Chords) writes the chords found in every
+// bar, finding the tempo first for a song without a grid. What a song kept
+// from an earlier detection is used at once, so the buttons bring back the
+// grid or the chords as they were found after any change; else (a computer,
+// Chrome or Edge) the song is analysed now (app/detect.js). Both ask for a
+// second click before replacing a grid or chords.
+
+let reopen = null; // the song whose Bars and Chords opens again after a detection
+
+function startDetection(options) {
+  const song = player.song;
+  reopen = editor.on ? song : null;
+  editor.setOn(false);
+  detection.start(song, app.current.file, app.current.name, options);
+}
+
+function detectionFinished() {
+  const song = reopen;
+  reopen = null;
+  if (song && song === player.song && !editor.on) editor.setOn(true);
+}
+
+// The grid from the beats a song kept: true if there was one to make.
+function storedTempo() {
+  const a = app.analysis;
+  const fit = gridFromBeats(a.beats, a.downbeats || [], player.song.duration);
+  if (!fit) {
+    notice(tr("No steady beat found in this song: Bars and Chords works by hand."), "", 6000);
+    return false;
+  }
+  const on = editor.on;
+  editor.detected(fit);
+  if (on) editor.setOn(true);
+  notice(tr("The grid of the tempo found: {bpm} BPM in {meter}.", { bpm: fit.bpm.toFixed(1), meter: fit.meter }), "ok", 6000);
+  return true;
+}
+
+function findTempo() {
+  if (!player.song || detection.running) return;
+  if (hasBeats(app.analysis)) {
+    storedTempo();
+    rememberSettings();
+    scheduleUi();
+    return;
+  }
+  startDetection({ tempo: true });
+}
+
+function findChords() {
+  if (!player.song || detection.running) return;
+  let grid = app.grid.bars.length > 0;
+  if (!grid && hasBeats(app.analysis)) grid = storedTempo();
+  if (!grid && hasBeats(app.analysis)) return;
+  if (grid && hasChords(app.analysis)) {
+    const n = editor.writeChords();
+    if (!editor.on) notice(n ? trn(n, "Chord found in {n} bar: check it by ear.", "Chords found in {n} bars: check them by ear.") : tr("No chords found in this song."), "ok", 6000);
+    rememberSettings();
+    scheduleUi();
+    return;
+  }
+  startDetection({ tempo: !grid, chords: !hasChords(app.analysis), write: true });
 }
 
 // Whose MP3 exports are listed: the song open, as its entry in the library,
@@ -778,7 +832,10 @@ function buildControls() {
     notice,
     refreshPage: scheduleUi,
     apply: applyDetection,
+    finished: detectionFinished,
   });
+  confirmTap($("find-bpm"), () => (phone ? tr("Tap again to replace the grid") : tr("Click again to replace the grid")), findTempo, 4000, () => app.grid.bars.length > 0);
+  confirmTap($("find-chords"), () => (phone ? tr("Tap again to rewrite the chords") : tr("Click again to rewrite the chords")), findChords, 4000, () => app.grid.chords.size > 0);
   separation = new SeparationFlow({
     app,
     player,
@@ -832,7 +889,7 @@ function buildControls() {
     // of its own, Bars and Chords (the editor); at the top of the column of
     // the tracks, beside the bars and the time scale, All stems and Original
     // only.
-    $("tl-side").prepend($("quick"));
+    $("tl-side-tools").prepend($("quick"));
     $("tl-hint").before($("tracks-note"));
   }
 }
@@ -1906,6 +1963,14 @@ function updateUi() {
   }
   f.key.set(player.semitones);
   f.key.disable(!song || locked);
+  // Detect BPM and Detect chords: on a computer that can find them, or with
+  // what the song kept from an earlier detection.
+  const findBpm = $("find-bpm");
+  findBpm.hidden = !song || !(detection.supported || hasBeats(app.analysis));
+  findBpm.disabled = !song || locked || detection.running;
+  const findChordsBtn = $("find-chords");
+  findChordsBtn.hidden = !song || !(detection.supported || (hasChords(app.analysis) && (app.grid.bars.length > 0 || hasBeats(app.analysis))));
+  findChordsBtn.disabled = !song || locked || detection.running;
   // The chords follow the key: shown, and typed, in the key of now.
   app.timeline.setChordShift(player.semitones);
   editor.setShift(player.semitones);

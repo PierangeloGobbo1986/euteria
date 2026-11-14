@@ -74,7 +74,7 @@ export function withTakes(manifest, takes) {
 function withAnalysis(music, analysis) {
   if (!analysis) return music;
   const { chords, ...beats } = analysis;
-  music.beat_tracking = beats;
+  if (Array.isArray(beats.beats)) music.beat_tracking = beats;
   if (chords) music.chord_recognition = chords;
   return music;
 }

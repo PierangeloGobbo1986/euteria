@@ -472,7 +472,9 @@ button.eye { display: inline-flex; align-items: center; justify-content: center;
 button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .edit-bar { margin-top: 12px; }
 [data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 72px)); }
-/* Beside everything over the tracks: the bar numbers, the chords and the time scale. */
+/* Beside everything over the tracks: the names of the lanes of the bar numbers
+   and of the chords, each in line with its lane, then, beside the time scale,
+   the buttons of the tracks. */
 .tl-side {
   position: absolute;
   top: calc(var(--tl-over, 26px) + var(--tl-gap));
@@ -481,10 +483,21 @@ button.eye .icon { width: 18px; height: 18px; }
   height: var(--tl-head, 72px);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 6px;
 }
-[data-layout=computer] .edit-bar > button, .tl-side > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
+.tl-side .lane-name {
+  flex: none;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.tl-side .lane-bars { height: var(--tl-nums, 20px); line-height: var(--tl-nums, 20px); }
+.tl-side .lane-chords { height: var(--tl-chords, 24px); line-height: var(--tl-chords, 24px); color: #c9b48a; }
+.tl-side-tools { flex: none; height: var(--tl-ruler, 28px); display: flex; flex-direction: column; justify-content: center; }
+[data-layout=computer] .edit-bar > button, .tl-side-tools > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
 .tl-heads .track {
   height: var(--tl-row, 60px);
@@ -534,8 +547,11 @@ button.eye .icon { width: 18px; height: 18px; }
 .edit-status.ok { color: var(--ok); }
 .edit-status.error { color: var(--danger); }
 .save-row #clear-chords { margin-left: auto; }
-.save-row #suggest-chords { margin-left: auto; }
-.save-row #suggest-chords:not([hidden]) + #clear-chords { margin-left: 8px; }
+/* Detect BPM, over the Tempo field; Detect chords, before the chord field. */
+.find-row { display: flex; }
+.find-row:not(:has(button:not([hidden]))) { display: none; }
+.find-btn { flex: none; white-space: nowrap; }
+.find-btn::before { content: "✦ "; color: var(--accent, #d6a85f); }
 /* ×2 and ÷2 beside the tempo of the grid. */
 .bpm-item { gap: 6px; }
 .bpm-scale { display: flex; gap: 4px; }
@@ -811,7 +827,7 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=computer] .transport-inner { grid-template-columns: auto 1fr auto; grid-template-areas: "now . total" "seek seek seek" "buttons buttons buttons"; gap: 4px 10px; }
   .timeline-card { --tl-col: 150px; }
   :lang(it) .timeline-card { --tl-col: 194px; }
-  [data-layout=computer] .edit-bar > button, .tl-side > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
+  [data-layout=computer] .edit-bar > button, .tl-side-tools > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
 }
 @media (max-width: 900px) {
   [data-layout=computer] .brand .acronym span { display: block; }
