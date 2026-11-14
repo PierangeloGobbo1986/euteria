@@ -547,9 +547,14 @@ button.eye .icon { width: 18px; height: 18px; }
 .edit-status.ok { color: var(--ok); }
 .edit-status.error { color: var(--danger); }
 .save-row #clear-chords { margin-left: auto; }
-/* Detect BPM, over the Tempo field; Detect chords, before the chord field. */
-.find-row { display: flex; }
-.find-row:not(:has(button:not([hidden]))) { display: none; }
+/* Detect BPM, over the Tempo field, then the meter and the tempo of the grid;
+   Detect chords, before the chord field. */
+.find-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.find-row:not(:has(> :not([hidden]))) { display: none; }
+.find-row .num { flex: none; }
+[data-layout=computer] .find-row .num { height: 36px; border-radius: 9px; }
+[data-layout=computer] .find-row .num select { font-size: 15px; }
+[data-layout=phone] .find-row .find-btn { min-height: 44px; }
 .find-btn { flex: none; white-space: nowrap; }
 .find-btn::before { content: "✦ "; color: var(--accent, #d6a85f); }
 /* ×2 and ÷2 beside the tempo of the grid. */
@@ -862,20 +867,24 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 /* With the song transposed, under the chord field: the chords are in the new key. */
 .chord-edit .chord-key { margin: 8px 0 0; }
 
-/* The metronome, in the Tempo and key card. */
-.metro { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
-.metro-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.metro-on { flex: none; }
-.metro-on.on { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
-.metro-on.on::before { content: "● "; color: var(--accent); }
-.metro-volume { flex: 1 1 100px; min-width: 80px; }
-.metro .num.meter, .metro .num.metro-count { flex: none; }
+/* The metronome, a card of its own under Tempo and key: on and off, the volume and
+   the beats of the bar; then the count-in and the bars with and without the clicks. */
+.metro { display: flex; flex-direction: column; gap: 14px; }
+.metro-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 32px; }
+.metro-item { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.metro .mini-label { color: var(--muted); font-size: 14px; }
+.metro-on { flex: none; justify-content: flex-start; gap: 9px; min-width: 84px; padding-left: 14px; color: var(--muted); font-weight: 650; }
+.metro-on .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--dim); }
+.metro-on.on { background: var(--accent-bg); border-color: #3f6d63; color: var(--text); }
+.metro-on.on .dot { background: var(--accent); border-color: var(--accent); }
+.metro-volume-box { display: flex; align-items: center; gap: 12px; }
+.metro-volume-box input[type=range] { width: 200px; }
 .metro-beats { display: flex; gap: 6px; flex-wrap: wrap; }
 .metro-beats .beat { width: 38px; height: 38px; min-height: 0; padding: 0; border-radius: 50%; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .metro-beats .beat.accent { background: var(--gold); border-color: var(--gold); color: #1a1408; font-weight: 800; }
 .metro-beats .beat.silent { background: transparent; border-style: dashed; color: var(--muted); opacity: .7; text-decoration: line-through; }
-.metro .mini-label { color: var(--muted); font-size: 13px; }
 .metro .num { min-width: 0; }
-.metro.off .metro-beats, .metro.off .metro-cycle { opacity: .55; }
+.metro.off .metro-cycle { opacity: .55; }
 .metro .num.metro-count .value select { width: auto; min-width: 7.5em; padding: 0 10px; text-align: left; text-align-last: left; cursor: pointer; }
 .metro .num.metro-count .value select option { background: var(--panel); color: var(--text); }
+[data-layout=phone] .metro-row { column-gap: 20px; }

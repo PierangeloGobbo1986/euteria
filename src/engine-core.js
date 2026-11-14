@@ -448,8 +448,8 @@
     }
 
     // Adds the clicks of the n output samples from song sample e0 on (the
-    // loop's jump back followed). countIn: every beat sounds, the first of a
-    // bar accented, whatever the metronome's settings.
+    // loop's jump back followed). countIn: the beats as set (accent, beat,
+    // silent), on or off, outside the bars with and without the clicks.
     _clicks(out0, out1, n, e0, countIn) {
       const metro = this.metro;
       const t = metro.times;
@@ -469,8 +469,7 @@
           if (pos - t[k] > r * 2) continue; // passed while jumping
           if (metro.firsts[k]) this.barsHeard++;
           let kind = metro.kinds[k];
-          if (countIn) kind = metro.firsts[k] ? 1 : 0;
-          else if (metro.mute > 0 && metro.play > 0 && this.barsHeard > 0 && (this.barsHeard - 1) % (metro.play + metro.mute) >= metro.play) kind = 2;
+          if (!countIn && metro.mute > 0 && metro.play > 0 && this.barsHeard > 0 && (this.barsHeard - 1) % (metro.play + metro.mute) >= metro.play) kind = 2;
           if (kind === 2) continue;
           c.left = Math.round(CLICK_SECONDS * sr);
           c.t = 0;

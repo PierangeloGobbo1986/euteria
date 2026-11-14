@@ -60,9 +60,9 @@ open, the keys of the player do nothing and the page under it stays still.
   below), then the card of the timeline. Over the timeline, *Bars and Chords* (the
   editor, see below) has a row of its own, with *Grid* and its eye beside it, then
   comes the overview; the column of the tracks starts with *All stems*
-  and *Original only*, beside the bars and the time scale. *Tempo and key* and *File export and
-  sharing* follow, each across the page in two columns. Volumes and tempo also have
-  sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
+  and *Original only*, beside the bars and the time scale. *Tempo and key*, *Metronome* and
+  *File export and sharing* follow, each across the page (*Tempo and key* and *File export
+  and sharing* in two columns). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save.
@@ -318,7 +318,9 @@ Two modes, chosen from what the device can do:
 **Detect BPM**, over the tempo in the *Tempo and key* card, finds the beats and the
 downbeats of the song with Beat This! (see *How the tempo detection works*) and makes
 the grid from them: the tempo, the meter (4/4 or 3/4; two beats a bar become a 6/8) and
-the anchor, the first downbeat. **Detect chords**, before the chord field of *Bars and
+the anchor, the first downbeat. Beside it come the meter and the tempo of the grid; a
+meter found wrong is changed there (the grid is rebuilt from the anchor, as in *Bars
+and Chords*). **Detect chords**, before the chord field of *Bars and
 Chords*, finds the chords with BTC (see *How the chord recognition works*) and writes
 them in the bars, finding the tempo first for a song without a grid. The song plays
 meanwhile; the line under the top bar tells the progress, *Bars and Chords* and *Grid*
@@ -326,8 +328,8 @@ wait for the end, and a separation started meanwhile waits too. The new grid rep
 the one the song had (bars numbered from 1, chords kept with their bars) and is shown.
 The tempo found is said, with a warning when it varies in the song, and how many bars
 got a chord. The song is analysed as it was recorded, whatever the tempo set to play
-it: the grid is right at 100% and follows any tempo, and the BPM beside *Tempo* are
-those of the tempo set. What was found is kept in this browser and written in the
+it: the grid is right at 100% and follows any tempo; at another tempo the BPM beside
+*Detect BPM* show both, the tempo found and the tempo played (`120 → 96 BPM` at 80%). What was found is kept in this browser and written in the
 project by *Save* and by the separation, so a song is analysed once: pressed again,
 the buttons bring back the grid or the chords as they were found, at once, after a
 second click when they replace a grid or chords; the phone gets them ready and can do
@@ -335,19 +337,20 @@ the same. The changes they make are changes to save. On the phone, and in the ot
 browsers, a song never analysed has no buttons: its grid is the one it brings, or one
 made by hand.
 
-**The metronome** (in the *Tempo and key* card, every device) clicks on the beats of the
-grid, each on the beat found in the song when there is one near it (*Detect BPM*), so
-it stays with a recording whose tempo moves, a live one above all, as one steady tempo
-would not; it follows the tempo set, the loop and every jump. *Metronome* switches it on
-and off, with its volume beside it and the meter of the grid (changing it rebuilds the
-grid, as in *Bars and Chords*). A button per beat of the bar sets it as an accent (a
-higher click), a beat or silent (a click goes on to the next), for example the first
-beat accented, or only 2 and 4. *Clicks for* N bars, *then silent for* M bars (0:
-always on) alternates them, counted from where playback starts. *Count-in* plays 1 or 2
-bars of clicks before the song starts (every beat, the first accented), also with the
-metronome off, before playback and before a take. Without a grid it waits, and says how
-to make one. Its settings are kept in this browser, the same for every song; the
-accents are kept per meter.
+**The metronome** (a card of its own under *Tempo and key*, every device) clicks on the
+beats of the grid, each on the beat found in the song when there is one near it
+(*Detect BPM*), so it stays with a recording whose tempo moves, a live one above all, as
+one steady tempo would not; it follows the tempo set, the loop and every jump. Its first
+row has *On*/*Off*, the *Volume* (a slider on a computer, and the value with − and +, as
+for the tracks) and a button per beat of the bar, for the meter of the grid: a click
+makes a beat an accent (a higher click), then silent, then a beat again, for example
+the first beat accented, or only 2 and 4. The second row has the *Count-in*, 1 or 2
+bars of clicks before the song starts, before playback and before a take, also with the
+metronome off, with the beats as set; then *Clicks for* N bars, *then silent for* M bars
+(0: always on), which alternates them, counted from where the song starts (the bars of
+the count-in are not counted). Without a grid it waits, and says how to make one. Its
+settings are kept in this browser, the same for every song; the beats are kept per
+meter.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
@@ -452,8 +455,8 @@ belongs to comes out of the stretchers, from the same position as the playhead a
 takes, so it is in step with the audio at any tempo (checked offline, rendered with the
 engine: within 0.1 ms at 100%, a few milliseconds at other tempos) and follows the loop
 and every jump. A count-in is output time before the song starts: the clicks of the
-bars before the start point, the song silent, then the song on the next beat; a take
-recorded with it begins where playback starts.
+bars before the start point, with the beats as set, the song silent, then the song on
+the next beat; a take recorded with it begins where playback starts.
 
 The stretchers run at Signalsmith's default quality (120 ms blocks every 30 ms) with
 the work of each block spread over the audio callbacks: done all at once, it

@@ -5,12 +5,13 @@
 // The clicks are the beats of the grid, each on the beat found in the song
 // (app.analysis.beats, Beat This!) when there is one near it, so that the
 // metronome stays with a recording whose tempo moves (a live one above all),
-// as the grid alone, one steady tempo, would not. Each beat of the bar is an
-// accent, a beat or silent, as set for the meter; the bars may alternate
+// as the grid alone, one steady tempo, would not. Each beat of the bar is a
+// beat, an accent or silent, as set for the meter; the bars may alternate
 // between some with the clicks and some without (play, mute); a count-in
-// plays the bars before the song starts, every beat, the first accented,
-// whatever the settings. Two bars of beats are added before the first beat of
-// the grid, for a count-in at the start of the song.
+// plays the bars before the song starts with the beats as set, also with the
+// metronome off, outside that alternation (its bars are not counted in it).
+// Two bars of beats are added before the first beat of the grid, for a
+// count-in at the start of the song.
 
 import { METERS } from "./grid.js";
 
@@ -65,8 +66,8 @@ export function saveMetronome(s) {
   } catch (_) {}
 }
 
-// The next state of a beat's button: accent, beat, silent, accent…
-export const nextBeatKind = (k) => (k === ACCENT ? BEAT : k === BEAT ? SILENT : ACCENT);
+// The next state of a beat's button: beat, accent, silent, beat…
+export const nextBeatKind = (k) => (k === BEAT ? ACCENT : k === ACCENT ? SILENT : BEAT);
 
 // Index of the first value of `list` (sorted) >= t.
 function lowerBound(list, t) {

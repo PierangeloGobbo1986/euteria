@@ -275,35 +275,16 @@
         <h2>Tempo and key</h2>
         <div class="card-cols">
           <div class="card-col">
+            <!-- Detect BPM, then the meter and the tempo of the grid; a meter found wrong
+                 is changed here (the grid is made again from its anchor). -->
             <div class="find-row">
               <button id="find-bpm" type="button" class="small find-btn" title="Find the tempo of the song and make the grid of its bars" hidden>Detect BPM</button>
+              <div id="tempo-meter-box" class="num meter" hidden><div class="value"><select id="tempo-meter" aria-label="Meter of the grid" title="Meter of the grid"></select></div></div>
+              <p id="tempo-bpm" class="tempo-bpm" hidden></p>
             </div>
             <div class="field">
               <span class="label">Tempo</span>
               <div id="tempo-box" class="control-box"></div>
-              <p id="tempo-bpm" class="tempo-bpm" hidden></p>
-            </div>
-            <!-- The metronome, on the beats of the grid (src/metronome.js): on and off, its
-                 volume, the meter of the grid; each beat of the bar an accent, a beat or
-                 silent; bars on, then bars off; the bars of count-in before playback. -->
-            <div id="metro" class="metro">
-              <div class="metro-row">
-                <button id="metro-on" type="button" class="small metro-on" aria-pressed="false">Metronome</button>
-                <input id="metro-volume" class="metro-volume" type="range" min="0" max="100" step="1" value="60" aria-label="Metronome volume" title="Metronome volume">
-                <div class="num meter metro-meter"><div class="value"><select id="metro-meter" aria-label="Meter of the grid" title="Meter of the grid"></select></div></div>
-              </div>
-              <div id="metro-beats" class="metro-beats" role="group" aria-label="The beats of the bar: a click changes accent, beat and silent"></div>
-              <div class="metro-row metro-cycle">
-                <span class="mini-label">Clicks for</span>
-                <div id="metro-play-box"></div>
-                <span class="mini-label">bars, then silent for</span>
-                <div id="metro-mute-box"></div>
-              </div>
-              <div class="metro-row">
-                <span class="mini-label">Count-in</span>
-                <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
-              </div>
-              <p id="metro-hint" class="hint" hidden>The metronome follows the grid: Detect BPM, above, or Bars and Chords makes it.</p>
             </div>
           </div>
           <div class="card-col">
@@ -313,6 +294,39 @@
             </div>
             <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
           </div>
+        </div>
+      </section>
+
+      <!-- The metronome, on the beats of the grid (src/metronome.js): on and off, its
+           volume, each beat of the bar a beat, an accent or silent; the bars of count-in
+           before playback; bars with the clicks, then bars without. -->
+      <section class="card metro-card">
+        <h2>Metronome</h2>
+        <div id="metro" class="metro">
+          <div class="metro-row">
+            <button id="metro-on" type="button" class="metro-on" aria-pressed="false" aria-label="Metronome" title="Turns the metronome on or off"><span class="dot" aria-hidden="true"></span><span id="metro-state">Off</span></button>
+            <div class="metro-item metro-volume">
+              <span class="mini-label">Volume</span>
+              <div id="metro-volume-box" class="metro-volume-box"></div>
+            </div>
+            <div class="metro-item">
+              <span class="mini-label">Beats</span>
+              <div id="metro-beats" class="metro-beats" role="group" aria-label="The beats of the bar: a click goes from beat to accent to silent"></div>
+            </div>
+          </div>
+          <div class="metro-row">
+            <div class="metro-item">
+              <span class="mini-label">Count-in</span>
+              <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
+            </div>
+            <div class="metro-item metro-cycle">
+              <span class="mini-label">Clicks for</span>
+              <div id="metro-play-box"></div>
+              <span class="mini-label">bars, then silent for</span>
+              <div id="metro-mute-box"></div>
+            </div>
+          </div>
+          <p id="metro-hint" class="hint" hidden></p>
         </div>
       </section>
 
