@@ -1,16 +1,20 @@
 // Editing the grid and the chords of the open song, as in EUTERIA (Python):
-// the tempo of the grid (BPM), the meter, the anchor (the first beat of a
-// bar; Set anchor puts it at the playhead), clearing the grid, the numbers
-// of the bars, a chord per bar, copying and pasting the chords of several
-// bars. Every edit is kept in this browser at once (src/settings.js), and
-// written in the song's file by Save (app.js).
+// the tempo of the grid (BPM, doubled or halved with ×2 and ÷2), the meter,
+// the anchor (the first beat of a bar; Set anchor puts it at the playhead),
+// the numbers of the bars, a chord per bar, copying and pasting the chords of
+// several bars, clearing the chords. Every edit is kept in this browser at
+// once (src/settings.js), and written in the song's file by Save (app.js).
+//
+// On a computer the grid comes from the tempo detection (app/detect.js) the
+// first time a song opens: Bars and Chords waits for it (ctx.locked()), and
+// detected() puts the new grid in place of the one the song had.
 //
 // Bars are selected in the chord lane of the timeline: a tap or a click
 // selects one, dragging along the lane (or shift-click) several. The chord
 // typed applies to every bar selected; Return goes on to the next bar.
 
 import { h, numberField, fmtTime, parseTime, confirmTap } from "./controls.js";
-import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, clearedGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
+import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
 import { tr, trn } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
@@ -25,7 +29,8 @@ const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAt
 
 export class Editor {
   // ctx: {app, player, phone, timeline, changed() (the edits are to be kept),
-  // refreshPage()}. Saving is in the Project files card (app.js).
+  // refreshPage(), locked() (the tempo detection is running)}. Saving is in
+  // the Project files card (app.js).
   constructor(ctx) {
     this.ctx = ctx;
     this.on = false;
@@ -86,7 +91,9 @@ export class Editor {
       const t = clamp(this.ctx.player.position, 0, this.duration);
       this.rebuild({ firstBeat: t }, tr("Anchor at {time}: a bar starts there, the grid goes both ways.", { time: fmtTime(t, 3) }));
     });
-    confirmTap($("clear-grid"), () => (phone ? tr("Tap again to clear") : tr("Click again to clear")), () => this.clearGrid());
+    $("bpm-double").addEventListener("click", () => this.scaleTempo(2));
+    $("bpm-half").addEventListener("click", () => this.scaleTempo(0.5));
+    confirmTap($("clear-chords"), () => (phone ? tr("Tap again to clear") : tr("Click again to clear")), () => this.clearChords());
 
     this.bar = numberField({
       label: tr("Number of the selected bar"),
@@ -210,9 +217,13 @@ export class Editor {
     }
   }
 
+  get locked() {
+    return !!(this.ctx.locked && this.ctx.locked());
+  }
+
   setOn(on) {
     const { app, player, timeline } = this.ctx;
-    on = !!on && !!player.song;
+    on = !!on && !!player.song && !this.locked;
     if (on === this.on) return;
     this.commitInput();
     this.on = on;
@@ -364,14 +375,48 @@ export class Editor {
     }
   }
 
-  clearGrid() {
+  // ×2 and ÷2: the tempo of the grid doubled or halved, from the anchor
+  // (the tempo detection may find half or twice the tempo).
+  scaleTempo(factor) {
+    const bpm = Math.round((this.grid.bpm || DEFAULT_BPM) * factor * 1000) / 1000;
+    if (bpm < BPM_RANGE[0] || bpm > BPM_RANGE[1]) return;
+    this.rebuild({ bpm }, tr("Grid at {bpm} BPM.", { bpm: bpm.toFixed(1) }));
+  }
+
+  // The chords go; the grid stays (hidden with the eye, if not wanted).
+  clearChords() {
     if (!this.ctx.player.song) return;
     this.commitInput();
-    this.ctx.app.grid = clearedGrid(this.grid);
+    this.ctx.app.grid = { ...this.grid, chords: new Map() };
+    this.loadInput();
+    this._edited(tr("Chords cleared: the grid stays."));
+  }
+
+  // The grid the tempo detection made (fit: {bpm, meter, anchor}), in place
+  // of the song's: built from the anchor, bars numbered from 1, the chords
+  // kept with the bars they were in, hidden until shown. It counts as a
+  // change to save in a project (`dirty`); an audio file keeps it in this
+  // browser until it is saved as a project.
+  detected(fit, { dirty = true } = {}) {
+    const { app, player, timeline } = this.ctx;
+    if (!player.song) return;
+    this.commitInput();
+    this.on = false;
+    timeline.setEditing(false);
+    const next = rebuildGrid({ ...this.grid, bpm: fit.bpm, meter: fit.meter, firstBeat: fit.anchor }, this.duration);
+    delete next.shift;
+    next.offset = 0;
+    app.grid = next;
     this.built = true;
     this.sel = null;
+    app.gridVisible = false;
+    timeline.setGridVisible(false);
     this.loadInput();
-    this._edited(tr("Grid and chords cleared. Set the anchor to make a new grid."));
+    this._edited();
+    if (!dirty) {
+      this.dirty = false;
+      this.refresh();
+    }
   }
 
   // The selected bar gets number n; the others follow (bar_number_offset).
@@ -412,7 +457,7 @@ export class Editor {
 
   // Keys while editing (the focus is not in a field). Returns true if used.
   key(e) {
-    if (!this.on || !this.ctx.player.song) return false;
+    if (!this.on || !this.ctx.player.song || this.locked) return false;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && !e.altKey && !e.shiftKey && (e.key === "c" || e.key === "C") && this.sel && !String(window.getSelection() || "")) {
       e.preventDefault();
@@ -469,8 +514,18 @@ export class Editor {
     toggle.classList.toggle("on", show);
     toggle.classList.toggle("dirty", !!song && this.dirty);
     setAttr(toggle, "aria-pressed", String(show));
-    toggle.disabled = !song;
-    setAttr(toggle, "title", this.dirty ? tr("Edit the bars and the chords (changes not saved)") : tr("Edit the bars and the chords"));
+    const locked = this.locked;
+    toggle.disabled = !song || locked;
+    setAttr(toggle, "aria-busy", String(locked));
+    setAttr(
+      toggle,
+      "title",
+      locked
+        ? tr("Bars and Chords opens when the tempo detection ends.")
+        : this.dirty
+          ? tr("Edit the bars and the chords (changes not saved)")
+          : tr("Edit the bars and the chords")
+    );
     $("grid-edit").hidden = !show;
     $("chord-edit").hidden = !show;
     if (!show) return;
@@ -478,12 +533,15 @@ export class Editor {
     const busy = !!player.busy;
     this.bpm.set(g.bpm || DEFAULT_BPM);
     this.bpm.disable(busy);
+    const bpm = g.bpm || DEFAULT_BPM;
+    $("bpm-double").disabled = busy || bpm * 2 > BPM_RANGE[1];
+    $("bpm-half").disabled = busy || bpm / 2 < BPM_RANGE[0];
     if (document.activeElement !== this.meter) this.meter.value = g.meter;
     this.meter.disabled = busy;
     this.anchor.set(g.firstBeat || 0);
     this.anchor.disable(busy);
     $("set-anchor").disabled = busy;
-    $("clear-grid").disabled = busy || (!g.bars.length && !g.chords.size);
+    $("clear-chords").disabled = busy || !g.chords.size;
 
     const has = g.bars.length > 0;
     const sel = has ? this.sel : null;

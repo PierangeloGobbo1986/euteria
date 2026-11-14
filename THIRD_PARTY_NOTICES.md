@@ -53,3 +53,20 @@ The six-stem separation model, downloaded from Hugging Face
 
 The chunking of `src/separate-worker.js` follows `demix_track()` of
 Music-Source-Separation-Training (as packaged in bs-roformer-infer, MIT License).
+
+### Beat This!, ONNX conversion
+
+The beat and downbeat tracker of the tempo detection, downloaded from Hugging Face
+(`musetric/beat-this-onnx`, file `beat_this.onnx`) the first time and kept in the
+browser.
+
+- Beat This! by Francesco Foscarin, Jan Schlüter and Gerhard Widmer (Johannes Kepler
+  University Linz, ISMIR 2024), model `final0`, MIT License,
+  https://github.com/CPJKU/beat_this
+- ONNX conversion with a fixed window of 1500 frames: musetric, MIT License,
+  https://huggingface.co/musetric/beat-this-onnx
+
+The spectrogram (`src/melspec.js`), the windows and the peak picking of
+`src/beats-worker.js` follow `LogMelSpect`, `split_piece`, `aggregate_prediction` and
+the minimal `Postprocessor` of the `beat_this` package (MIT License).
+

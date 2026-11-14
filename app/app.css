@@ -496,7 +496,12 @@ button.eye .icon { width: 18px; height: 18px; }
 .edit-status.dirty { color: var(--gold); }
 .edit-status.ok { color: var(--ok); }
 .edit-status.error { color: var(--danger); }
-.save-row #clear-grid { margin-left: auto; }
+.save-row #clear-chords { margin-left: auto; }
+/* ×2 and ÷2 beside the tempo of the grid. */
+.bpm-item { gap: 6px; }
+.bpm-scale { display: flex; gap: 4px; }
+.bpm-scale button { min-width: 40px; padding: 0 8px; font-variant-numeric: tabular-nums; }
+[data-layout=computer] .bpm-scale button { min-height: 36px; }
 .chord-input {
   appearance: none;
   -webkit-appearance: none;
@@ -651,6 +656,8 @@ button.eye .icon { width: 18px; height: 18px; }
 .field .label { width: 54px; flex: none; color: var(--muted); font-size: 14px; }
 .field .control-box { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
 .field .control-box input[type=range] { flex: 1; min-width: 60px; }
+/* The beats a minute of the grid at the tempo set, after the tempo. */
+.tempo-bpm { margin: 0; flex: none; color: var(--muted); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ----- project files ----- */
 .project-card .sub { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 650; margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }

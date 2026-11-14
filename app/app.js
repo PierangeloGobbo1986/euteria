@@ -6,7 +6,9 @@
 // folder (recent ones again with one click in Chrome and Edge), and volumes
 // and tempo have sliders too. The grid and the chords of a song are edited
 // in the timeline (app/editor.js), takes are recorded over it
-// (app/recording.js), and both are saved in the song's file.
+// (app/recording.js), and both are saved in the song's file. On a computer
+// the tempo of a song is found as it opens (app/detect.js), and the grid made
+// from it.
 
 import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
@@ -23,6 +25,7 @@ import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
+import { TempoDetection, readAnalysis } from "./detect.js";
 import { RecordingFlow } from "./recording.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
@@ -79,12 +82,15 @@ const app = {
   scrub: null, // where a finger drags the playhead while the song plays
   grid: emptyGrid(),
   gridVisible: true,
+  analysis: null, // the tempo detection of the open song (manifest.music.beat_tracking)
+  analysisInFile: false, // it is in the song's file already
   saving: false,
   sharing: false, // the share sheet is open
   projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
 let editor = null; // app/editor.js, made with the timeline
 let separation = null; // app/separate.js
+let detection = null; // app/detect.js
 let recording = null; // app/recording.js
 
 // Changes not saved in the song's file yet: the bars and chords, the takes.
@@ -180,7 +186,11 @@ async function confirmLeave() {
 async function discardEdits() {
   const song = player.song;
   const takes = recording.dirty;
-  if (editor.dirty) editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
+  if (editor.dirty) {
+    editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
+    // A tempo detection not in the file goes too: it runs again next time.
+    if (!app.analysisInFile) app.analysis = null;
+  }
   if (takes) await recording.revert();
   rememberSettings();
   notice(
@@ -207,7 +217,14 @@ function rememberSettings() {
   clearTimeout(saveTimer);
   saveTimer = null;
   if (app.current && player.song) {
-    saveSettings(app.current.key, { ...player.settings(), view: app.timeline.getView(), grid: app.gridVisible, edits: editor.edits(), dirty: editor.dirty });
+    saveSettings(app.current.key, {
+      ...player.settings(),
+      view: app.timeline.getView(),
+      grid: app.gridVisible,
+      edits: editor.edits(),
+      dirty: editor.dirty,
+      analysis: app.analysisInFile ? null : app.analysis,
+    });
   }
 }
 function settingsChanged() {
@@ -232,6 +249,7 @@ async function openSong(file, origin) {
   }
   if (recording.busy) await recording.recorder.settle();
   rememberSettings();
+  detection.cancel();
   app.current = null;
   recording.reset();
   setExportStatus("");
@@ -254,6 +272,10 @@ async function openSong(file, origin) {
     if (edits) app.grid = applyGridEdits(app.grid, edits, song.duration);
     const practice = (song.manifest && song.manifest.practice) || {};
     app.gridVisible = saved && typeof saved.grid === "boolean" ? saved.grid : practice.grid_visible !== false;
+    // The tempo detection: the file's, else the one kept in this browser.
+    const inFile = readAnalysis(song.manifest);
+    app.analysis = inFile || (saved && saved.analysis && Array.isArray(saved.analysis.beats) ? saved.analysis : null);
+    app.analysisInFile = !!inFile;
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null };
     app.current.owner = songOwner();
     if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
@@ -265,6 +287,12 @@ async function openSong(file, origin) {
     const warning = trackWarning();
     if (warning) notice(warning, "error");
     else notice("");
+    // The tempo, found the first time the song opens (a computer): Bars and
+    // Chords waits for it.
+    if (!app.analysis && detection.supported) {
+      editor.setOn(false);
+      detection.start(song, file, file.name);
+    }
     return song;
   } catch (error) {
     renderPlayer();
@@ -272,6 +300,17 @@ async function openSong(file, origin) {
     notice(tr("{name} could not be opened. {error}", { name: file.name, error: (error && error.message) || error }), "error");
     return null;
   }
+}
+
+// The tempo detection of the open song (app/detect.js): kept with it, and
+// the grid made from it in place of the song's.
+function applyDetection(analysis, fit) {
+  if (!player.song) return;
+  app.analysis = analysis;
+  app.analysisInFile = false;
+  if (fit) editor.detected(fit, { dirty: player.song.kind !== "audio" });
+  rememberSettings();
+  scheduleUi();
 }
 
 // Whose MP3 exports are listed: the song open, as its entry in the library,
@@ -299,6 +338,7 @@ function trackWarning() {
 }
 
 async function closeSong() {
+  detection.cancel();
   app.current = null; // nothing to save for a song that is going away
   if (recording.busy) await recording.recorder.settle();
   recording.reset();
@@ -685,6 +725,14 @@ function buildControls() {
     onChange: updateZoom,
     onSelect: (sel, info) => editor.onSelect(sel, info),
   });
+  detection = new TempoDetection({
+    app,
+    player,
+    phone,
+    notice,
+    refreshPage: scheduleUi,
+    apply: applyDetection,
+  });
   separation = new SeparationFlow({
     app,
     player,
@@ -692,6 +740,7 @@ function buildControls() {
     notice,
     practiceState,
     refreshPage: scheduleUi,
+    waitTempo: () => detection.idle(),
     takes: () => recording.forNewProject(),
     openFile: async (file, handle) => {
       const song = await openSong(file, { source: "file", handle, separated: true });
@@ -709,6 +758,7 @@ function buildControls() {
     timeline: app.timeline,
     changed: settingsChanged,
     refreshPage: scheduleUi,
+    locked: () => detection.running,
   });
   recording = new RecordingFlow({
     app,
@@ -1161,6 +1211,7 @@ function savedInPlace(file, manifest) {
   const oldOwner = cur.owner;
   player.song.manifest = manifest;
   player.song.kind = "project";
+  app.analysisInFile = !!app.analysis; // the file has the tempo detection now
   cur.file = file;
   cur.name = file.name;
   cur.key = settingsKey(player.song, file);
@@ -1222,7 +1273,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
       const member = audioMember(file);
       const manifest = made
         ? made.manifest
-        : newProjectManifest({ id: newProjectId(), title: song.title, fileName: file.name, member, grid: app.grid, state: practiceState(), takes });
+        : newProjectManifest({ id: newProjectId(), title: song.title, fileName: file.name, member, grid: app.grid, state: practiceState(), takes, analysis: app.analysis });
       const id = manifest.project_id;
       const blob = made ? made.blob : await buildProject([
         { name: "manifest.json", data: manifestBytes(manifest) },
@@ -1266,7 +1317,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
     }
     // A project: its manifest.json rewritten; the whole file written again
     // if takes were recorded or deleted.
-    const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState(), takes);
+    const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis);
     const bytes = manifestBytes(manifest);
     const zip = await openZip(file);
     if (recording.rewrite) {
@@ -1413,7 +1464,7 @@ function projectNow() {
   if (isAudioSong(song)) {
     if (ready.crc == null) return null;
     const member = audioMember(cur.file);
-    const manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: cur.file.name, member, grid: app.grid, state: practiceState(), takes });
+    const manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: cur.file.name, member, grid: app.grid, state: practiceState(), takes, analysis: app.analysis });
     const blob = composeProject([
       { name: "manifest.json", data: manifestBytes(manifest) },
       { name: member, data: cur.file, crc: ready.crc },
@@ -1422,7 +1473,7 @@ function projectNow() {
     return { manifest, blob, file: new File([blob], `${safeName(song.title)}.euteria`, { type: "application/zip" }) };
   }
   if (!ready.layout) return null;
-  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes);
+  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis);
   const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: recording.dropMembers, add });
   return { manifest, blob, file: new File([blob], cur.name, { type: "application/zip" }) };
 }
@@ -1751,6 +1802,9 @@ function updateUi() {
   const hasGrid = !!(song && app.grid.bars.length);
   const grid = $("grid-toggle");
   grid.hidden = !hasGrid;
+  // While the tempo is being found, the grid waits for it.
+  grid.disabled = detection.running;
+  $("grid-eye").disabled = detection.running;
   grid.classList.toggle("on", app.gridVisible);
   grid.setAttribute("aria-pressed", String(app.gridVisible));
   $("grid-view").hidden = !hasGrid;
@@ -1788,6 +1842,16 @@ function updateUi() {
   const f = app.fields;
   const tempo = Math.round(player.rate * 100);
   f.tempo.set(tempo);
+  // The beats a minute of the grid at the tempo set.
+  const gridBpm = song && app.grid.bars.length && app.grid.bpm ? Math.round(app.grid.bpm * player.rate * 10) / 10 : 0;
+  const bpmLine = $("tempo-bpm");
+  bpmLine.hidden = !gridBpm;
+  if (gridBpm) {
+    const text = `${Number.isInteger(gridBpm) ? gridBpm : gridBpm.toFixed(1)} BPM`;
+    if (bpmLine.textContent !== text) bpmLine.textContent = text;
+    const title = tr("Beats per minute of the grid, at this tempo");
+    if (bpmLine.title !== title) bpmLine.title = title;
+  }
   f.tempo.disable(!song || locked);
   if (f.tempoSlider) {
     if (+f.tempoSlider.value !== tempo) f.tempoSlider.value = String(tempo);
@@ -2178,6 +2242,7 @@ async function init() {
   }
   updateUi();
   separation.init();
+  detection.init();
   setTimeout(checkForUpdate, 3000);
 }
 
@@ -2191,6 +2256,9 @@ window.euteria = {
   },
   get separation() {
     return separation;
+  },
+  get detection() {
+    return detection;
   },
   get recording() {
     return recording;

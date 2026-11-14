@@ -7,8 +7,9 @@
 // EUTERIA project (.euteria), which then opens in the player.
 //
 // Where the project goes is asked first, so that a separation left to run on
-// its own is saved when it ends. The takes recorded over the song go into the
-// new project with it. The model (336 MB, or 669 MB at full
+// its own is saved when it ends; a tempo detection still running
+// (app/detect.js) ends first, and its result goes into the project too. The
+// takes recorded over the song go into the new project with it. The model (336 MB, or 669 MB at full
 // precision for graphics cards without 16-bit floats) is downloaded the first
 // time and kept in the browser.
 
@@ -111,7 +112,7 @@ export class SeparationFlow {
   // ctx: {app, player, phone, notice(text, kind, ms), openFile(file, handle)
   // (resolves with the song), practiceState(), refreshPage(), takes()
   // (resolves with {takes, members}: the takes of the song, for the new
-  // project)}.
+  // project), waitTempo() (resolves when no tempo detection runs)}.
   constructor(ctx) {
     this.ctx = ctx;
     this.support = null;
@@ -186,6 +187,12 @@ export class SeparationFlow {
     this.keepAwake(true);
     this.say(tr("Reading the song…"), "", 0);
     try {
+      if (this.ctx.waitTempo) {
+        this.say(tr("Waiting for the tempo detection to end…"), "", 0);
+        await this.ctx.waitTempo();
+        if (signal.stopped) throw stopped();
+        this.say(tr("Reading the song…"), "", 0);
+      }
       const carried = await this.ctx.takes();
       // The Original Track as a file: the audio file itself, or the member
       // of the project.
@@ -271,9 +278,9 @@ export class SeparationFlow {
       const grid = app.grid;
       let manifest;
       if (song.kind === "audio" || !song.manifest) {
-        manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: originalName, member: originalMember, grid, state });
+        manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: originalName, member: originalMember, grid, state, analysis: app.analysis });
       } else {
-        manifest = savedManifest(song.manifest, grid, state);
+        manifest = savedManifest(song.manifest, grid, state, [], app.analysis);
         manifest.format_version = 4;
         manifest.variant = "web";
       }

@@ -201,7 +201,13 @@
       <!-- Editing: the grid (tempo, meter, anchor) and saving -->
       <div id="grid-edit" class="edit-panel grid-edit" hidden>
         <div class="edit-row grid-row">
-          <div id="bpm-box" class="edit-item"></div>
+          <div class="edit-item bpm-item">
+            <div id="bpm-box"></div>
+            <div class="bpm-scale" role="group" aria-label="Double or halve the tempo of the grid">
+              <button id="bpm-double" type="button" class="small" title="Double the tempo of the grid: bars half as long"><span translate="no">×2</span></button>
+              <button id="bpm-half" type="button" class="small" title="Halve the tempo of the grid: bars twice as long"><span translate="no">÷2</span></button>
+            </div>
+          </div>
           <div id="meter-box" class="edit-item"></div>
           <div class="edit-item anchor-item">
             <button id="set-anchor" type="button" class="small" title="A bar starts at the playhead: the first beat of the grid">Set anchor</button>
@@ -210,7 +216,7 @@
         </div>
         <div class="edit-row save-row">
           <span id="edit-status" class="edit-status" role="status" aria-live="polite"></span>
-          <button id="clear-grid" type="button" class="small ghost danger" title="Remove the grid and the chords">Clear grid</button>
+          <button id="clear-chords" type="button" class="small ghost danger" title="Remove all the chords: the grid stays">Clear chords</button>
         </div>
       </div>
       <!-- Editing: the chords of the bars selected in the chord lane -->
@@ -261,6 +267,7 @@
             <div class="field">
               <span class="label">Tempo</span>
               <div id="tempo-box" class="control-box"></div>
+              <p id="tempo-bpm" class="tempo-bpm" hidden></p>
             </div>
           </div>
           <div class="card-col">
@@ -345,7 +352,7 @@
         <li><b>Tempo.</b> Rallenta o velocizza il brano dal 50% al 200% senza cambiarne la tonalità.</li>
         <li><b>Tonalità.</b> Alza o abbassa il brano fino a 12 semitoni senza cambiarne il tempo. Non occorre separare prima gli stem; se ci sono, la batteria resta com’è.</li>
         <li><b>Registrazione.</b> Scegli l’ingresso, poi premi il tasto rosso: la registrazione (take) si aggiunge in fondo agli stem. Con il loop attivo, ogni giro crea una take nuova. Registrando con il loop, il programma fa tre giri e poi si ferma da solo. Finita la take, il programma ne regola automaticamente il volume rispetto al brano. Con le cuffie Bluetooth la take può risultare in ritardo: in questo caso correggilo con Sync, che poi vale anche per le take successive.</li>
-        <li><b>Battute e accordi</b> (ancora sperimentale). Porta la barra di play sul primo battere di una battuta, zoomando sull’audio per essere precisi, e premi Imposta àncora: la traccia audio viene divisa in battute. Per farle combaciare con la musica, regola la lunghezza delle battute con i BPM accanto. Il lavoro è manuale. I numeri delle battute compaiono sopra la linea del tempo e sotto si apre una riga dove puoi scrivere gli accordi, battuta per battuta. Con copia e incolla puoi ripetere velocemente un giro di accordi su tutto il brano. Quando hai finito, premi Salva in alto a destra per non perdere nulla. Il pulsante Griglia, con l’occhio, mostra o nasconde battute e accordi; Cancella griglia elimina tutto per ricominciare.</li>
+        <li><b>Battute e accordi</b> (ancora sperimentale). Porta la barra di play sul primo battere di una battuta, zoomando sull’audio per essere precisi, e premi Imposta àncora: la traccia audio viene divisa in battute. Per farle combaciare con la musica, regola la lunghezza delle battute con i BPM accanto. Il lavoro è manuale. I numeri delle battute compaiono sopra la linea del tempo e sotto si apre una riga dove puoi scrivere gli accordi, battuta per battuta. Con copia e incolla puoi ripetere velocemente un giro di accordi su tutto il brano. Quando hai finito, premi Salva in alto a destra per non perdere nulla. Il pulsante Griglia, con l’occhio, mostra o nasconde battute e accordi; Cancella accordi toglie tutti gli accordi e lascia la griglia.</li>
         <li><b>Caffè.</b> Quello no, non lo fa… ;)</li>
       </ol>
       <h3>EUTERIA su smartphone</h3>
@@ -368,7 +375,7 @@
         <li><b>Tempo.</b> Slows the song down or speeds it up, from 50% to 200%, without changing its key.</li>
         <li><b>Key.</b> Raises or lowers the song by up to 12 semitones without changing its tempo. There is no need to separate the stems first; if there are stems, the drums stay as they are.</li>
         <li><b>Recording.</b> Choose the input, then press the red button: the recording (take) is added below the stems. With the loop on, every pass makes a new take. When you record with the loop, the app plays three passes and then stops by itself. Once a take is over, the app adjusts its volume to the song automatically. With Bluetooth headphones the take may come out late: in that case correct it with Sync, which then applies to the next takes too.</li>
-        <li><b>Bars and Chords</b> (still experimental). Put the playhead on the first beat of a bar, zooming into the audio to be precise, and press Set anchor: the audio track is divided into bars. To make them match the music, adjust the length of the bars with the BPM beside it. The work is manual. The bar numbers appear above the timeline, and below it a lane opens where you can write the chords, bar by bar. With copy and paste you can quickly repeat a chord progression over the whole song. When you are done, press Save at the top right so as not to lose anything. The Grid button, with the eye, shows or hides the bars and chords; Clear grid deletes everything to start again.</li>
+        <li><b>Bars and Chords</b> (still experimental). Put the playhead on the first beat of a bar, zooming into the audio to be precise, and press Set anchor: the audio track is divided into bars. To make them match the music, adjust the length of the bars with the BPM beside it. The work is manual. The bar numbers appear above the timeline, and below it a lane opens where you can write the chords, bar by bar. With copy and paste you can quickly repeat a chord progression over the whole song. When you are done, press Save at the top right so as not to lose anything. The Grid button, with the eye, shows or hides the bars and chords; Clear chords removes all the chords and keeps the grid.</li>
         <li><b>Coffee.</b> No, it doesn’t make that… ;)</li>
       </ol>
       <h3>EUTERIA on a smartphone</h3>

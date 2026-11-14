@@ -68,11 +68,18 @@ export function withTakes(manifest, takes) {
   return manifest;
 }
 
-// The project's manifest with the grid, the chords, the practice settings
-// and the takes of now.
-export function savedManifest(manifest, grid, state, takes = []) {
+// The tempo detection of the song (app/detect.js) in manifest.music, when
+// there is one.
+function withAnalysis(music, analysis) {
+  if (analysis) music.beat_tracking = analysis;
+  return music;
+}
+
+// The project's manifest with the grid, the chords, the practice settings,
+// the tempo detection and the takes of now.
+export function savedManifest(manifest, grid, state, takes = [], analysis = null) {
   const out = JSON.parse(JSON.stringify(manifest));
-  out.music = { ...(out.music || {}), ...musicFields(grid) };
+  out.music = withAnalysis({ ...(out.music || {}), ...musicFields(grid) }, analysis);
   out.practice = practiceFields(out.practice || {}, grid, state);
   out.edited_with = EDITED_WITH;
   return withTakes(out, takes);
@@ -85,7 +92,7 @@ export function newProjectId() {
 
 // The manifest of a new project made from an audio file: its Original Track
 // only, as make_project_manifest() of EUTERIA (Python), in the web format.
-export function newProjectManifest({ id, title, fileName, member, grid, state, takes = [] }) {
+export function newProjectManifest({ id, title, fileName, member, grid, state, takes = [], analysis = null }) {
   const volumes = { original: 1, transposed: 1 };
   for (const n of STEM_NAMES) volumes[n] = 1;
   return withTakes({
@@ -104,7 +111,7 @@ export function newProjectManifest({ id, title, fileName, member, grid, state, t
       transposed_stems: {},
     },
     separation: { status: "not_started", model: null, quality: "standard", error: null, job_id: null },
-    music: { key: null, ...musicFields(grid) },
+    music: withAnalysis({ key: null, ...musicFields(grid) }, analysis),
     practice: practiceFields({ track_volumes: volumes }, grid, state),
     markers: [],
     user_corrections: [],

@@ -4,7 +4,7 @@
 // separation model of EUTERIA.
 
 // Real FFT of size n (a power of two), through a complex FFT of size n / 2.
-class RealFFT {
+export class RealFFT {
   constructor(n) {
     if (n < 4 || n & (n - 1)) throw new Error("The FFT size must be a power of two.");
     const h = n >> 1;
@@ -126,7 +126,7 @@ class RealFFT {
 }
 
 // Periodic Hann window, as torch.hann_window(n).
-function hannWindow(n) {
+export function hannWindow(n) {
   const w = new Float64Array(n);
   for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
   return w;

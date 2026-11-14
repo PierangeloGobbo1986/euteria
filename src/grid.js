@@ -3,7 +3,7 @@
 // shift of the bar numbers (bar_number_offset: the first bar is number
 // offset + 1) and the chords, one per bar, keyed by the bar's index. The
 // grid is edited here too: rebuilt from its anchor (the first beat of a
-// bar), tempo and meter, or cleared, as in EUTERIA (Python).
+// bar), tempo and meter, as in EUTERIA (Python).
 
 const METER_BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
 export const METERS = Object.keys(METER_BEATS);
@@ -88,9 +88,6 @@ export function rebuildGrid(old, duration) {
   for (const [i, text] of old.chords) chords.set(i + shift, text);
   return { ...old, beats, bars, chords, offset: old.offset - shift, shift };
 }
-
-// No grid and no chords (EUTERIA (Python): Clean).
-export const clearedGrid = (old) => ({ ...old, beats: [], bars: [], chords: new Map(), offset: 0 });
 
 // The edits of a grid as this browser keeps them until they are saved in the
 // project: everything but the beats and the bars, which are rebuilt from them

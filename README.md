@@ -127,15 +127,18 @@ EUTERIA (Python), and a chord too long for its bar uses the following empty bars
 over the timeline; on the phone, at the bottom of the card of the timeline, with its
 tools opening under it) opens the editor of EUTERIA (Python), the same in both layouts:
 
-- **The grid**: *BPM* (20-400, by half beats per minute), the meter (4/4, 3/4, 6/8) and
-  the anchor, the first beat of a bar: *Set anchor* puts it at the playhead (placed
-  exactly with the playhead field), and the field beside it moves it by hundredths of a
-  second. Each change rebuilds the grid from the anchor, both ways, as EUTERIA (Python)
-  does. Chords and bar numbers stay with their bars measured from the anchor, so a bar
-  that appears or vanishes at the start of the song (an anchor moved by a few
-  hundredths, a different tempo) shifts nothing. *Clear grid* (two taps) removes the
-  grid and the chords; *Set anchor* makes a new grid at the tempo kept. An audio file
-  starts without a grid, at 180 BPM as in EUTERIA (Python).
+- **The grid**: *BPM* (20-400, by half beats per minute; *×2* and *÷2* double or
+  halve it), the meter (4/4, 3/4, 6/8) and the anchor, the first beat of a bar: *Set
+  anchor* puts it at the playhead (placed exactly with the playhead field), and the
+  field beside it moves it by hundredths of a second. Each change rebuilds the grid from
+  the anchor, both ways, as EUTERIA (Python) does. Chords and bar numbers stay with their
+  bars measured from the anchor, so a bar that appears or vanishes at the start of the
+  song (an anchor moved by a few hundredths, a different tempo) shifts nothing. *Clear
+  chords* (two taps) removes every chord and keeps the grid; a grid not wanted is
+  hidden with *Grid*. On a computer the grid comes from the tempo detection (below);
+  elsewhere a song without one starts at 180 BPM as in EUTERIA (Python), and *Set
+  anchor* makes it. Beside *Tempo*, the grid's beats a minute at the tempo set (for
+  example *96 BPM* at 80% of a song at 120).
 - **The chords**: a tap or a click in the chord lane selects a bar, dragging along the
   lane (or shift-click) several. The chord typed goes to every bar selected (an empty
   chord removes it); Return (*next* on the phone keyboard) goes on to the following
@@ -284,6 +287,20 @@ Two modes, chosen from what the device can do:
   export and sharing. A note under the tracks of a song without stems says how to
   separate it.
 
+**Tempo detection** (computer, Chrome or Edge with WebGPU): the first time a song
+opens, EUTERIA finds its beats and its downbeats with Beat This! (see *How the tempo
+detection works*) and makes the grid from them: the tempo, the meter (4/4 or 3/4; two
+beats a bar become a 6/8) and the anchor, the first downbeat. The song plays at once;
+the line under the top bar tells the progress, *Bars and Chords* and *Grid* wait for the
+end, and a separation started meanwhile waits too. The new grid replaces the one the
+song had (bars numbered from 1, chords kept with their bars) and stays hidden until
+*Grid* or *Bars and Chords* shows it; the tempo found is said, with a warning when it
+varies in the song. The result is kept in this browser and written in the project by
+*Save* and by the separation, so it runs once per song and the phone gets the grid
+ready. In an audio file it counts as part of the song until it is saved as a project; in
+a project it is a change to save. On the phone, and in the other browsers, nothing
+runs: the grid is the one the song brings, or one made by hand.
+
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
 
@@ -309,6 +326,12 @@ travel as files (for example over WhatsApp).
   the input, the date, and the tempo and key they were recorded at; `audio.tracks` gives
   their exact length, delay and padding as for the stems, and `practice` their volume
   and switch (keys `take-<id>`). EUTERIA (Python) ignores them.
+- **The tempo detection**: `music.beat_tracking` keeps what it found: the times of the
+  beats and of the downbeats (seconds, to the millisecond), the tempo, meter and anchor
+  of the grid made from them, how far the beats stray from one tempo (`drift_ms`), the
+  model, where it ran (`backend`: the graphics card, or the processor when the card
+  could not), how long it took (`seconds`) and the version of EUTERIA Web. A project without it, opened on a computer, gets
+  it (and a new grid) when it opens.
 - **The order of the tracks**: `practice.stem_order` keeps the order of the six stems,
   as EUTERIA (Python) reads it; `practice.track_order`, written by EUTERIA Web, lists
   every track in its order, the Original Track and the takes too. A project without
@@ -462,6 +485,46 @@ opens, whatever the browser's decoder does, and the stems line up with the song 
 sample. The project is assembled in memory (stored zip members) and written at once to
 the file chosen, read back, then opened.
 
+## How the tempo detection works
+
+The beats and the downbeats come from Beat This! (Foscarin, Schlüter and Widmer, ISMIR
+2024, MIT License), its `final0` model converted to ONNX with a fixed window of 1500
+frames (`musetric/beat-this-onnx`, about 191 MB, downloaded from Hugging Face the first
+time and kept in the browser's private storage, as the separation model). It is not
+part of this repository.
+
+`src/beats.js` reads the song as the player has it: its Original Track (or, in a
+project without it, its stems added together), mono, at 22050 Hz, trimmed as the
+player trims it. `src/beats-worker.js` runs the rest in a Web Worker with ONNX Runtime
+Web 1.31 on the graphics card, as the `beat_this` package does without its DBN:
+
+- the spectrogram of `LogMelSpect` (`src/melspec.js`): frames of 1024 samples every
+  441 (50 a second), periodic Hann window, reflected edges, magnitudes divided by the
+  square root of the frame length (torchaudio's `frame_length` normalisation), 128 mel
+  bands of the Slaney scale from 30 Hz to 11 kHz without area normalisation, then
+  log(1 + 1000 x); checked against a NumPy and librosa computation to 5e-7;
+- windows of 1500 frames (30 s) overlapping by 6 frames at each side, the last one
+  ending at the end of the song, zeros outside it (`split_piece`); the windows joined
+  keeping the earlier one where they overlap, without their 6 border frames
+  (`aggregate_prediction`, `keep_first`);
+- a beat (or downbeat) is a frame whose logit is above 0 and the highest within 3
+  frames, adjacent ones merged; each downbeat moves to the nearest beat.
+
+`src/tempo.js` makes the grid: the beats are fitted on one straight line (beat k at
+a + kT), first on the middle of the song and then on wider and wider stretches, each
+beat numbered by the line of the step before, so that a missed beat, a spurious one or
+a slowly drifting tempo do not shift the numbering; beats far from the line are left
+out. The tempo is 60/T; the meter is the number of beats between downbeats seen most
+often; the bars start at the beats whose number has the remainder most downbeats have,
+and the anchor is the one at or before the first downbeat. The 95th percentile of the
+distance of the beats from the line is kept as `drift_ms`: above 60 ms the app warns
+that the tempo varies. All the beats and downbeats are kept in the project, for a grid
+that could follow them.
+
+The chain was tested in the browser with a stand-in model of the same inputs and
+outputs (an onset detector) on songs of known tempo, meter and first downbeat; the
+model itself was not reachable from the test machine.
+
 ## Visit counter
 
 `index.html` loads the counter of GoatCounter (`euteria.goatcounter.com`), which counts
@@ -535,6 +598,7 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
   the editor of the grid and the chords in `editor.js`, the separation in `separate.js`,
+  the tempo detection as a song opens in `detect.js`,
   the recording of takes in `recording.js`, the number fields and the icons in
   `controls.js`, the cards dragged to another place in `sortable.js`, the events of the
   visit counter in `counter.js`, the app's icons); `version.js`, the version of the app;
@@ -550,7 +614,9 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   (`grid.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
-  `onnx-rewrite.js`), MP3 encoding of the stems and takes (`encode-worker.js`), device
+  `onnx-rewrite.js`), the tempo detection (`beats.js`, `beats-worker.js`,
+  `melspec.js`, `tempo.js`; model files in the browser's storage: `model-store.js`),
+  MP3 encoding of the stems and takes (`encode-worker.js`), device
   checks (`device.js`), the languages of the app (`i18n.js`, the Italian texts in
   `i18n-it.js`) and the synthetic test song (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
