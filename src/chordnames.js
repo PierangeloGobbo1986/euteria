@@ -149,14 +149,22 @@ function parseWord(word) {
 // The key of a song from the texts of its chords: {pc, minor}, or null when
 // none of them is a chord.
 export function estimateKey(texts) {
+  const chords = [];
+  for (const text of texts) {
+    for (const c of chordsOf(text)) chords.push({ pc: c.root.pc, suffix: c.suffix, bass: c.bass ? c.bass.pc : null, weight: 1 });
+  }
+  return keyFrom(chords);
+}
+
+// The key from chords given as {pc (root), suffix, bass (pc or null), weight}.
+export function keyFrom(chords) {
   const hist = new Float64Array(12);
   let n = 0;
-  for (const text of texts) {
-    for (const c of chordsOf(text)) {
-      for (const [iv, w] of tones(c.suffix)) hist[(c.root.pc + iv) % 12] += w;
-      if (c.bass) hist[c.bass.pc] += 0.5;
-      n++;
-    }
+  for (const c of chords) {
+    if (!(c.weight > 0)) continue;
+    for (const [iv, w] of tones(c.suffix)) hist[(c.pc + iv) % 12] += w * c.weight;
+    if (c.bass !== null && c.bass !== undefined) hist[c.bass] += 0.5 * c.weight;
+    n++;
   }
   if (!n) return null;
   let best = { pc: 0, minor: false, r: -Infinity };
@@ -224,6 +232,13 @@ function transposeText(text, semitones, key) {
       return w.pre + out + w.post;
     })
     .join(" ");
+}
+
+// A chord written in a key ({pc, minor}; null: C major): its root (C to B)
+// spelled for the key and its quality, then `suffix` as it is.
+export function nameChord(pc, suffix, key) {
+  const k = keyAt(key ? key.pc : 0, key ? key.minor : false);
+  return name(spellRoot(((pc % 12) + 12) % 12, quality(suffix), k), false, false) + suffix;
 }
 
 // The chords of a song (an iterable of texts) seen with the song moved by

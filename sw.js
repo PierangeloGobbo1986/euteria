@@ -6,13 +6,14 @@
  * used after a few seconds. The network is asked whether each file changed
  * (the browser's own cache could hold an older copy for minutes after an
  * update). Requests to other sites (the separation model and its runtime,
- * the visit counter) and requests that must bypass every cache (the Update
- * button's check) are left alone. The songs themselves never pass through
- * here: they are files on the device.
+ * the visit counter), the models of this site (models/: the workers keep them
+ * in the browser's storage) and requests that must bypass every cache (the
+ * Update button's check) are left alone. The songs themselves never pass
+ * through here: they are files on the device.
  */
 "use strict";
 
-const CACHE = "euteria-app-v15";
+const CACHE = "euteria-app-v16";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -38,7 +39,9 @@ const SHELL = [
   "src/align.js",
   "src/beats.js",
   "src/beats-worker.js",
+  "src/cqt.js",
   "src/chordnames.js",
+  "src/chords.js",
   "src/device.js",
   "src/encode-worker.js",
   "src/engine.js",
@@ -94,7 +97,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET" || request.headers.has("range") || request.cache === "no-store") return;
-  if (new URL(request.url).origin !== self.location.origin) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.includes("/models/")) return;
   event.respondWith(networkFirst(event));
 });
 

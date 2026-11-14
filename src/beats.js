@@ -1,8 +1,9 @@
-// Tempo detection (computer, Chrome or Edge with WebGPU): the beats and the
-// downbeats of a song found by Beat This! in src/beats-worker.js, from the
-// song as the player has it (its Original Track, at 22050 Hz, mono). This
-// module holds the model and runtime choices and talks to the worker; the
-// grid made from the beats is in src/tempo.js.
+// Tempo and chord detection (computer, Chrome or Edge with WebGPU): the beats
+// and the downbeats of a song found by Beat This!, and its chords by BTC, in
+// src/beats-worker.js, from the song as the player has it (its Original
+// Track, at 22050 Hz, mono). This module holds the model and runtime choices
+// and talks to the worker; the grid made from the beats is in src/tempo.js,
+// the chords of the bars in src/chords.js.
 
 import { tr } from "./i18n.js";
 import { openZip } from "./zip.js";
@@ -18,12 +19,24 @@ const MODEL = {
   url: "https://huggingface.co/musetric/beat-this-onnx/resolve/main/beat_this.onnx",
   approxMB: 191,
 };
+// BTC's large-vocabulary model (MIT), converted to ONNX (models/btc), kept
+// with the app; the mean and deviation of the features it was trained with.
+const CHORD_MODEL = {
+  key: "btc-large-voca",
+  file: "btc_large_voca.onnx",
+  url: new URL("../models/btc/btc_large_voca.onnx", import.meta.url).href,
+  sha256: "02184caa013dfcf9cccfe71712ff5e595a6e047b7d1f79dbeec79e6b219c4e30",
+  bytes: 11945151,
+  approxMB: 12,
+  mean: -2.2279878897355596,
+  std: 1.7191329394436938,
+};
 // The ONNX Runtime Web build the separation uses (WebGPU).
 const RUNTIME = { key: "1.31", base: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/", bundle: "ort.webgpu.min.mjs" };
 
 // Settings the automated tests can change (a stand-in model, local files,
 // the CPU instead of WebGPU).
-export const config = { model: MODEL, runtime: RUNTIME, ep: "webgpu" };
+export const config = { model: MODEL, chordModel: CHORD_MODEL, runtime: RUNTIME, ep: "webgpu" };
 
 export class BeatTracker {
   constructor() {
@@ -81,6 +94,14 @@ export class BeatTracker {
   detect(audio, model = config.model) {
     const { key, base, bundle } = config.runtime;
     return this._call({ type: "detect", audio, model, runtime: { key, base, bundle }, ep: config.ep }, [audio.buffer]);
+  }
+
+  // The chords: `audio` as for detect(). Resolves with {probs (frames x 170,
+  // the probability of each of BTC's chords per frame), times (s, the middle
+  // of each frame), frames, classes, hop (s)}, and timings.
+  chords(audio, model = config.chordModel) {
+    const { key, base, bundle } = config.runtime;
+    return this._call({ type: "chords", audio, model, runtime: { key, base, bundle }, ep: config.ep }, [audio.buffer]);
   }
 
   terminate() {

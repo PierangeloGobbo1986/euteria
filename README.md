@@ -152,6 +152,14 @@ tools opening under it) opens the editor of EUTERIA (Python), the same in both l
   bar they all go in from there. On a computer: a click puts the cursor in the chord
   field, a key from A to G starts a chord, ← → move the selection (Shift: extend it),
   Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
+- **The chords found**: on a computer the chords are found with the tempo (below) and
+  go in the bars of a grid that has none, one chord a bar, or two when each half of the
+  bar has its own; a bar without a clear chord stays empty. *Suggest chords* (beside
+  *Clear chords*, for a song whose chords were found, on the phone too) puts them in the
+  bars that have none, so a song can be cleared and filled again, or filled after a
+  change of tempo or anchor; the chords typed stay as they are. They are suggestions to
+  check by ear: the model often writes a triad where a seventh is played (G for G7, Dm
+  for Dm7), and the names are spelled in the key of the song.
 - **The chords follow the key**: with the song transposed (*Key*), the timeline and the
   chord field show the chords in the new key, and a line under the chord field says so; a
   chord typed then is kept in the song's own key, so the project saved is the same in any
@@ -305,19 +313,22 @@ Two modes, chosen from what the device can do:
   export and sharing. A note under the tracks of a song without stems says how to
   separate it.
 
-**Tempo detection** (computer, Chrome or Edge with WebGPU): the first time a song
-opens, EUTERIA finds its beats and its downbeats with Beat This! (see *How the tempo
-detection works*) and makes the grid from them: the tempo, the meter (4/4 or 3/4; two
-beats a bar become a 6/8) and the anchor, the first downbeat. The song plays at once;
-the line under the top bar tells the progress, *Bars and Chords* and *Grid* wait for the
+**Tempo and chord detection** (computer, Chrome or Edge with WebGPU): the first time a
+song opens, EUTERIA finds its beats and its downbeats with Beat This! (see *How the
+tempo detection works*) and makes the grid from them: the tempo, the meter (4/4 or 3/4;
+two beats a bar become a 6/8) and the anchor, the first downbeat. Then it finds the
+chords with BTC (see *How the chord recognition works*). The song plays at once; the
+line under the top bar tells the progress, *Bars and Chords* and *Grid* wait for the
 end, and a separation started meanwhile waits too. The new grid replaces the one the
 song had (bars numbered from 1, chords kept with their bars) and stays hidden until
-*Grid* or *Bars and Chords* shows it; the tempo found is said, with a warning when it
-varies in the song. The result is kept in this browser and written in the project by
-*Save* and by the separation, so it runs once per song and the phone gets the grid
-ready. In an audio file it counts as part of the song until it is saved as a project; in
-a project it is a change to save. On the phone, and in the other browsers, nothing
-runs: the grid is the one the song brings, or one made by hand.
+*Grid* or *Bars and Chords* shows it; if it has no chords, the chords found go in its
+bars. The tempo found is said, with a warning when it varies in the song, and how many
+bars got a chord. The result is kept in this browser and written in the project by
+*Save* and by the separation, so it runs once per song and the phone gets the grid and
+the chords ready; a song whose tempo was found by version 0.8 gets its chords only, its
+grid left as it is. In an audio file it counts as part of the song until it is saved as
+a project; in a project it is a change to save. On the phone, and in the other
+browsers, nothing runs: the grid is the one the song brings, or one made by hand.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
@@ -350,6 +361,12 @@ travel as files (for example over WhatsApp).
   model, where it ran (`backend`: the graphics card, or the processor when the card
   could not), how long it took (`seconds`) and the version of EUTERIA Web. A project without it, opened on a computer, gets
   it (and a new grid) when it opens.
+- **The chords found**: `music.chord_recognition` keeps the chords BTC found, as
+  `segments`: `[start, end, label, p]` (seconds, BTC's label as `A:min7`, `C` or `N`
+  for no chord, the mean probability of that chord over the segment), with the model,
+  where it ran, how long it took and the version of EUTERIA Web. *Suggest chords* puts
+  them in the bars of the grid of now. A project without it, opened on a computer, gets
+  it when it opens.
 - **The order of the tracks**: `practice.stem_order` keeps the order of the six stems,
   as EUTERIA (Python) reads it; `practice.track_order`, written by EUTERIA Web, lists
   every track in its order, the Original Track and the takes too. A project without
@@ -543,6 +560,45 @@ The chain was tested in the browser with a stand-in model of the same inputs and
 outputs (an onset detector) on songs of known tempo, meter and first downbeat; the
 model itself was not reachable from the test machine.
 
+## How the chord recognition works
+
+The chords come from BTC (Bi-directional Transformer for Chord recognition: Park, Choi,
+Jeon, Kim and Park, ISMIR 2019, MIT License), its large-vocabulary model: 12 roots
+times 14 qualities (min, maj, dim, aug, min6, maj6, min7, minmaj7, maj7, 7, dim7, hdim7,
+sus2, sus4), and "no chord". Its weights are kept in this repository (`models/btc`,
+about 12 MB, with its licence), written as an ONNX graph by `models/btc/convert.py`
+from the checkpoint of the authors (without PyTorch); the graph gives the same logits as
+a NumPy copy of the model to 1.4e-5. The app downloads it from this site the first time,
+checks its SHA-256 and keeps it in the browser's private storage, as the other models.
+
+The song is read as for the tempo, mono at 22050 Hz, and `src/beats-worker.js` does
+what BTC's `test.py` does:
+
+- the constant-Q transform of librosa 0.6.3 (`src/cqt.js`), the one BTC was trained
+  on: chunks of 10 s, 144 bins from C1, 24 per octave, a frame every 2048 samples, the
+  song halved in rate once and then once per octave with resampy's `kaiser_fast`
+  filter, the filters of the top octave applied to the spectrum of each, librosa's
+  normalisations, then log(|C| + 1e-6); checked against a copy of the librosa 0.6.3
+  code to 1e-3 in the lowest values and 5e-5 elsewhere;
+- the features normalised with the mean and deviation BTC was trained with, the model
+  run on each chunk (108 frames) with ONNX Runtime Web on the graphics card (the CPU if
+  it cannot), the probability of each chord per frame; checked in the browser against
+  the same chain in Python to 2e-6.
+
+`src/chords.js` keeps them as segments: the probabilities averaged over 5 frames (half
+a second), the most likely chord of each frame, frames in a row with the same chord
+joined. In the bars, the chords are weighed by family (a root and its triad: C, C6,
+Cmaj7 and C7 are one family; Cm, Cm6, Cm7 and Cm(maj7) another), as BTC shares its
+belief among them: the family that covers most of a bar, weighted by probability, is
+the bar's if it covers a third of it, written as its chord that covers most; two chords
+when each half of a 4/4 or 6/8 bar has a clear family of its own that one chord for the
+whole bar would hide. The names are spelled in the key of the song, estimated from all
+its chords (`src/chordnames.js`).
+
+Tested in the browser on synthesised chord sequences with the real model; the tempo
+model there was the stand-in. BTC was trained on pop and rock songs: it finds roots
+and major or minor well, sevenths and the rarer chords less often.
+
 ## Visit counter
 
 `index.html` loads the counter of GoatCounter (`euteria.goatcounter.com`), which counts
@@ -616,7 +672,7 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
   the editor of the grid and the chords in `editor.js`, the separation in `separate.js`,
-  the tempo detection as a song opens in `detect.js`,
+  the tempo and chord detection as a song opens in `detect.js`,
   the recording of takes in `recording.js`, the number fields and the icons in
   `controls.js`, the cards dragged to another place in `sortable.js`, the events of the
   visit counter in `counter.js`, the app's icons); `version.js`, the version of the app;
@@ -632,12 +688,15 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   (`grid.js`), chord names read and transposed (`chordnames.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
-  `onnx-rewrite.js`), the tempo detection (`beats.js`, `beats-worker.js`,
-  `melspec.js`, `tempo.js`; model files in the browser's storage: `model-store.js`),
+  `onnx-rewrite.js`), the tempo and chord detection (`beats.js`, `beats-worker.js`,
+  `melspec.js`, `tempo.js`, `cqt.js`, `chords.js`; model files in the browser's
+  storage: `model-store.js`),
   MP3 encoding of the stems and takes (`encode-worker.js`), device
   checks (`device.js`), the languages of the app (`i18n.js`, the Italian texts in
   `i18n-it.js`) and the synthetic test song (`synth.js`).
 - `lib/`: third-party components, unchanged, each with its licence.
+- `models/btc/`: the chord model (BTC, MIT), as ONNX, with its licence and the script
+  that converts it.
 
 The site is plain HTML, CSS and JavaScript modules: there is no build step, and the
 repository is published as it is by GitHub Pages. Every update published raises the

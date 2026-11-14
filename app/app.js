@@ -201,8 +201,12 @@ async function discardEdits() {
   const named = retitled();
   if (editor.dirty) {
     editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
-    // A tempo detection not in the file goes too: it runs again next time.
-    if (!app.analysisInFile) app.analysis = null;
+    // A detection not in the file goes too (the file's stays): it runs again
+    // next time.
+    if (!app.analysisInFile) {
+      app.analysis = song ? readAnalysis(song.manifest) : null;
+      app.analysisInFile = !!app.analysis;
+    }
   }
   if (named) {
     song.title = song.fileTitle;
@@ -294,10 +298,17 @@ async function openSong(file, origin) {
     if (edits) app.grid = applyGridEdits(app.grid, edits, song.duration);
     const practice = (song.manifest && song.manifest.practice) || {};
     app.gridVisible = saved && typeof saved.grid === "boolean" ? saved.grid : practice.grid_visible !== false;
-    // The tempo detection: the file's, else the one kept in this browser.
+    // The tempo and chord detection: the file's, else the one kept in this
+    // browser, which may be the file's with the chords found since.
     const inFile = readAnalysis(song.manifest);
-    app.analysis = inFile || (saved && saved.analysis && Array.isArray(saved.analysis.beats) ? saved.analysis : null);
-    app.analysisInFile = !!inFile;
+    const kept = saved && saved.analysis && Array.isArray(saved.analysis.beats) ? saved.analysis : null;
+    if (inFile && !inFile.chords && kept && kept.chords && kept.detected_at === inFile.detected_at) {
+      app.analysis = kept;
+      app.analysisInFile = false;
+    } else {
+      app.analysis = inFile || kept;
+      app.analysisInFile = !!inFile;
+    }
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null };
     app.current.owner = songOwner();
     if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
@@ -309,11 +320,12 @@ async function openSong(file, origin) {
     const warning = trackWarning();
     if (warning) notice(warning, "error");
     else notice("");
-    // The tempo, found the first time the song opens (a computer): Bars and
-    // Chords waits for it.
-    if (!app.analysis && detection.supported) {
+    // The tempo and the chords, found the first time the song opens (a
+    // computer; the chords only, for a song whose tempo was found before
+    // there were chords): Bars and Chords waits for them.
+    if (detection.supported && (!app.analysis || !app.analysis.chords)) {
       editor.setOn(false);
-      detection.start(song, file, file.name);
+      detection.start(song, file, file.name, { tempo: !app.analysis });
     }
     return song;
   } catch (error) {
@@ -324,15 +336,21 @@ async function openSong(file, origin) {
   }
 }
 
-// The tempo detection of the open song (app/detect.js): kept with it, and
-// the grid made from it in place of the song's.
+// The tempo and chord detection of the open song (app/detect.js): kept with
+// it, the grid made from it in place of the song's, the chords found in its
+// bars if it has none. Returns {filled: how many bars got a chord, kept: the
+// bars were left to Suggest chords (the song has chords, or no grid)}.
 function applyDetection(analysis, fit) {
-  if (!player.song) return;
+  if (!player.song) return { filled: 0, kept: false };
   app.analysis = analysis;
   app.analysisInFile = false;
-  if (fit) editor.detected(fit, { dirty: player.song.kind !== "audio" });
+  const dirty = player.song.kind !== "audio";
+  if (fit) editor.detected(fit, { dirty });
+  const kept = !!app.grid.chords.size || !app.grid.bars.length;
+  const filled = analysis.chords && !kept ? editor.suggestChords({ dirty, quiet: true }) : 0;
   rememberSettings();
   scheduleUi();
+  return { filled, kept };
 }
 
 // Whose MP3 exports are listed: the song open, as its entry in the library,

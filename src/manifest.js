@@ -68,10 +68,14 @@ export function withTakes(manifest, takes) {
   return manifest;
 }
 
-// The tempo detection of the song (app/detect.js) in manifest.music, when
-// there is one.
+// The tempo and chord detection of the song (app/detect.js) in
+// manifest.music, when there is one: beat_tracking, and its chords in
+// chord_recognition.
 function withAnalysis(music, analysis) {
-  if (analysis) music.beat_tracking = analysis;
+  if (!analysis) return music;
+  const { chords, ...beats } = analysis;
+  music.beat_tracking = beats;
+  if (chords) music.chord_recognition = chords;
   return music;
 }
 

@@ -534,6 +534,8 @@ button.eye .icon { width: 18px; height: 18px; }
 .edit-status.ok { color: var(--ok); }
 .edit-status.error { color: var(--danger); }
 .save-row #clear-chords { margin-left: auto; }
+.save-row #suggest-chords { margin-left: auto; }
+.save-row #suggest-chords:not([hidden]) + #clear-chords { margin-left: 8px; }
 /* ×2 and ÷2 beside the tempo of the grid. */
 .bpm-item { gap: 6px; }
 .bpm-scale { display: flex; gap: 4px; }

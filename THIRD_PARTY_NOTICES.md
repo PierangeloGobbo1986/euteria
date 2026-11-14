@@ -70,3 +70,19 @@ The spectrogram (`src/melspec.js`), the windows and the peak picking of
 `src/beats-worker.js` follow `LogMelSpect`, `split_piece`, `aggregate_prediction` and
 the minimal `Postprocessor` of the `beat_this` package (MIT License).
 
+### BTC, chord recognition
+
+The chord model, kept in this repository as `models/btc/btc_large_voca.onnx`: the
+weights of BTC's large-vocabulary model (`test/btc_model_large_voca.pt`), unchanged,
+written as an ONNX graph by `models/btc/convert.py`.
+
+- BTC (Bi-directional Transformer for Chord recognition) by Jonggwon Park, Kyoyun Choi,
+  Sungwook Jeon, Dongheon Kim and Jonghun Park (ISMIR 2019).
+- Copyright (c) 2019 Jonggwon Park, MIT License: `models/btc/LICENSE`
+- https://github.com/jayg996/BTC-ISMIR19
+
+The constant-Q transform of `src/cqt.js` follows `cqt()` of librosa 0.6.3 (ISC
+License, https://github.com/librosa/librosa), with the coefficients of the
+`kaiser_fast` filter of resampy 0.2.2 (ISC License, https://github.com/bmcfee/resampy)
+at the ratio 1/2.
+

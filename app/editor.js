@@ -16,9 +16,12 @@
 // song transposed (Key), the chord field shows and takes the chords in the
 // key of now, and the bars keep them in the song's own key
 // (src/chordnames.js), so that the song saved is the same in any key.
+// Suggest chords puts the chords found in the song (app/detect.js,
+// src/chords.js) in the bars that have none.
 
 import { h, numberField, fmtTime, fmtSigned, parseTime, confirmTap } from "./controls.js";
 import { chordView } from "../src/chordnames.js";
+import { barChords } from "../src/chords.js";
 import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
 import { tr, trn } from "../src/i18n.js";
 
@@ -116,6 +119,7 @@ export class Editor {
     $("bpm-double").addEventListener("click", () => this.scaleTempo(2));
     $("bpm-half").addEventListener("click", () => this.scaleTempo(0.5));
     confirmTap($("clear-chords"), () => (phone ? tr("Tap again to clear") : tr("Click again to clear")), () => this.clearChords());
+    $("suggest-chords").addEventListener("click", () => this.suggestChords());
 
     this.bar = numberField({
       label: tr("Number of the selected bar"),
@@ -430,6 +434,38 @@ export class Editor {
     this._edited(tr("Chords cleared: the grid stays."));
   }
 
+  // The chords found in the song (app.analysis.chords, src/chords.js) in the
+  // bars that have none, spelled in the song's key. dirty: false, an audio
+  // file that keeps them in this browser (as detected()); quiet: no message
+  // here. Returns how many bars got a chord.
+  suggestChords({ dirty = true, quiet = false } = {}) {
+    const { app, player } = this.ctx;
+    const found = app.analysis && app.analysis.chords;
+    if (!player.song || !found || !Array.isArray(found.segments)) return 0;
+    this.commitInput();
+    const g = this.grid;
+    if (!g.bars.length) return 0;
+    const add = barChords(found.segments, g, { duration: this.duration, want: (i) => !g.chords.has(i) });
+    if (!add.size) {
+      if (!quiet) {
+        const empty = g.bars.some((_, i) => !g.chords.has(i));
+        this.say(empty ? tr("No chord found for the empty bars.") : tr("Every bar has a chord: Clear chords first, to have them all suggested."));
+      }
+      return 0;
+    }
+    const chords = new Map(g.chords);
+    for (const [i, text] of add) chords.set(i, text);
+    app.grid = { ...g, chords };
+    this.loadInput();
+    const was = this.dirty;
+    this._edited(quiet ? "" : trn(add.size, "Chord suggested in {n} bar: check it by ear.", "Chords suggested in {n} bars: check them by ear."));
+    if (!dirty) {
+      this.dirty = was;
+      this.refresh();
+    }
+    return add.size;
+  }
+
   // The grid the tempo detection made (fit: {bpm, meter, anchor}), in place
   // of the song's: built from the anchor, bars numbered from 1, the chords
   // kept with the bars they were in, hidden until shown. It counts as a
@@ -587,6 +623,10 @@ export class Editor {
     this.anchor.disable(busy);
     $("set-anchor").disabled = busy;
     $("clear-chords").disabled = busy || !g.chords.size;
+    // Suggest chords: for a song whose chords were found.
+    const found = this.ctx.app.analysis && this.ctx.app.analysis.chords;
+    $("suggest-chords").hidden = !(found && Array.isArray(found.segments));
+    $("suggest-chords").disabled = busy || !g.bars.length;
 
     const has = g.bars.length > 0;
     const sel = has ? this.sel : null;

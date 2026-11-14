@@ -23,7 +23,7 @@ export async function fileHandle(dir, name) {
   }
 }
 
-// model: {file, url}. {cached, bytes}.
+// model: {file, url, sha256?, bytes?}. {cached, bytes}.
 export async function modelStatus(model) {
   const dir = await modelsDir();
   const handle = await fileHandle(dir, model.file);
@@ -36,7 +36,9 @@ export async function modelStatus(model) {
 }
 
 // Downloads the model; `onProgress(phase, data)`: "download" {done, total, ms}
-// now and then, "verify" at the end.
+// now and then, "verify" at the end. A model whose SHA-256 is known
+// (model.sha256) must have it; a compressed download (Content-Encoding) is
+// measured by the bytes it gives, not by its Content-Length.
 export async function downloadModel(model, onProgress = () => {}) {
   const dir = await modelsDir();
   await dir.removeEntry(`${model.file}.json`).catch(() => {});
@@ -49,7 +51,8 @@ export async function downloadModel(model, onProgress = () => {}) {
     access.truncate(0);
     const response = await fetch(model.url);
     if (!response.ok) throw fail("The model download failed (HTTP {status}).", { status: response.status });
-    total = Number(response.headers.get("content-length")) || 0;
+    const encoded = (response.headers.get("content-encoding") || "identity") !== "identity";
+    total = (!encoded && Number(response.headers.get("content-length"))) || model.bytes || 0;
     const reader = response.body.getReader();
     let reported = 0;
     for (;;) {
@@ -67,10 +70,11 @@ export async function downloadModel(model, onProgress = () => {}) {
   } finally {
     access.close();
   }
-  if (total && bytes !== total) throw fail("The model download stopped early ({bytes} of {total} bytes).", { bytes, total });
+  if (total && bytes < total) throw fail("The model download stopped early ({bytes} of {total} bytes).", { bytes, total });
   onProgress("verify", { done: bytes, total: bytes });
   const data = await (await handle.getFile()).arrayBuffer();
   const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", data))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (model.sha256 && sha256 !== model.sha256) throw fail("The model downloaded is not the one expected: try again.");
   const meta = { bytes, sha256, url: model.url, savedAt: new Date().toISOString() };
   const metaHandle = await dir.getFileHandle(`${model.file}.json`, { create: true });
   const writer = await metaHandle.createSyncAccessHandle();

@@ -1,8 +1,9 @@
 /*
- * Web Worker that finds the beats and the downbeats of a song with Beat This!
- * (Foscarin, Schlüter and Widmer, ISMIR 2024, MIT licence): its "final0"
- * model converted to ONNX (musetric/beat-this-onnx), on the graphics card
- * through ONNX Runtime Web and WebGPU.
+ * Web Worker that analyses a song on the graphics card, through ONNX Runtime
+ * Web and WebGPU: its beats and downbeats with Beat This! (Foscarin, Schlüter
+ * and Widmer, ISMIR 2024, MIT licence), its "final0" model converted to ONNX
+ * (musetric/beat-this-onnx), and its chords with BTC (Park et al., ISMIR 2019,
+ * MIT licence; models/btc).
  *
  * As the beat_this package does it (Audio2Beats, without the DBN): the
  * log-mel spectrogram of the song (src/melspec.js) is cut into windows of
@@ -14,15 +15,22 @@
  * within 3 frames, adjacent ones merged, and each downbeat moves to the
  * nearest beat (Postprocessor "minimal").
  *
- * The model file is downloaded once into the browser's private storage
+ * The chords, as BTC's test.py finds them: the song cut into chunks of 10 s,
+ * the constant-Q spectrogram of each (src/cqt.js, 108 frames), normalised
+ * with the mean and the deviation BTC was trained with, the model run on
+ * windows of 108 frames (the last one padded with zeros), the probability of
+ * each of the 170 chords per frame (a softmax of the logits).
+ *
+ * The model files are downloaded once into the browser's private storage
  * (src/model-store.js). Messages: status, download, detect ({audio: mono
- * Float32Array at 22050 Hz, model, runtime, ep}). Progress goes out as
- * {type: "progress", phase, done, total}. The errors the user may meet go out
+ * Float32Array at 22050 Hz, model, runtime, ep}), chords (the same, with the
+ * chord model). Progress goes out as {type: "progress", phase, done, total}. The errors the user may meet go out
  * with their English text and its values ({text, vars}), said by the page in
  * its own language (src/i18n.js).
  */
 
 import { logMel, MEL } from "./melspec.js";
+import { logCqt, CQT } from "./cqt.js";
 import { modelStatus, downloadModel, modelBytes, fail } from "./model-store.js";
 
 const CHUNK = 1500; // frames the model takes
@@ -31,9 +39,9 @@ const RADIUS = 3; // a peak is the highest logit within 3 frames on each side
 
 let ort = null;
 let runtimeKey = null;
-let session = null;
-let sessionKey = null;
-let backend = null; // "webgpu", or "wasm" when the graphics card could not run it
+// One session per model ("beats", "chords"): {session, key, backend}, the
+// backend "webgpu", or "wasm" when the graphics card could not run it.
+const sessions = new Map();
 
 self.onmessage = async (event) => {
   const msg = event.data;
@@ -42,6 +50,7 @@ self.onmessage = async (event) => {
     if (msg.type === "status") reply = await modelStatus(msg.model);
     else if (msg.type === "download") reply = await downloadModel(msg.model, progress);
     else if (msg.type === "detect") reply = await detect(msg);
+    else if (msg.type === "chords") reply = await chords(msg);
     else throw new Error(`Unknown request ${msg.type}`);
     self.postMessage({ type: "reply", id: msg.id, ...reply });
   } catch (error) {
@@ -53,7 +62,8 @@ const progress = (phase, data) => self.postMessage({ type: "progress", phase, ..
 
 // ----- ONNX Runtime and the session ---------------------------------------------------
 
-async function load(model, runtime, ep) {
+// The session of `model` for `slot`, made once. `outputs`: the names it must give.
+async function load(slot, model, runtime, ep, outputs) {
   if (ort && runtimeKey !== runtime.key) throw new Error("Another ONNX Runtime is already loaded in this worker.");
   if (!ort) {
     ort = await import(runtime.base + runtime.bundle);
@@ -63,15 +73,16 @@ async function load(model, runtime, ep) {
     runtimeKey = runtime.key;
   }
   const key = `${model.file}|${ep}`;
-  if (session && sessionKey === key) return;
-  if (session) {
-    await session.release().catch(() => {});
-    session = null;
-    sessionKey = null;
+  const had = sessions.get(slot);
+  if (had && had.key === key) return had;
+  if (had) {
+    await had.session.release().catch(() => {});
+    sessions.delete(slot);
   }
   // The graphics card; should it fail, the CPU (much slower, but it works).
   const bytes = await modelBytes(model);
   let lastError = null;
+  let made = null;
   for (const provider of ep === "webgpu" ? ["webgpu", "wasm"] : [ep]) {
     try {
       if (provider === "webgpu") {
@@ -79,19 +90,20 @@ async function load(model, runtime, ep) {
         const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
         if (!adapter) throw fail("No graphics adapter for WebGPU.");
       }
-      session = await ort.InferenceSession.create(bytes, { executionProviders: [provider], graphOptimizationLevel: "all", logSeverityLevel: 3 });
-      backend = provider;
+      const session = await ort.InferenceSession.create(bytes, { executionProviders: [provider], graphOptimizationLevel: "all", logSeverityLevel: 3 });
+      made = { session, key, backend: provider };
       break;
     } catch (error) {
       lastError = error;
     }
   }
-  if (!session) throw lastError;
-  const names = session.outputNames;
-  if (!session.inputNames.length || !names.includes("beat") || !names.includes("downbeat")) {
-    throw new Error("The beat tracking model does not have the inputs and outputs expected.");
+  if (!made) throw lastError;
+  const names = made.session.outputNames;
+  if (!made.session.inputNames.length || !outputs.every((n) => names.includes(n))) {
+    throw new Error("The model does not have the inputs and outputs expected.");
   }
-  sessionKey = key;
+  sessions.set(slot, made);
+  return made;
 }
 
 // ----- detection -----------------------------------------------------------------------
@@ -109,7 +121,7 @@ function windowStarts(frames) {
 async function detect({ audio, model, runtime, ep }) {
   const t0 = performance.now();
   progress("load", {});
-  await load(model, runtime, ep);
+  const { session, backend } = await load("beats", model, runtime, ep, ["beat", "downbeat"]);
   const loadMs = performance.now() - t0;
 
   const mel = logMel(audio, (done, total) => progress("spectrogram", { done, total }));
@@ -152,6 +164,76 @@ async function detect({ audio, model, runtime, ep }) {
     downbeats,
     frames,
     windows: starts.length,
+    backend,
+    loadMs,
+    analyseMs: performance.now() - t1,
+    totalMs: performance.now() - t0,
+  };
+}
+
+// ----- chords ---------------------------------------------------------------------------
+
+const BTC_FRAMES = 108; // frames of a window: a chunk of 10 s
+const BTC_CLASSES = 170;
+const BATCH = 8; // windows per run of the model
+
+async function chords({ audio, model, runtime, ep }) {
+  const t0 = performance.now();
+  progress("chords-load", {});
+  const { session, backend } = await load("chords", model, runtime, ep, ["logits"]);
+  const loadMs = performance.now() - t0;
+  // The chunks of 10 s and their spectrograms (a last chunk shorter than two
+  // frames is left out), each a window of 108 frames, padded with zeros.
+  const bins = CQT.bins;
+  const starts = [];
+  for (let s = 0; s < audio.length; s += CQT.chunk) if (audio.length - s >= 2 * CQT.hop || s === 0) starts.push(s);
+  const windows = starts.length;
+  const input = new Float32Array(windows * BTC_FRAMES * bins);
+  const counts = [];
+  for (let w = 0; w < windows; w++) {
+    const { data, frames } = logCqt(audio.subarray(starts[w], Math.min(audio.length, starts[w] + CQT.chunk)));
+    const n = Math.min(frames, BTC_FRAMES);
+    const base = w * BTC_FRAMES * bins;
+    for (let i = 0; i < n * bins; i++) input[base + i] = (data[i] - model.mean) / model.std;
+    counts.push(n);
+    progress("chords-spectrogram", { done: w + 1, total: windows });
+  }
+  const frames = counts.reduce((a, b) => a + b, 0);
+  const probs = new Float32Array(frames * BTC_CLASSES);
+  const times = new Float32Array(frames);
+  const t1 = performance.now();
+  progress("chords-analyse", { done: 0, total: windows });
+  let f = 0;
+  for (let w0 = 0; w0 < windows; w0 += BATCH) {
+    const b = Math.min(BATCH, windows - w0);
+    const slice = input.subarray(w0 * BTC_FRAMES * bins, (w0 + b) * BTC_FRAMES * bins);
+    const out = await session.run({ [session.inputNames[0]]: new ort.Tensor("float32", slice, [b, BTC_FRAMES, bins]) });
+    const logits = out.logits.data;
+    for (let k = 0; k < b; k++) {
+      const w = w0 + k;
+      for (let j = 0; j < counts[w]; j++, f++) {
+        // The softmax of the frame's logits.
+        const row = (k * BTC_FRAMES + j) * BTC_CLASSES;
+        let max = -Infinity;
+        for (let c = 0; c < BTC_CLASSES; c++) if (logits[row + c] > max) max = logits[row + c];
+        if (!Number.isFinite(max)) throw fail("The graphics card returned invalid numbers.");
+        let sum = 0;
+        const o = f * BTC_CLASSES;
+        for (let c = 0; c < BTC_CLASSES; c++) sum += probs[o + c] = Math.exp(logits[row + c] - max);
+        for (let c = 0; c < BTC_CLASSES; c++) probs[o + c] /= sum;
+        times[f] = starts[w] / CQT.rate + (j * CQT.hop) / CQT.rate;
+      }
+    }
+    for (const t of Object.values(out)) if (t.dispose) t.dispose();
+    progress("chords-analyse", { done: Math.min(windows, w0 + b), total: windows });
+  }
+  return {
+    probs,
+    times,
+    frames,
+    classes: BTC_CLASSES,
+    hop: CQT.hop / CQT.rate,
+    windows,
     backend,
     loadMs,
     analyseMs: performance.now() - t1,
