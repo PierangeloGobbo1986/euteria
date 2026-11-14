@@ -61,7 +61,7 @@ open, the keys of the player do nothing and the page under it stays still.
   comes the overview; the column of the tracks starts with *All stems*
   and *Original only*, beside the time scale. *Tempo and key* and *File export and
   sharing* follow, each across the page in two columns. Volumes and tempo also have
-  sliders; keyboard: Space play or pause, ← → 5 seconds, Home back to the start, L loop
+  sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save.
@@ -81,13 +81,14 @@ text): there a smartphone downloads the project instead. On a computer *Share pr
 says that it works on smartphones: there the project file saved with *Save* is shared
 with the app wanted, by attaching it to an email or a message. The card has the MP3
 export of the stems and the takes that are on, too (with no stem on, the Original Track
-goes with the takes), downloaded or shared where the browser can share files (Safari,
+goes with the takes, or alone if its tempo, key or volume was changed: as it is, it would
+be the file you already have, and the app says so), downloaded or shared where the browser can share files (Safari,
 and Chrome and Edge on some systems). The list under *Export MP3* shows the MP3 files of
 the song open: they stay in the app only until it closes, are not saved in the project
 and take no space on the device, and they go when their song is deleted from the
 library. Each has a red ✕ that deletes it, and *Delete all* above the list deletes them
 all (after a second tap). An audio file opens as a single track: tempo, key and loop
-work on the whole song.
+work on the whole song, and *Export MP3* gives it at the tempo and in the key chosen.
 
 **The timeline** shows the song as EUTERIA (Python) does: the time and the bar numbers
 (each number just over its chord, in line with it; the phone shows the numbers only),

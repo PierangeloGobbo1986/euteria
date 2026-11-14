@@ -8,7 +8,7 @@
 // under it: jumps, tempo, key and the loop wait; Pause and Stop end the take.
 
 import { Engine } from "./engine.js";
-import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder } from "./project.js";
+import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder, gainToSlider } from "./project.js";
 import { int16Peaks } from "./peaks.js";
 import { tr } from "./i18n.js";
 
@@ -514,18 +514,24 @@ export class Player {
 
   // The stems and the takes that are on, as they sound now (volumes, tempo,
   // key), as an MP3 File named as EUTERIA (Python) names it. Without stems
-  // on, the Original Track goes with the takes. The tracks are lent to the
-  // export worker meanwhile (their memory is moved, not copied).
+  // on, the Original Track goes with the takes, or alone: then only with its
+  // tempo, key or volume changed, as it is it would be the file the user has.
+  // The tracks are lent to the export worker meanwhile (their memory is
+  // moved, not copied).
   async exportMp3(onProgress) {
     if (!this.song || this.busy || this.recording) throw new Error(tr("Wait for the current operation to finish."));
     const stems = this.tracks.filter((t) => t.on && STEM_NAMES.includes(t.key)).map((t) => t.key);
     const takes = this.tracks.filter((t) => t.on && t.take);
-    const fullOn = this.tracks.some((t) => t.on && t.key === "original");
-    if (!stems.length && !takes.length) {
+    const original = this.tracks.find((t) => t.on && t.key === "original");
+    const fullOn = !!original;
+    // As the fields show them: tempo in whole percent, volume in percent.
+    const changed = fullOn && (Math.round(this.rate * 100) !== 100 || this.semitones !== 0 || gainToSlider(original.gain) !== 100);
+    if (!stems.length && !takes.length && !changed) {
       let text;
-      if (!this.hasStems && !this.takes.length) text = tr("This song has no stems: the export combines stems, and the Original Track alone is the file you already have.");
-      else if (fullOn) text = tr("Exporting the Original Track alone is basically pointless: it is the file you already have. Switch on the stems or the takes you want to combine.");
-      else text = tr("No track is switched on. Switch on the stems or the takes you want to combine.");
+      if (!fullOn) text = tr("No track is switched on. Switch on the tracks you want to export.");
+      else if (this.tracks.some((t) => t.key !== "original"))
+        text = tr("The Original Track as it is would be the file you already have: change its tempo, key or volume to export it, or switch on other tracks.");
+      else text = tr("The Original Track as it is would be the file you already have: change its tempo, key or volume to export it.");
       throw Object.assign(new Error(text), { notice: true });
     }
     const withOriginal = !stems.length && fullOn;

@@ -972,7 +972,7 @@ async function exportMp3() {
 }
 
 const EXPORT_HINT = () =>
-  tr("The stems and the takes that are on, as they sound now (volumes, tempo, key). The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.");
+  tr("The stems and the takes that are on, as they sound now (volumes, tempo, key); with no stem on, the Original Track. The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.");
 // The exports of the song open: each export belongs to the song it was made from.
 const songExports = () => app.exports.filter((e) => !!app.current && e.owner === app.current.owner);
 const selectedExports = () => songExports().filter((e) => e.selected);
@@ -1811,13 +1811,13 @@ function updateUi() {
   $("set-b").disabled = !song || locked;
   recording.refresh();
 
-  const stems = player.hasStems;
-  const takes = player.takes.length > 0;
-  $("export").disabled = !ready || takesBusy || !(stems || takes);
+  // Export MP3 works with any song: the Original Track alone too, with its tempo, key or
+  // volume changed (player.exportMp3 says so when it is not).
+  $("export").disabled = !ready || takesBusy;
   $("export").textContent = player.busy === "exporting" ? tr("Exporting…") : tr("Export MP3");
-  const exportHint = !song || stems || takes ? EXPORT_HINT() : tr("The export combines stems and takes: an audio file has no stems, and no take was recorded yet.");
+  const exportHint = EXPORT_HINT();
   if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
-  $("key-hint").hidden = !!song && !stems;
+  $("key-hint").hidden = !!song && !player.hasStems;
 
   // Save, at the top right, and Share project.
   const save = $("save-top");
