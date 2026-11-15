@@ -5,7 +5,7 @@ name: Fetch the small Beat This! model
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -39,8 +39,17 @@ jobs:
           r = s.run(None, {s.get_inputs()[0].name: x})
           print([a.shape for a in r])
           PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: beat-this-small0
-          path: out/
-          retention-days: 3
+      - name: Hand it over on a branch of its own (incoming-models), to be checked
+        run: |
+          set -e
+          git init -q handover
+          cd handover
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          mkdir -p models/beat-this
+          cp ../out/small0.onnx models/beat-this/small0.onnx
+          cp ../out/README.md models/beat-this/songbird-models-README.md || true
+          cp ../out/sha256.txt ../out/path.txt models/beat-this/
+          git add .
+          git commit -q -m "small0.onnx from huggingface.co/ashudesai/songbird-models (to be checked)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/incoming-models
