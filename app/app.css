@@ -322,15 +322,17 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 [data-layout=phone] .appbar .transport { display: none; border-top: 1px solid #1e2529; padding: 2px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
 [data-layout=phone] body[data-view=player] .appbar .transport { display: block; }
 [data-layout=phone] .transport-inner { max-width: 648px; margin: 0 auto; grid-template-areas: "now seek total" "buttons buttons buttons"; gap: 0 10px; }
-[data-layout=phone] .transport .round { width: 48px; height: 48px; min-height: 48px; }
-[data-layout=phone] .transport .round.play { width: 56px; height: 56px; font-size: 20px; }
+[data-layout=phone] .transport .round { width: 44px; height: 44px; min-height: 44px; }
+[data-layout=phone] .transport .round.play { width: 52px; height: 52px; font-size: 20px; }
 [data-layout=phone] #stop { order: 1; }
 [data-layout=phone] #back5 { order: 2; }
 [data-layout=phone] #play { order: 3; }
 [data-layout=phone] #fwd5 { order: 4; }
 [data-layout=phone] #loop-quick { order: 5; }
-[data-layout=phone] #record { order: 6; }
-[data-layout=phone] .transport-row { gap: 8px; }
+[data-layout=phone] #metro-quick { order: 6; }
+[data-layout=phone] #record { order: 7; }
+[data-layout=phone] .transport-row { gap: 6px; }
+[data-layout=phone] .transport .round.metro-quick .metro-icon { width: 22px; height: 22px; }
 
 [data-layout=computer] .transport {
   position: sticky;
@@ -847,9 +849,10 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=phone] .num .step { width: 38px; }
   .num .value { min-width: 58px; }
   .round { width: 48px; height: 48px; min-height: 48px; }
-  [data-layout=phone] .transport .round { width: 44px; height: 44px; min-height: 44px; }
-  [data-layout=phone] .transport .round.play { width: 52px; height: 52px; }
-  [data-layout=phone] .transport-row { gap: 6px; }
+  [data-layout=phone] .transport .round { width: 40px; height: 40px; min-height: 40px; font-size: 13px; }
+  [data-layout=phone] .transport .round.play { width: 48px; height: 48px; }
+  [data-layout=phone] .transport-row { gap: 5px; }
+  [data-layout=phone] .transport .round.metro-quick .metro-icon { width: 20px; height: 20px; }
   /* More room for the names of the tracks, beside the grip (and a take's ✕). */
   [data-layout=phone] .tracks-card { padding-left: 8px; padding-right: 8px; }
   [data-layout=phone] .track { column-gap: 4px; }
@@ -857,9 +860,10 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=phone] .track.take .take-del { min-width: 40px; }
 }
 @media (max-width: 340px) {
-  [data-layout=phone] .transport .round { width: 40px; height: 40px; min-height: 40px; font-size: 13px; }
-  [data-layout=phone] .transport .round.play { width: 48px; height: 48px; }
-  [data-layout=phone] .transport-row { gap: 5px; }
+  [data-layout=phone] .transport .round { width: 36px; height: 36px; min-height: 36px; font-size: 12px; }
+  [data-layout=phone] .transport .round.play { width: 44px; height: 44px; }
+  [data-layout=phone] .transport-row { gap: 4px; }
+  [data-layout=phone] .transport .round.metro-quick .metro-icon { width: 18px; height: 18px; }
   /* A take's name, beside its ✕: its switch shows on and off by its color. */
   [data-layout=phone] .track.take .take-del { min-width: 34px; }
   [data-layout=phone] .track.take .toggle .dot { display: none; }
@@ -867,24 +871,43 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 /* With the song transposed, under the chord field: the chords are in the new key. */
 .chord-edit .chord-key { margin: 8px 0 0; }
 
-/* The metronome, a card of its own under Tempo and key: on and off, the volume and
-   the beats of the bar; then the count-in and the bars with and without the clicks. */
+/* The metronome, a card of its own under Tempo and key: on and off, its tempo (and
+   the way back to the song's), the volume and the beats of the bar; then the count-in,
+   the bars with the clicks and the silent ones, what they silence, at random or not. */
 .metro { display: flex; flex-direction: column; gap: 14px; }
-.metro-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 32px; }
+.metro-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; }
 .metro-item { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
 .metro .mini-label { color: var(--muted); font-size: 14px; }
 .metro-on { flex: none; justify-content: flex-start; gap: 9px; min-width: 84px; padding-left: 14px; color: var(--muted); font-weight: 650; }
 .metro-on .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--dim); }
 .metro-on.on { background: var(--accent-bg); border-color: #3f6d63; color: var(--text); }
 .metro-on.on .dot { background: var(--accent); border-color: var(--accent); }
+.metro-follow { padding-left: 8px; padding-right: 8px; color: var(--accent); }
 .metro-volume-box { display: flex; align-items: center; gap: 12px; }
-.metro-volume-box input[type=range] { width: 200px; }
+.metro-volume-box input[type=range] { width: 140px; }
 .metro-beats { display: flex; gap: 6px; flex-wrap: wrap; }
 .metro-beats .beat { width: 38px; height: 38px; min-height: 0; padding: 0; border-radius: 50%; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .metro-beats .beat.accent { background: var(--gold); border-color: var(--gold); color: #1a1408; font-weight: 800; }
 .metro-beats .beat.silent { background: transparent; border-style: dashed; color: var(--muted); opacity: .7; text-decoration: line-through; }
 .metro .num { min-width: 0; }
 .metro.off .metro-cycle { opacity: .55; }
-.metro .num.metro-count .value select { width: auto; min-width: 7.5em; padding: 0 10px; text-align: left; text-align-last: left; cursor: pointer; }
-.metro .num.metro-count .value select option { background: var(--panel); color: var(--text); }
+/* The count-in and what the silent bars silence: menus as wide as their longest
+   choice ("2 bars"). */
+.metro .num.metro-count .value, .metro .num.metro-silence .value { min-width: 0; padding: 0 2px; }
+.metro .num.metro-count .value select, .metro .num.metro-silence .value select { width: auto; padding: 0 10px; text-align: left; text-align-last: left; cursor: pointer; }
+.metro .num .value select option { background: var(--panel); color: var(--text); }
 [data-layout=phone] .metro-row { column-gap: 20px; }
+
+/* The round metronome of the transport, between Loop and Rec. */
+.round.metro-quick .metro-icon { display: block; width: 24px; height: 24px; margin: auto; }
+
+/* The speed trainer, under the speed: on and off, then its step, how many passes of
+   the loop between two steps, and the speed to reach, each with its words. */
+.trainer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; margin-top: 14px; }
+.trainer-fields { display: contents; }
+.trainer-item { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.trainer .mini-label { color: var(--muted); font-size: 14px; }
+.trainer.off .trainer-item { opacity: .55; }
+[data-layout=computer] .trainer .num { height: 36px; border-radius: 9px; }
+[data-layout=computer] .trainer .num .step { width: 32px; }
+[data-layout=computer] .trainer .num .value { min-width: 46px; padding-right: 6px; }

@@ -27,7 +27,7 @@ import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
 import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
-import { loadMetronome, saveMetronome, metronomeClicks, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MAX_BARS } from "../src/metronome.js";
+import { loadMetronome, saveMetronome, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
@@ -345,23 +345,39 @@ function applyDetection(analysis, fit, { tempo = false, chords = false } = {}) {
 
 // ----- the metronome -------------------------------------------------------------------
 //
-// A card of its own, under Tempo and key (src/metronome.js): its settings are
-// this browser's, for every song; its clicks are made from the grid of the
-// song open (and the beats found in it) whenever they change, and handed to
-// the audio engine with the settings.
+// A card of its own, under Tempo and key (src/metronome.js), and a round
+// button in the transport, between Loop and Rec (M on a computer): the
+// metronome is only the click. Its settings are this browser's, for every
+// song, but on and off and the count-in: a song opens with both off. Its tempo
+// follows the grid of the song (and the beats found in it) until it is given
+// one of its own, which changes the click only; a song without a grid has the
+// metronome's own tempo, from its start. The clicks are made again whenever
+// what they come from changes, and handed to the audio engine with the
+// settings.
 
 const metro = loadMetronome();
 let metroFor = { song: null, grid: null, analysis: null }; // what the clicks were made from
+let metroFollow = true; // the click follows the grid of the song (when there is one)
+let metroTempoKey = null; // the tempo, anchor and meter of the grid it last followed
 const metroFields = {};
 let metroSlider = null; // the volume's slider (a computer)
 
+const songGrid = () => !!player.song && app.grid.bars.length > 0 && app.grid.bpm > 0;
+const metroFollowing = () => metroFollow && songGrid();
+const fmtBpm = (v) => (Number.isInteger(Math.round(v * 10) / 10) ? String(Math.round(v)) : (Math.round(v * 10) / 10).toFixed(1));
+
+function metronomeClicksNow() {
+  const g = app.grid;
+  const until = clicksUntil(player.song ? player.song.duration : 0);
+  const pattern = metro.patterns[g.meter];
+  if (metroFollowing()) return metronomeClicks(g, hasBeats(app.analysis) ? app.analysis.beats : null, pattern, until);
+  return steadyClicks({ bpm: metro.bpm, meter: g.meter, anchor: songGrid() ? g.bars[0] : 0, until }, pattern);
+}
+
 function pushMetronome(clicks) {
   player.countIn = metro.countIn;
-  const m = { on: metro.on, volume: metro.volume / 100, play: metro.play, mute: metro.mute };
-  if (clicks) {
-    const g = app.grid;
-    m.clicks = player.song ? metronomeClicks(g, hasBeats(app.analysis) ? app.analysis.beats : null, metro.patterns[g.meter]) : null;
-  }
+  const m = { on: metro.on, volume: metro.volume / 100, play: metro.play, mute: metro.mute, random: metro.random, silence: SILENCE.indexOf(metro.silence) };
+  if (clicks) m.clicks = player.song ? metronomeClicksNow() : null;
   player.setMetronome(m);
 }
 
@@ -371,15 +387,47 @@ function metroChanged(clicks = false) {
   renderMetronome();
 }
 
+function toggleMetronome() {
+  if (!player.song) return;
+  metro.on = !metro.on;
+  metroChanged();
+}
+
+// Its own tempo: the click alone changes (the grid stays); the tempo of the
+// song again follows it.
+function setMetroBpm(v) {
+  if (songGrid() && fmtBpm(v) === fmtBpm(app.grid.bpm)) metroFollow = true;
+  else {
+    metroFollow = false;
+    metro.bpm = v;
+  }
+  metroChanged(true);
+}
+
 function wireMetronome() {
-  $("metro-on").addEventListener("click", () => {
-    metro.on = !metro.on;
-    metroChanged();
+  $("metro-on").addEventListener("click", toggleMetronome);
+  $("metro-quick").addEventListener("click", toggleMetronome);
+  metroFields.bpm = numberField({
+    label: tr("Tempo of the metronome"),
+    min: BPM_MIN,
+    max: BPM_MAX,
+    step: 1,
+    decimals: 1,
+    format: fmtBpm,
+    unit: "bpm",
+    inputMode: "decimal",
+    className: "bpm",
+    onChange: setMetroBpm,
+  });
+  $("metro-bpm-box").append(metroFields.bpm.el);
+  $("metro-follow").addEventListener("click", () => {
+    metroFollow = true;
+    metroChanged(true);
   });
   // The volume, as a track's: a slider on a computer, and its value with − and +.
-  metroFields.volume = numberField({ label: tr("Metronome volume"), min: 0, max: 100, step: 5, unit: "%", onChange: (v) => ((metro.volume = v), metroChanged()) });
+  metroFields.volume = numberField({ label: tr("Metronome volume"), min: 0, max: VOLUME_MAX, step: 5, unit: "%", onChange: (v) => ((metro.volume = v), metroChanged()) });
   if (!phone) {
-    metroSlider = h("input", { type: "range", min: "0", max: "100", step: "1", "aria-label": tr("Metronome volume") });
+    metroSlider = h("input", { type: "range", min: "0", max: String(VOLUME_MAX), step: "1", "aria-label": tr("Metronome volume") });
     metroSlider.addEventListener("input", () => {
       metro.volume = Math.round(+metroSlider.value);
       metroChanged();
@@ -402,9 +450,17 @@ function wireMetronome() {
     metroChanged(true);
   });
   metroFields.play = numberField({ label: tr("Bars with the clicks"), min: 1, max: MAX_BARS, onChange: (v) => ((metro.play = v), metroChanged()) });
-  metroFields.mute = numberField({ label: tr("Bars without the clicks (0: always on)"), min: 0, max: MAX_BARS, onChange: (v) => ((metro.mute = v), metroChanged()) });
+  metroFields.mute = numberField({ label: tr("Silent bars (0: none)"), min: 0, max: MAX_BARS, onChange: (v) => ((metro.mute = v), metroChanged()) });
   $("metro-play-box").append(metroFields.play.el);
   $("metro-mute-box").append(metroFields.mute.el);
+  $("metro-silence").addEventListener("change", (e) => {
+    metro.silence = SILENCE.includes(e.target.value) ? e.target.value : "metronome";
+    metroChanged();
+  });
+  $("metro-random").addEventListener("click", () => {
+    metro.random = !metro.random;
+    metroChanged();
+  });
   $("metro-count").addEventListener("change", (e) => {
     metro.countIn = +e.target.value;
     metroChanged();
@@ -415,13 +471,19 @@ function wireMetronome() {
 function relabelMetronome() {
   const count = $("metro-count");
   count.textContent = "";
-  for (const n of COUNT_IN) count.append(new Option(n === 0 ? tr("No") : trn(n, "{n} bar", "{n} bars"), String(n)));
+  for (const n of COUNT_IN) count.append(new Option(n === 0 ? tr("Off") : trn(n, "{n} bar", "{n} bars"), String(n)));
   count.value = String(metro.countIn);
+  const silence = $("metro-silence");
+  silence.textContent = "";
+  const said = { metronome: tr("Metronome only"), all: tr("Metronome and all tracks"), tracks: tr("Tracks only") };
+  for (const k of SILENCE) silence.append(new Option(said[k], k));
+  silence.value = metro.silence;
   if (metroFields.play) {
+    metroFields.bpm.relabel(tr("Tempo of the metronome"));
     metroFields.volume.relabel(tr("Metronome volume"));
     if (metroSlider) metroSlider.setAttribute("aria-label", tr("Metronome volume"));
     metroFields.play.relabel(tr("Bars with the clicks"));
-    metroFields.mute.relabel(tr("Bars without the clicks (0: always on)"));
+    metroFields.mute.relabel(tr("Silent bars (0: none)"));
   }
   $("metro-beats").textContent = "";
   renderMetronome();
@@ -431,21 +493,32 @@ function relabelMetronome() {
 function renderMetronome() {
   const song = player.song;
   const g = app.grid;
-  const grid = !!song && g.bars.length > 0;
-  const off = !song || player.recording;
-  $("metro").classList.toggle("off", !metro.on);
-  const on = $("metro-on");
-  const lit = metro.on && grid;
-  on.classList.toggle("on", lit);
-  setAttr(on, "aria-pressed", String(lit));
+  const off = !song;
+  const lit = metro.on && !!song;
+  for (const b of [$("metro-on"), $("metro-quick")]) {
+    b.classList.toggle("on", lit);
+    setAttr(b, "aria-pressed", String(lit));
+    b.disabled = off;
+  }
   const state = lit ? tr("On") : tr("Off");
   if ($("metro-state").textContent !== state) $("metro-state").textContent = state;
-  on.disabled = off || !grid;
+  $("metro").classList.toggle("off", !metro.on);
+  // Its tempo: the song's while it follows it; its own, with the way back.
+  const following = metroFollowing();
+  metroFields.bpm.set(following ? g.bpm : metro.bpm);
+  metroFields.bpm.disable(off);
+  const back = $("metro-follow");
+  back.hidden = !songGrid() || following;
+  if (!back.hidden) {
+    const title = tr("Back to the tempo of the song: {bpm} BPM", { bpm: fmtBpm(g.bpm) });
+    setAttr(back, "title", title);
+    setAttr(back, "aria-label", title);
+  }
   metroFields.volume.set(metro.volume);
-  metroFields.volume.disable(off || !grid);
+  metroFields.volume.disable(off);
   if (metroSlider) {
     if (+metroSlider.value !== metro.volume) metroSlider.value = String(metro.volume);
-    metroSlider.disabled = off || !grid;
+    metroSlider.disabled = off;
   }
   // One button per beat of the bar.
   const beats = $("metro-beats");
@@ -463,62 +536,146 @@ function renderMetronome() {
     const label = kind === ACCENT ? tr("Beat {n}: accent", { n: i + 1 }) : kind === SILENT ? tr("Beat {n}: silent", { n: i + 1 }) : tr("Beat {n}: beat", { n: i + 1 });
     setAttr(b, "aria-label", label);
     setAttr(b, "title", label);
-    b.disabled = off || !grid;
+    b.disabled = off;
   }
   metroFields.play.set(metro.play);
   metroFields.mute.set(metro.mute);
-  metroFields.play.disable(off || !grid);
-  metroFields.mute.disable(off || !grid);
+  metroFields.play.disable(off);
+  metroFields.mute.disable(off);
+  const silence = $("metro-silence");
+  if (document.activeElement !== silence) silence.value = metro.silence;
+  silence.disabled = off;
+  const random = $("metro-random");
+  random.classList.toggle("on", metro.random);
+  setAttr(random, "aria-pressed", String(metro.random));
+  random.disabled = off;
   const count = $("metro-count");
   if (document.activeElement !== count) count.value = String(metro.countIn);
-  count.disabled = off || !grid;
-  // Without a grid: how to make one (Detect BPM where it can be used). The
-  // text is kept in the language in use while hidden too.
+  count.disabled = off;
+  // A song without bars: the click at the metronome's own tempo, from its start.
   const hint = $("metro-hint");
-  hint.hidden = !song || grid;
-  const text =
-    (detection && detection.supported) || hasBeats(app.analysis)
-      ? tr("The metronome follows the grid: make it with Detect BPM, in Tempo and key, or with Bars and Chords.")
-      : tr("The metronome follows the grid: make it with Bars and Chords.");
+  hint.hidden = !song || songGrid();
+  const text = tr("This song has no bars: the metronome clicks at its own tempo from the start of the song.");
   if (hint.textContent !== text) hint.textContent = text;
 }
 
-// The meter and the tempo of the grid, beside Detect BPM: the meter found
-// may be changed there (the grid made again from its anchor); the tempo, at
+// The meter and the tempo of the grid, beside Detect BPM: the meter may be
+// changed there (the grid made again from its anchor; without bars, the
+// meter alone, the metronome's and the grid's to come); the tempo, at
 // another speed, also as it is played (120 → 96 BPM at 80%).
 function wireTempoFound() {
   const meter = $("tempo-meter");
   for (const m of METERS) meter.append(new Option(m, m));
   meter.addEventListener("change", () => {
-    const value = meter.value;
-    if (!player.song || !app.grid.bars.length || value === app.grid.meter) return;
-    const said = tr("Meter {meter}: grid rebuilt from the anchor.", { meter: value });
-    editor.rebuild({ meter: value }, said);
-    if (!editor.on) notice(said, "ok", 4000);
+    const said = editor.setMeter(meter.value);
+    if (said && !editor.on) notice(said, "ok", 4000);
   });
 }
 
 function renderTempoFound(locked) {
   const g = app.grid;
-  const grid = !!player.song && g.bars.length > 0 && g.bpm > 0;
+  const song = !!player.song;
+  const grid = songGrid();
   const meter = $("tempo-meter");
-  $("tempo-meter-box").hidden = !grid;
-  if (grid && document.activeElement !== meter && meter.value !== g.meter) meter.value = g.meter;
-  meter.disabled = !grid || locked || !!player.busy || !!(detection && detection.running);
+  $("tempo-meter-box").hidden = !song;
+  if (song && document.activeElement !== meter && meter.value !== g.meter) meter.value = g.meter;
+  meter.disabled = !song || locked || !!player.busy || !!(detection && detection.running);
   const line = $("tempo-bpm");
   line.hidden = !grid;
   if (!grid) return;
-  const fmt = (v) => {
-    const r = Math.round(v * 10) / 10;
-    return Number.isInteger(r) ? String(r) : r.toFixed(1);
-  };
-  const found = fmt(g.bpm);
-  const now = fmt(g.bpm * player.rate);
+  const found = fmtBpm(g.bpm);
+  const now = fmtBpm(g.bpm * player.rate);
   const same = found === now;
   const text = same ? `${found} BPM` : `${found} → ${now} BPM`;
   if (line.textContent !== text) line.textContent = text;
   const title = same ? tr("Tempo of the grid") : tr("Tempo of the grid, then at the speed set");
   if (line.title !== title) line.title = title;
+}
+
+// ----- the speed trainer ---------------------------------------------------------------
+//
+// In the Tempo and key card, under the speed: with the loop on, the speed goes
+// up (or down) by `step` % every `every` passes, until `target` %. Its
+// settings are this browser's; it is off whenever a song opens.
+
+const TRAINER_KEY = "euteria-trainer";
+const trainer = (() => {
+  const t = { on: false, step: 5, every: 1, target: 100 };
+  try {
+    const kept = JSON.parse(localStorage.getItem(TRAINER_KEY) || "null");
+    if (kept && typeof kept === "object") {
+      if (Number.isInteger(kept.step)) t.step = Math.max(1, Math.min(25, kept.step));
+      if (Number.isInteger(kept.every)) t.every = Math.max(1, Math.min(16, kept.every));
+      if (Number.isInteger(kept.target)) t.target = Math.max(50, Math.min(200, kept.target));
+    }
+  } catch (_) {}
+  return t;
+})();
+let trainerPasses = 0; // passes of the loop since the last step
+const trainerFields = {};
+
+function saveTrainer() {
+  try {
+    localStorage.setItem(TRAINER_KEY, JSON.stringify({ step: trainer.step, every: trainer.every, target: trainer.target }));
+  } catch (_) {}
+}
+
+function trainerChanged() {
+  saveTrainer();
+  renderTrainer();
+}
+
+// The loop went round `count` times.
+function trainerPass(count) {
+  if (!trainer.on || !player.song || !player.loop.on) return;
+  trainerPasses += count;
+  if (trainerPasses < trainer.every) return;
+  trainerPasses = 0;
+  const rate = Math.round(player.rate * 100);
+  if (rate === trainer.target) return;
+  const next = rate < trainer.target ? Math.min(trainer.target, rate + trainer.step) : Math.max(trainer.target, rate - trainer.step);
+  player.setRate(next / 100);
+  if (next === trainer.target) notice(tr("Speed {n}%: target reached.", { n: next }), "ok", 4000);
+}
+
+function wireTrainer() {
+  $("trainer-on").addEventListener("click", () => {
+    trainer.on = !trainer.on;
+    trainerPasses = 0;
+    trainerChanged();
+  });
+  trainerFields.step = numberField({ label: tr("Speed added each time"), min: 1, max: 25, unit: "%", onChange: (v) => ((trainer.step = v), trainerChanged()) });
+  trainerFields.every = numberField({ label: tr("Passes of the loop between two steps"), min: 1, max: 16, onChange: (v) => ((trainer.every = v), trainerChanged()) });
+  trainerFields.target = numberField({ label: tr("Speed to reach"), min: 50, max: 200, step: 5, unit: "%", onChange: (v) => ((trainer.target = v), trainerChanged()) });
+  $("trainer-step-box").append(trainerFields.step.el);
+  $("trainer-every-box").append(trainerFields.every.el);
+  $("trainer-target-box").append(trainerFields.target.el);
+  player.onloop = trainerPass;
+}
+
+function relabelTrainer() {
+  if (!trainerFields.step) return;
+  trainerFields.step.relabel(tr("Speed added each time"));
+  trainerFields.every.relabel(tr("Passes of the loop between two steps"));
+  trainerFields.target.relabel(tr("Speed to reach"));
+  renderTrainer();
+}
+
+function renderTrainer() {
+  const song = !!player.song;
+  const b = $("trainer-on");
+  b.classList.toggle("on", trainer.on);
+  setAttr(b, "aria-pressed", String(trainer.on));
+  b.disabled = !song;
+  $("trainer").classList.toggle("off", !trainer.on);
+  trainerFields.step.set(trainer.step);
+  trainerFields.every.set(trainer.every);
+  trainerFields.target.set(trainer.target);
+  for (const k of ["step", "every", "target"]) trainerFields[k].disable(!song);
+  const hint = $("trainer-hint");
+  hint.hidden = !song || !trainer.on || player.loop.on;
+  const text = tr("The trainer changes the speed at each pass of the loop: switch the loop on.");
+  if (hint.textContent !== text) hint.textContent = text;
 }
 
 // ----- Detect BPM and Detect chords ---------------------------------------------------
@@ -1018,6 +1175,7 @@ function buildControls() {
   confirmTap($("find-chords"), () => (phone ? tr("Tap again to rewrite the chords") : tr("Click again to rewrite the chords")), findChords, 4000, () => app.grid.chords.size > 0);
   wireTempoFound();
   wireMetronome();
+  wireTrainer();
   separation = new SeparationFlow({
     app,
     player,
@@ -2136,12 +2294,26 @@ function updateUi() {
   }
   f.key.set(player.semitones);
   f.key.disable(!song || locked);
-  // The metronome: its clicks made again when the grid or the beats found change.
+  // The metronome: off with every song that opens, as the speed trainer; its
+  // tempo follows the grid again when the grid's tempo, anchor or meter
+  // change; its clicks made again when the grid or the beats found change.
+  if (metroFor.song !== song && song) {
+    metro.on = false;
+    metro.countIn = 0;
+    trainer.on = false;
+    trainerPasses = 0;
+  }
+  const tempoKey = songGrid() ? `${app.grid.bpm}|${app.grid.bars[0]}|${app.grid.meter}` : "";
+  if (tempoKey !== metroTempoKey) {
+    metroTempoKey = tempoKey;
+    metroFollow = true;
+  }
   if (metroFor.song !== song || metroFor.grid !== app.grid || metroFor.analysis !== app.analysis) {
     metroFor = { song, grid: app.grid, analysis: app.analysis };
     pushMetronome(true);
   }
   renderMetronome();
+  renderTrainer();
   // Detect BPM and Detect chords: on a computer that can find them, or with
   // what the song kept from an earlier detection.
   const findBpm = $("find-bpm");
@@ -2369,6 +2541,8 @@ function onKey(e) {
     revealPlayhead();
   } else if ((e.key === "l" || e.key === "L") && !e.repeat) {
     toggleLoop();
+  } else if ((e.key === "m" || e.key === "M") && !e.repeat) {
+    toggleMetronome();
   } else if ((e.key === "r" || e.key === "R") && !e.repeat) {
     player.unlock();
     recording.toggle();
@@ -2527,6 +2701,7 @@ function relabel() {
   if (!editor) return; // this browser cannot run EUTERIA: only its notice
   relabelControls();
   relabelMetronome();
+  relabelTrainer();
   labelLayoutSwitch();
   showCounting();
   showUpdate(shownLatest);

@@ -30,9 +30,11 @@
  * The metronome clicks at the song times it is given (the beats of the grid,
  * or the beats found in the song: src/metronome.js), as they come out, so it
  * follows the tempo, the loop and every jump with the song; it is mixed after
- * the stretchers, at its own pitch. A count-in plays the clicks of the bars
- * before the start point, with the song silent, then the song starts on time
- * with them: "emission" runs through it as through the stretcher's delay.
+ * the stretchers, at its own pitch. Its silent bars silence the clicks, the
+ * tracks (faded out and in over a few milliseconds) or both. A count-in plays
+ * the clicks of the bars before the start point, with the song silent, then
+ * the song starts on time with them: "emission" runs through it as through
+ * the stretcher's delay.
  */
 (function () {
   "use strict";
@@ -63,13 +65,21 @@
   const MIN_LOOP_SECONDS = 0.25;
   const MAX_BLOCK = 2048; // largest block render() accepts
 
-  // The metronome's click: a sine burst, higher for an accent, with a fast
-  // attack and a short decay.
-  const CLICK_HZ = [1046.5, 1568]; // C6 for a beat, G6 for an accent
+  // The metronome's click: a sine burst with its octave, higher for an
+  // accent, with a fast attack and a short decay; the levels are those of a
+  // volume of 100%, which goes up to 200%.
+  const CLICK_HZ = [1318.5, 1975.5]; // E6 for a beat, B6 for an accent
+  const CLICK_OCTAVE = 0.25; // the octave above, for a brighter click
   const CLICK_LEVEL = [0.32, 0.45];
-  const CLICK_ATTACK = 0.0015;
-  const CLICK_DECAY = 0.018;
-  const CLICK_SECONDS = 0.09;
+  const CLICK_ATTACK = 0.001;
+  const CLICK_DECAY = 0.024;
+  const CLICK_SECONDS = 0.12;
+  const MAX_CLICK_VOLUME = 2;
+  // The tracks of a silent bar fade out and back in over FADE_SECONDS, ending
+  // LEAD_SECONDS before the bar line: the first beat of a silent bar is
+  // silent, that of the bar after it whole.
+  const FADE_SECONDS = 0.006;
+  const LEAD_SECONDS = 0.01;
 
   // One Signalsmith Stretch instance (its own WebAssembly memory), stereo.
   class Stretcher {
@@ -176,14 +186,24 @@
       this.list = []; // the tracks as an array, for the audio loop
       // The metronome (setMetronome()): its clicks as song samples, their
       // kind (0 a beat, 1 an accent, 2 silent) and whether each starts a bar;
-      // play/mute: bars on, then bars silent (mute 0: always on); bar: song
+      // play/mute: bars on, then bars silent (mute 0: always on), or silent
+      // at random in that proportion; silence: what a silent bar silences (0
+      // the clicks, 1 the clicks and the tracks, 2 the tracks); bar: song
       // samples of a bar, for the count-in.
-      this.metro = { on: false, volume: 0.6, times: new Float64Array(0), kinds: new Uint8Array(0), firsts: new Uint8Array(0), play: 0, mute: 0, bar: 0 };
+      this.metro = { on: false, volume: 1, times: new Float64Array(0), kinds: new Uint8Array(0), firsts: new Uint8Array(0), play: 0, mute: 0, random: false, silence: 0, bar: 0 };
       this.click = { left: 0, t: 0, w: 0, level: 0 }; // the click sounding
       this.nextClick = 0; // index of the next click along the playback path
       this.lastPos = -Infinity; // the song sample of the last output sample
       this.barsHeard = 0; // bars started since playback started
+      this.barSilent = false; // the bar playing now is a silent one
+      this.nextSilent = false; // the bar after it (decided ahead, for the tracks)
+      this.nextFirst = 0; // index of the next click that starts a bar
+      this.tracksGain = 1; // the tracks, faded out in a silent bar
+      this.fadeStep = 1 / Math.max(1, FADE_SECONDS * sampleRate);
+      this.lead = (FADE_SECONDS + LEAD_SECONDS) * sampleRate; // output samples
+      this.seed = (Math.random() * 4294967296) >>> 0; // for the bars silent at random
       this.preroll = 0; // output samples of count-in left
+      this.passes = 0; // times the loop went round (for the speed trainer)
     }
 
     // ----- tracks -----------------------------------------------------------
@@ -349,6 +369,8 @@
       this.frac = 0;
       this.preroll = 0;
       this.barsHeard = 0;
+      this.barSilent = false;
+      this.nextSilent = false;
       this.click.left = 0;
       this._findClick(this.emission());
       this.feed = this._advance(this.out, this.inputLatency);
@@ -379,7 +401,12 @@
       if (this.preroll > 0) {
         this._clicks(out0, out1, n, this.emission(), true);
         this.preroll = Math.max(0, this.preroll - n);
-        if (!this.preroll) this.barsHeard = 0; // the bars of the song are counted from here
+        if (!this.preroll) {
+          // The bars of the song are counted from here; the first is never silent.
+          this.barsHeard = 0;
+          this.barSilent = false;
+          this.nextSilent = false;
+        }
         return;
       }
       const e0 = this.metro.on && this.metro.times.length ? this.emission() : null;
@@ -400,9 +427,15 @@
         s.stream(k, n, out0, out1);
       }
       if (e0 !== null) this._clicks(out0, out1, n, e0, false);
-      else this.click.left = 0;
+      else {
+        this.click.left = 0;
+        this.barSilent = false;
+        this.nextSilent = false;
+        if (this.tracksGain < 1) this._fadeIn(out0, out1, n);
+      }
       if (this.masterLimit) this._limit(out0, out1, n);
       this.feed = this._advance(this.feed, k);
+      if (this.loop.on && this.out < this.loopB && this.out + k >= this.loopB) this.passes++;
       this.out = this._advance(this.out, k);
       this.sinceStart += n;
       if (!this.loop.on && this.out >= this.length + this.delay * this.rate + n) {
@@ -413,13 +446,18 @@
 
     // ----- metronome --------------------------------------------------------
 
-    // m: {on, volume (0 to 1), times (song seconds, in order), kinds, firsts,
-    // play, mute (bars), bar (song seconds of a bar)}; arrays as above.
+    // m: {on, volume (0 to 2), times (song seconds, in order), kinds, firsts,
+    // play, mute (bars), random, silence (0, 1, 2), bar (song seconds of a
+    // bar), seed (optional: the bars silent at random repeat with it)};
+    // arrays as above.
     setMetronome(m) {
       const sr = this.sampleRate;
       const metro = this.metro;
       metro.on = !!m.on;
-      metro.volume = Math.max(0, Math.min(1, +m.volume || 0));
+      metro.volume = Math.max(0, Math.min(MAX_CLICK_VOLUME, +m.volume || 0));
+      metro.random = !!m.random;
+      metro.silence = m.silence === 1 || m.silence === 2 ? m.silence : 0;
+      if (Number.isFinite(m.seed)) this.seed = m.seed >>> 0;
       if (m.times) {
         const t = m.times;
         metro.times = new Float64Array(t.length);
@@ -444,12 +482,44 @@
         else hi = mid;
       }
       this.nextClick = lo;
+      this.nextFirst = lo;
       this.lastPos = pos;
     }
 
+    // Whether bar `b` (1: the first since playback started) is silent: after
+    // `play` bars, `mute` bars, again and again; or, at random, as often (the
+    // first `play` bars on).
+    _silentBar(b) {
+      const m = this.metro;
+      if (!(m.mute > 0 && m.play > 0) || b <= 0) return false;
+      if (m.random) return b > m.play && this._random() < m.mute / (m.play + m.mute);
+      return (b - 1) % (m.play + m.mute) >= m.play;
+    }
+
+    // A number in [0, 1) (mulberry32).
+    _random() {
+      let s = (this.seed = (this.seed + 0x6d2b79f5) | 0);
+      s = Math.imul(s ^ (s >>> 15), s | 1);
+      s ^= s + Math.imul(s ^ (s >>> 7), s | 61);
+      return ((s ^ (s >>> 14)) >>> 0) / 4294967296;
+    }
+
+    // The tracks back up after a silent bar, the metronome now off.
+    _fadeIn(out0, out1, n) {
+      let g = this.tracksGain;
+      for (let i = 0; i < n && g < 1; i++) {
+        g = Math.min(1, g + this.fadeStep);
+        out0[i] *= g;
+        out1[i] *= g;
+      }
+      this.tracksGain = g;
+    }
+
     // Adds the clicks of the n output samples from song sample e0 on (the
-    // loop's jump back followed). countIn: the beats as set (accent, beat,
-    // silent), on or off, outside the bars with and without the clicks.
+    // loop's jump back followed), and fades the tracks (already in out0 and
+    // out1) out and in for the silent bars that take them. countIn: the beats
+    // as set (accent, beat, silent), on or off, outside the bars with and
+    // without the clicks.
     _clicks(out0, out1, n, e0, countIn) {
       const metro = this.metro;
       const t = metro.times;
@@ -467,19 +537,37 @@
         while (this.nextClick < t.length && t[this.nextClick] <= pos) {
           const k = this.nextClick++;
           if (pos - t[k] > r * 2) continue; // passed while jumping
-          if (metro.firsts[k]) this.barsHeard++;
+          if (metro.firsts[k]) {
+            this.barsHeard++;
+            if (!countIn) {
+              this.barSilent = this.nextSilent;
+              this.nextSilent = this._silentBar(this.barsHeard + 1);
+            }
+          }
           let kind = metro.kinds[k];
-          if (!countIn && metro.mute > 0 && metro.play > 0 && this.barsHeard > 0 && (this.barsHeard - 1) % (metro.play + metro.mute) >= metro.play) kind = 2;
+          if (!countIn && this.barSilent && metro.silence !== 2) kind = 2;
           if (kind === 2) continue;
           c.left = Math.round(CLICK_SECONDS * sr);
           c.t = 0;
           c.w = (2 * Math.PI * CLICK_HZ[kind]) / sr;
           c.level = CLICK_LEVEL[kind] * metro.volume;
         }
+        if (!countIn) {
+          // The tracks: silent or not as the bar coming up in `lead` will be.
+          while (this.nextFirst < t.length && (this.nextFirst < this.nextClick || !metro.firsts[this.nextFirst])) this.nextFirst++;
+          const ahead = this.nextFirst < t.length && t[this.nextFirst] - pos <= this.lead * r;
+          const target = (ahead ? this.nextSilent : this.barSilent) && metro.silence !== 0 ? 0 : 1;
+          let g = this.tracksGain;
+          if (g !== target) g = this.tracksGain = target > g ? Math.min(1, g + this.fadeStep) : Math.max(0, g - this.fadeStep);
+          if (g !== 1) {
+            out0[i] *= g;
+            out1[i] *= g;
+          }
+        }
         if (c.left > 0) {
           const time = c.t / sr;
           const env = (time < CLICK_ATTACK ? time / CLICK_ATTACK : 1) * Math.exp(-time / CLICK_DECAY);
-          const v = c.level * env * Math.sin(c.w * c.t);
+          const v = c.level * env * (Math.sin(c.w * c.t) + CLICK_OCTAVE * Math.sin(2 * c.w * c.t));
           out0[i] += v;
           out1[i] += v;
           c.t++;

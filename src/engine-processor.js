@@ -185,7 +185,7 @@
 
     report() {
       this.counter = this.reportEvery;
-      this.port.postMessage({ type: "pos", heard: this.core.heard(), playing: this.core.playing });
+      this.port.postMessage({ type: "pos", heard: this.core.heard(), playing: this.core.playing, passes: this.core.passes });
     }
 
     // ----- recording ---------------------------------------------------------

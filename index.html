@@ -143,10 +143,11 @@
           <button id="back5" type="button" class="round" aria-label="Back 5 seconds">−5s</button>
           <button id="fwd5" type="button" class="round" aria-label="Forward 5 seconds">+5s</button>
           <button id="loop-quick" type="button" class="round loop-quick" aria-pressed="false" aria-label="Loop on or off">Loop</button>
+          <button id="metro-quick" type="button" class="round metro-quick" aria-pressed="false" aria-label="Metronome on or off" title="Metronome on or off (M)"><svg class="metro-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 3h4.8l3.4 18H6.2z"/><path d="M7.4 15.2h9.2"/><path d="M12 15.2l4.6-8.6"/><circle cx="15.1" cy="9.4" r="1.3" fill="currentColor"/></svg></button>
           <button id="record" type="button" class="round rec" aria-pressed="false" aria-label="Record a take" title="Record a take over the song (R)" hidden><span class="rec-dot" aria-hidden="true"></span></button>
         </div>
       </div>
-      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
+      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
     </div>
 
     <!-- What Record records from -->
@@ -286,6 +287,17 @@
               <span class="label">Tempo</span>
               <div id="tempo-box" class="control-box"></div>
             </div>
+            <!-- The speed trainer: with the loop on, the speed changes by a step every
+                 few passes, up to a target. -->
+            <div id="trainer" class="trainer">
+              <button id="trainer-on" type="button" class="small toggle-pill" aria-pressed="false">Speed trainer</button>
+              <div class="trainer-fields">
+                <span class="trainer-item"><span class="mini-label">Step</span><span id="trainer-step-box"></span></span>
+                <span class="trainer-item"><span class="mini-label">Passes per step</span><span id="trainer-every-box"></span></span>
+                <span class="trainer-item"><span class="mini-label">Up to</span><span id="trainer-target-box"></span></span>
+              </div>
+            </div>
+            <p id="trainer-hint" class="hint" hidden></p>
           </div>
           <div class="card-col">
             <div class="field">
@@ -297,14 +309,20 @@
         </div>
       </section>
 
-      <!-- The metronome, on the beats of the grid (src/metronome.js): on and off, its
-           volume, each beat of the bar a beat, an accent or silent; the bars of count-in
-           before playback; bars with the clicks, then bars without. -->
+      <!-- The metronome, on the beats of the grid or at a tempo of its own
+           (src/metronome.js): on and off, its tempo, its volume, each beat of the bar a
+           beat, an accent or silent; the bars of count-in before playback; bars with the
+           clicks, then silent bars (the metronome, the tracks or both), or silent bars at
+           random. -->
       <section class="card metro-card">
         <h2>Metronome</h2>
         <div id="metro" class="metro">
           <div class="metro-row">
             <button id="metro-on" type="button" class="metro-on" aria-pressed="false" aria-label="Metronome" title="Turns the metronome on or off"><span class="dot" aria-hidden="true"></span><span id="metro-state">Off</span></button>
+            <div class="metro-item">
+              <div id="metro-bpm-box" class="metro-bpm-box"></div>
+              <button id="metro-follow" type="button" class="small ghost metro-follow" hidden>Follow the song</button>
+            </div>
             <div class="metro-item metro-volume">
               <span class="mini-label">Volume</span>
               <div id="metro-volume-box" class="metro-volume-box"></div>
@@ -324,6 +342,8 @@
               <div id="metro-play-box"></div>
               <span class="mini-label">bars, then silent for</span>
               <div id="metro-mute-box"></div>
+              <div class="num metro-silence"><div class="value"><select id="metro-silence" aria-label="What the silent bars silence"></select></div></div>
+              <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Silent bars at random, as many on the whole">At random</button>
             </div>
           </div>
           <p id="metro-hint" class="hint" hidden></p>

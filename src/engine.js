@@ -57,7 +57,7 @@ export class Engine {
         this.rejectReady(new Error(m.message));
         break;
       case "pos":
-        if (this.onposition) this.onposition(m.heard, m.playing);
+        if (this.onposition) this.onposition(m.heard, m.playing, m.passes);
         break;
       case "ended":
         if (this.onended) this.onended();
@@ -144,7 +144,8 @@ export class Engine {
 
   // The metronome (src/engine-core.js setMetronome()): {on, volume, times
   // (song seconds, Float64Array), kinds, firsts (Uint8Array), play, mute,
-  // bar}; the arrays may be left out to keep the clicks as they are.
+  // random, silence, bar, seed}; the arrays may be left out to keep the
+  // clicks as they are.
   setMetronome(m) {
     this.send({ type: "metro", ...m });
   }

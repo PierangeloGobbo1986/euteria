@@ -398,6 +398,23 @@ export class Editor {
     this._edited();
   }
 
+  // The meter of the song (the Tempo and key card): the grid rebuilt from its
+  // anchor; a song without bars keeps the meter alone, for the metronome and
+  // for the grid to come. Returns what was done, or "".
+  setMeter(meter) {
+    if (!this.ctx.player.song || meter === this.grid.meter) return "";
+    if (this.grid.bars.length) {
+      const said = tr("Meter {meter}: grid rebuilt from the anchor.", { meter });
+      this.rebuild({ meter }, said);
+      return said;
+    }
+    this.commitInput();
+    this.ctx.app.grid = { ...this.grid, meter };
+    const said = tr("Meter {meter}.", { meter });
+    this._edited(said);
+    return said;
+  }
+
   // Tempo, meter or anchor changed: the grid rebuilt from the anchor.
   rebuild(fields, message) {
     if (!this.ctx.player.song) return;

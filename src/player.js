@@ -93,6 +93,8 @@ export class Player {
     // The metronome as the engine has it (setMetronome()), and the bars of
     // count-in before playback and recording start.
     this.metronome = null;
+    this.loopPasses = 0; // times the loop went round, as the engine counts them
+    this.onloop = null; // (count): the loop went round count times
     this.countIn = 0;
     this.busy = null; // null, "opening" or "exporting"
     this.recording = false; // a take is being recorded
@@ -155,10 +157,15 @@ export class Player {
   async _startEngine(context) {
     const engine = await withTimeout(Engine.create(context), 15000, tr("The audio engine did not start. Reload the page and try again."));
     engine.node.connect(context.destination);
-    engine.onposition = (heard, playing) => {
+    engine.onposition = (heard, playing, passes) => {
       this.position = heard;
       if (this.playing && !playing) this._wake(false);
       this.playing = playing;
+      // The loop went round (the speed trainer, app.js).
+      if (Number.isFinite(passes)) {
+        if (passes > this.loopPasses && this.onloop) this.onloop(passes - this.loopPasses);
+        this.loopPasses = passes;
+      }
       this._update();
     };
     engine.onended = () => {
@@ -171,10 +178,12 @@ export class Player {
   }
 
   // The metronome (src/metronome.js, src/engine-core.js): {on, volume (0 to
-  // 1), play, mute, and the clicks: times, kinds, firsts, bar}; clicks null:
-  // none (no grid).
-  setMetronome({ on, volume, play, mute, clicks }) {
-    const m = { on: !!on && !!clicks, volume, play, mute };
+  // 2), play, mute, random, silence (0 the clicks, 1 the clicks and the
+  // tracks, 2 the tracks), seed (optional), and the clicks: times, kinds,
+  // firsts, bar}; clicks null: none (no song).
+  setMetronome({ on, volume, play, mute, random = false, silence = 0, seed, clicks }) {
+    const m = { on: !!on && !!clicks, volume, play, mute, random: !!random, silence };
+    if (Number.isFinite(seed)) m.seed = seed;
     if (clicks !== undefined) {
       m.times = clicks ? clicks.times : new Float64Array(0);
       m.kinds = clicks ? clicks.kinds : new Uint8Array(0);

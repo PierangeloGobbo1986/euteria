@@ -63,7 +63,7 @@ open, the keys of the player do nothing and the page under it stays still.
   and *Original only*, beside the bars and the time scale. *Tempo and key*, *Metronome* and
   *File export and sharing* follow, each across the page (*Tempo and key* and *File export
   and sharing* in two columns). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
-  on or off, [ and ] loop start and end at the current position, R record a take (again:
+  on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save.
 
@@ -320,7 +320,8 @@ downbeats of the song with Beat This! (see *How the tempo detection works*) and 
 the grid from them: the tempo, the meter (4/4 or 3/4; two beats a bar become a 6/8) and
 the anchor, the first downbeat. Beside it come the meter and the tempo of the grid; a
 meter found wrong is changed there (the grid is rebuilt from the anchor, as in *Bars
-and Chords*). **Detect chords**, before the chord field of *Bars and
+and Chords*; a song without bars keeps the meter alone, for the metronome and for the
+grid to come). **Detect chords**, before the chord field of *Bars and
 Chords*, finds the chords with BTC (see *How the chord recognition works*) and writes
 them in the bars, finding the tempo first for a song without a grid. The song plays
 meanwhile; the line under the top bar tells the progress, *Bars and Chords* and *Grid*
@@ -337,20 +338,36 @@ the same. The changes they make are changes to save. On the phone, and in the ot
 browsers, a song never analysed has no buttons: its grid is the one it brings, or one
 made by hand.
 
-**The metronome** (a card of its own under *Tempo and key*, every device) clicks on the
-beats of the grid, each on the beat found in the song when there is one near it
-(*Detect BPM*), so it stays with a recording whose tempo moves, a live one above all, as
-one steady tempo would not; it follows the tempo set, the loop and every jump. Its first
-row has *On*/*Off*, the *Volume* (a slider on a computer, and the value with − and +, as
-for the tracks) and a button per beat of the bar, for the meter of the grid: a click
-makes a beat an accent (a higher click), then silent, then a beat again, for example
-the first beat accented, or only 2 and 4. The second row has the *Count-in*, 1 or 2
-bars of clicks before the song starts, before playback and before a take, also with the
+**The metronome** (a card of its own under *Tempo and key*, every device, and a round
+button with a metronome in the transport, between *Loop* and *Rec*, M on a computer) is
+only the click: the tempo and the bars of the song stay those of *Tempo and key* and
+*Bars and Chords*. It clicks on the beats of the grid, each on the beat found in the
+song when there is one near it (*Detect BPM*), so it stays with a recording whose tempo
+moves, a live one above all, as one steady tempo would not; it follows the tempo set,
+the loop and every jump. Its first row has *On*/*Off*, its tempo in BPM (− and +), the
+*Volume* up to 200% (a slider on a computer, and the value with − and +, as for the
+tracks; 100% is as loud as the click was up to 0.10) and a button per beat of the bar,
+for the meter of the grid: a click makes a beat an accent (a higher click), then
+silent, then a beat again, for example the first beat accented, or only 2 and 4. The
+tempo field says the song's tempo; changed, the click goes steadily at its own tempo,
+from the first bar, and *Follow the song* brings it back (a new tempo of the grid does
+too). A song without bars clicks at the metronome's own tempo from its start, with the
+meter beside *Detect BPM*. The second row has the *Count-in*, *Off*, 1 or 2 bars of
+clicks before the song starts, before playback and before a take, also with the
 metronome off, with the beats as set; then *Clicks for* N bars, *then silent for* M bars
-(0: always on), which alternates them, counted from where the song starts (the bars of
-the count-in are not counted). Without a grid it waits, and says how to make one. Its
-settings are kept in this browser, the same for every song; the beats are kept per
-meter.
+(0: none), and what the silent bars silence: *Metronome only*, *Metronome and all
+tracks* (the band drops out, to keep the time alone) or *Tracks only* (the click goes
+on). *At random* makes the silent bars come at random, as many on the whole, the first
+N bars always on. The bars are counted from where the song starts (those of the
+count-in are not). The tempo, the volume, the beats (per meter) and the silent bars are
+kept in this browser, the same for every song; on and off and the count-in are not:
+every song opens with both off.
+
+**The speed trainer**, under the speed in *Tempo and key*: with the loop on, the speed
+changes by its *Step* (5% to start with) every so many passes of the loop, *Up to* the
+speed set (100%), and says when it gets there; from 70%, for example, a hard passage
+comes up to tempo a little at a time. Its settings are kept in this browser; it is off
+whenever a song opens.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
@@ -454,9 +471,14 @@ beats found, two bars more before the first) and sounds each as the song moment 
 belongs to comes out of the stretchers, from the same position as the playhead and the
 takes, so it is in step with the audio at any tempo (checked offline, rendered with the
 engine: within 0.1 ms at 100%, a few milliseconds at other tempos) and follows the loop
-and every jump. A count-in is output time before the song starts: the clicks of the
-bars before the start point, with the beats as set, the song silent, then the song on
-the next beat; a take recorded with it begins where playback starts.
+and every jump. Without a grid, or at a tempo of its own, the clicks are steady, from
+the anchor of the grid or the start of the song, and go on past its end. A count-in is
+output time before the song starts: the clicks of the bars before the start point, with
+the beats as set, the song silent, then the song on the next beat; a take recorded with
+it begins where playback starts. A silent bar that takes the tracks fades them out over
+6 ms, ending 10 ms before its bar line (the engine knows the bar coming), so that its
+first beat is silent too, and back in the same way, so that the first beat after it is
+whole. The engine counts the passes of the loop, for the speed trainer.
 
 The stretchers run at Signalsmith's default quality (120 ms blocks every 30 ms) with
 the work of each block spread over the audio callbacks: done all at once, it
