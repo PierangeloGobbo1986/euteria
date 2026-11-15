@@ -233,7 +233,7 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .home-title { margin: 20px 0 12px; }
 .open-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
 [data-layout=phone] .open-buttons { flex-direction: column; }
-[data-layout=phone] .open-buttons .button { width: 100%; }
+[data-layout=phone] .open-buttons .button, [data-layout=phone] .open-buttons .new-project { width: 100%; }
 [data-layout=phone] .lib-list { margin-top: 14px; }
 .open-buttons + .hint { max-width: 70ch; }
 .recent-title { margin: 26px 0 10px; }
@@ -729,6 +729,12 @@ button.eye .icon { width: 18px; height: 18px; }
 .leave-dialog p { margin: 0; }
 .leave-dialog #leave-text { font-size: 17px; font-weight: 650; }
 .leave-dialog .hint { margin: 8px 0 16px; }
+/* The name of a new project (an empty one, or Save as new project). */
+.name-dialog #name-title { font-size: 17px; font-weight: 650; }
+.name-dialog .hint { margin: 6px 0 12px; }
+.name-dialog .hint:empty { display: none; }
+.name-input { display: block; width: 100%; height: 44px; margin: 12px 0 16px; padding: 0 12px; border: 1px solid var(--border-hi); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; font-size: 17px; }
+.name-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ----- the instructions: a window over the page, its text scrolling under its title ----- */
 .help-dialog {

@@ -14,11 +14,11 @@ import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
 import { openZip } from "../src/zip.js";
 import { manifestPatch, buildProject, zipLayout, composeEdited, composeProject, crc32Blob } from "../src/zipwrite.js";
-import { savedManifest, newProjectManifest, newProjectId, manifestBytes } from "../src/manifest.js";
+import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes } from "../src/manifest.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
-import { readGrid, emptyGrid, applyGridEdits, METERS } from "../src/grid.js";
+import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid, METERS } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, parseTime, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
 import { countEvent, counted, toggleCounting } from "./counter.js";
@@ -103,7 +103,11 @@ const retitled = () => {
 };
 // Changes not saved in the song's file yet: the name, the bars and chords,
 // the takes.
-const songDirty = () => !!player.song && (editor.dirty || retitled() || (!!recording && recording.dirty));
+// A project made here and never saved (a computer: the library keeps it on the phone).
+const unsavedNew = () => !!app.current && !!app.current.created && !app.current.handle && app.current.source !== "library";
+const songDirty = () => !!player.song && (editor.dirty || retitled() || (!!recording && recording.dirty) || unsavedNew());
+// The song has audio of its own (an empty project has only its takes, if any).
+const ownAudio = () => player.tracks.some((t) => !t.take);
 
 // ----- messages -------------------------------------------------------------------
 
@@ -172,7 +176,7 @@ function leaveHint(name, grid, takes) {
 
 function askToSave() {
   const dialog = $("leave-dialog");
-  $("leave-hint").textContent = leaveHint(retitled(), editor.dirty, !!recording && recording.dirty);
+  $("leave-hint").textContent = unsavedNew() ? tr("This project has not been saved yet.") : leaveHint(retitled(), editor.dirty, !!recording && recording.dirty);
   return new Promise((resolve) => {
     const done = () => {
       dialog.removeEventListener("close", done);
@@ -307,7 +311,7 @@ async function openSong(file, origin) {
     const kept = saved && (hasBeats(saved.analysis) || hasChords(saved.analysis)) ? saved.analysis : null;
     app.analysis = kept || inFile;
     app.analysisInFile = !kept && !!inFile;
-    app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null };
+    app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null, created: !!origin.created };
     app.current.owner = songOwner();
     if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
     showView("player");
@@ -903,6 +907,7 @@ function renderLibrary() {
   for (const id of ["add-label", "add-project-label"]) $(id).classList.toggle("disabled", busy);
   $("add-input").disabled = busy;
   $("add-project-input").disabled = busy;
+  $("new-project-phone").disabled = busy;
   $("lib-clear").disabled = busy;
   updateUsage(entries);
   updateLibraryHint();
@@ -1416,7 +1421,12 @@ function renderPlayer(view = null) {
   }
   $("quick").hidden = !player.hasStems;
   $("tracks-note").hidden = player.hasStems;
+  // The grid goes on to the song's end when a take made it longer, and back
+  // when it is shorter again (not when it opens: its grid is its own).
+  if (app.gridFit && app.gridFit.song === song && app.gridFit.duration !== song.duration) app.grid = extendGrid(app.grid, song.duration);
+  app.gridFit = { song, duration: song.duration };
   app.fields.position.setRange(0, song.duration);
+  app.shownDuration = song.duration;
   app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
   app.timeline.setLoop(player.loop);
   app.timeline.setPosition(player.position, player.playing);
@@ -1577,7 +1587,7 @@ function saveMode() {
   const cur = app.current;
   if (!cur || !player.song) return null;
   if (cur.source === "library") return "library";
-  if (player.song.kind === "audio") return "showSaveFilePicker" in window ? "new-file" : "copy";
+  if (player.song.kind === "audio" || (cur.created && !cur.handle)) return "showSaveFilePicker" in window ? "new-file" : "copy";
   return cur.handle && typeof cur.handle.createWritable === "function" ? "file" : "copy";
 }
 
@@ -1764,6 +1774,27 @@ async function saveSong({ quiet = false, made = null } = {}) {
     const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, song.title);
     const bytes = manifestBytes(manifest);
     const zip = await openZip(file);
+    if (mode === "new-file") {
+      // A project made here, saved for the first time where the user chooses.
+      const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), { manifestBytes: bytes, drop: recording.dropMembers, add: recording.membersToAdd() });
+      const w = await target.createWritable();
+      try {
+        await w.write(blob);
+        await w.close();
+      } catch (error) {
+        await w.abort().catch(() => {});
+        throw error;
+      }
+      const saved = await target.getFile();
+      await checkSaved(saved, manifest.project_id);
+      cur.handle = target;
+      cur.source = "file";
+      savedInPlace(saved, manifest);
+      await addRecent(target, { title: song.title, size: saved.size });
+      renderRecent();
+      say(tr("Saved in {name}.", { name: saved.name }), "ok");
+      return mode;
+    }
     if (recording.rewrite) {
       const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), { manifestBytes: bytes, drop: recording.dropMembers, add: recording.membersToAdd() });
       if (mode === "library") {
@@ -1897,7 +1928,9 @@ function prepareSoon() {
 // The project as it is now, put together at once: {file, manifest, blob},
 // or null while prepareShare() has not read what it needs, or a take is
 // still being encoded.
-function projectNow() {
+// The project as it is now: {manifest, blob, file}, or null if what it needs
+// is not ready. as: {id, title} for a new project (Save as new project).
+function projectNow(as = null) {
   const song = player.song;
   const cur = app.current;
   const ready = cur && cur.ready;
@@ -1905,21 +1938,186 @@ function projectNow() {
   const add = recording.membersToAdd();
   if (!add) return null;
   const takes = recording.takes;
+  const title = as ? as.title : song.title;
   if (isAudioSong(song)) {
     if (ready.crc == null) return null;
     const member = audioMember(cur.file);
-    const manifest = newProjectManifest({ id: newProjectId(), title: song.title, fileName: cur.file.name, member, grid: app.grid, state: practiceState(), takes, analysis: app.analysis });
+    const manifest = newProjectManifest({ id: as ? as.id : newProjectId(), title, fileName: cur.file.name, member, grid: app.grid, state: practiceState(), takes, analysis: app.analysis });
     const blob = composeProject([
       { name: "manifest.json", data: manifestBytes(manifest) },
       { name: member, data: cur.file, crc: ready.crc },
       ...add,
     ]);
-    return { manifest, blob, file: new File([blob], `${safeName(song.title)}.euteria`, { type: "application/zip" }) };
+    return { manifest, blob, file: new File([blob], `${safeName(title)}.euteria`, { type: "application/zip" }) };
   }
   if (!ready.layout) return null;
-  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, song.title);
+  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, title);
+  if (as) manifest.project_id = as.id;
   const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: recording.dropMembers, add });
-  return { manifest, blob, file: new File([blob], cur.name, { type: "application/zip" }) };
+  return { manifest, blob, file: new File([blob], as ? `${safeName(title)}.euteria` : cur.name, { type: "application/zip" }) };
+}
+
+// ----- new projects: an empty one, or the song saved as a new project ------------------
+
+// The name asked in a small window: resolves with it, or null.
+function askName({ title, hint = "", ok, value = "" }) {
+  const dialog = $("name-dialog");
+  const input = $("name-input");
+  $("name-title").textContent = title;
+  $("name-hint").textContent = hint;
+  $("name-ok").textContent = ok;
+  input.value = value;
+  $("name-ok").disabled = !value.trim();
+  return new Promise((resolve) => {
+    const done = () => {
+      dialog.removeEventListener("close", done);
+      const name = input.value.trim().replace(/\s+/g, " ").slice(0, 120);
+      resolve(dialog.returnValue === "ok" && name ? name : null);
+    };
+    dialog.returnValue = "";
+    dialog.addEventListener("close", done);
+    dialog.showModal();
+    input.focus();
+    input.select();
+  });
+}
+
+// "New project", or "New project 2"…: a name not taken in the library or
+// among the recent songs.
+async function freshName(base) {
+  const list = library ? library.list() : await listRecent();
+  const taken = new Set(list.map((e) => String(e.title || "").toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base} ${n}`.toLowerCase())) return `${base} ${n}`;
+}
+
+const EMPTY_BPM = 120;
+const EMPTY_BARS = 16; // the length of an empty project, before a take makes it longer
+
+// A project with no audio, to record into: a grid at 120 BPM in 4/4 for the
+// metronome and the chords, 16 bars long until a take goes past them. On the
+// phone it goes in the library at once; on a computer Save asks where.
+async function newEmptyProject() {
+  if (player.busy || app.adding || app.saving) return;
+  if (!(await confirmLeave())) return;
+  const name = await askName({
+    title: tr("New empty project"),
+    hint: tr("A project with no audio, to record into: Rec records, with the metronome if you like, and the project gets longer as you play."),
+    ok: tr("Create"),
+    value: await freshName(tr("New project")),
+  });
+  if (!name) return;
+  const length = (EMPTY_BARS * 4 * 60) / EMPTY_BPM;
+  const grid = newGrid(EMPTY_BPM, "4/4", length);
+  const state = { rate: 1, semitones: 0, loop: null, gridVisible: true, tracks: [] };
+  const manifest = emptyProjectManifest({ id: newProjectId(), title: name, grid, state, length });
+  const blob = await buildProject([{ name: "manifest.json", data: manifestBytes(manifest) }]);
+  const file = new File([blob], `${safeName(name)}.euteria`, { type: "application/zip" });
+  if (!library) {
+    await openSong(file, { source: "file", created: true });
+    return;
+  }
+  app.adding = true;
+  renderLibrary();
+  let entry = null;
+  try {
+    entry = await library.add(file, "project");
+    app.persisted = await requestPersistence();
+  } catch (error) {
+    notice((error && error.message) || String(error), "error");
+  }
+  app.adding = false;
+  renderLibrary();
+  if (entry) await openEntry(entry, true);
+}
+
+// Save as new project: the song as it is now, with a new name, in a new
+// project; the song goes on as that project, and the one saved before stays
+// as it was saved (its changes not saved go with the copy).
+async function saveAsNew() {
+  const song = player.song;
+  const cur = app.current;
+  if (!song || !cur || player.busy || app.saving || app.sharing) return;
+  if (recording.busy) {
+    notice(recording.recording ? tr("Stop recording first, then save.") : tr("Wait a moment: the take is being prepared."), "", 4000);
+    return;
+  }
+  editor.commitInput();
+  const name = await askName({
+    title: tr("Save as new project"),
+    hint: tr("The song as it is now, in a new project with this name. You go on working on the new one; the one saved before stays as it was saved."),
+    ok: tr("Save"),
+    value: tr("{title} (copy)", { title: song.title }),
+  });
+  if (!name) return;
+  const fileName = `${safeName(name)}.euteria`;
+  let target = null;
+  if (!library && "showSaveFilePicker" in window) {
+    try {
+      target = await window.showSaveFilePicker({
+        id: "euteria-songs",
+        suggestedName: fileName,
+        types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
+      });
+    } catch (error) {
+      if (error && error.name === "AbortError") return;
+    }
+  }
+  app.saving = true;
+  scheduleUi();
+  try {
+    await prepareShare();
+    await recording.ready();
+    const made = projectNow({ id: newProjectId(), title: name });
+    if (!made) throw new Error(tr("Its file could not be read: open the song again."));
+    const oldKey = cur.key;
+    if (library) {
+      const estimate = await storageEstimate();
+      if (estimate && estimate.quota && estimate.quota - estimate.usage < made.blob.size * 1.05 + 5e6) {
+        throw new Error(tr("There is not enough space for {name} ({size}). Delete songs you no longer need, or free some space on the device.", { name: fileName, size: fmtSize(made.blob.size) }));
+      }
+      const entry = await library.add(new File([made.blob], fileName, { type: "application/zip" }), "project");
+      const saved = await library.file(entry);
+      await checkSaved(saved, made.manifest.project_id);
+      song.title = name;
+      cur.source = "library";
+      cur.entryId = entry.id;
+      cur.created = false;
+      savedInPlace(saved, made.manifest);
+    } else if (target) {
+      const w = await target.createWritable();
+      try {
+        await w.write(made.blob);
+        await w.close();
+      } catch (error) {
+        await w.abort().catch(() => {});
+        throw error;
+      }
+      const saved = await target.getFile();
+      await checkSaved(saved, made.manifest.project_id);
+      song.title = name;
+      cur.handle = target;
+      cur.source = "file";
+      cur.created = false;
+      savedInPlace(saved, made.manifest);
+      await addRecent(target, { title: name, size: saved.size });
+      renderRecent();
+    } else {
+      downloadBlob(made.blob, fileName);
+      reportSave(tr("Downloaded: {name}. Open it to go on with the new project.", { name: fileName }), "ok");
+      return;
+    }
+    // The song saved before: as it was saved, its changes gone with the copy.
+    if (oldKey && oldKey !== cur.key) forgetSettings(oldKey);
+    showTitle();
+    renderLibrary();
+    reportSave(tr("Saved as a new project: {name}.", { name }), "ok");
+  } catch (error) {
+    reportSave(tr("The song could not be saved. {error}", { error: (error && error.message) || error }), "error", 0);
+  } finally {
+    app.saving = false;
+    scheduleUi();
+  }
 }
 
 // The same, waiting for what it needs.
@@ -2196,6 +2394,12 @@ player.onupdate = scheduleUi;
 
 function updateUi() {
   const song = player.song;
+  // The song grew (a take recorded past its end) or went back: the tracks
+  // and the timeline are drawn again, the grid fitted to it.
+  if (song && app.shownDuration !== undefined && app.shownDuration !== song.duration && app.view === "player") {
+    renderPlayer(app.timeline.getView()); // and updateUi() again
+    return;
+  }
   const busy = !!player.busy;
   const ready = !!song && !busy;
   // While a take is recorded, nothing moves the song under it.
@@ -2271,7 +2475,10 @@ function updateUi() {
     const title = separation.supported ? tr("Separate the six instruments of this song and save them with it in an EUTERIA project (.euteria)") : separation.reason;
     if (sep.title !== title) sep.title = title;
   }
-  if (song && !player.hasStems) {
+  if (song && !ownAudio()) {
+    const note = tr("This project has no audio of its own: Rec records a take, with the metronome if you like, and the project gets longer as you play.");
+    if ($("tracks-note").textContent !== note) $("tracks-note").textContent = note;
+  } else if (song && !player.hasStems) {
     const note = phone
       ? tr("This song has no separate instruments: tempo, key and loop work on the whole song. To separate them, open it in EUTERIA on a computer, with Chrome or Edge.")
       : separation.supported
@@ -2317,10 +2524,10 @@ function updateUi() {
   // Detect BPM and Detect chords: on a computer that can find them, or with
   // what the song kept from an earlier detection.
   const findBpm = $("find-bpm");
-  findBpm.hidden = !song || !(detection.supported || hasBeats(app.analysis));
+  findBpm.hidden = !song || !ownAudio() || !(detection.supported || hasBeats(app.analysis));
   findBpm.disabled = !song || locked || detection.running;
   const findChordsBtn = $("find-chords");
-  findChordsBtn.hidden = !song || !(detection.supported || (hasChords(app.analysis) && (app.grid.bars.length > 0 || hasBeats(app.analysis))));
+  findChordsBtn.hidden = !song || !ownAudio() || !(detection.supported || (hasChords(app.analysis) && (app.grid.bars.length > 0 || hasBeats(app.analysis))));
   findChordsBtn.disabled = !song || locked || detection.running;
   // The chords follow the key: shown, and typed, in the key of now.
   app.timeline.setChordShift(player.semitones);
@@ -2363,6 +2570,7 @@ function updateUi() {
   const shareText = app.sharing ? tr("Sharing…") : shareWay === "download" ? tr("Download project") : tr("Share project…");
   if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
   shareProj.disabled = !song || busy || app.saving || app.sharing || takesBusy;
+  $("save-as").disabled = !song || busy || app.saving || app.sharing || takesBusy;
   const projectHint =
     shareWay === "share"
       ? inLibrary
@@ -2415,6 +2623,12 @@ function wire() {
   $("back").addEventListener("click", goHome);
   $("save-top").addEventListener("click", () => saveSong());
   $("share-song").addEventListener("click", shareProject);
+  $("save-as").addEventListener("click", saveAsNew);
+  $("new-project").addEventListener("click", newEmptyProject);
+  $("new-project-phone").addEventListener("click", newEmptyProject);
+  $("name-input").addEventListener("input", () => {
+    $("name-ok").disabled = !$("name-input").value.trim();
+  });
   $("now-open").addEventListener("click", () => showView("player"));
   $("now-play").addEventListener("click", () => {
     player.unlock();

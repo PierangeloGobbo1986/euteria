@@ -194,7 +194,24 @@ on, the order of the tracks) in the song's `manifest.json`, in the fields EUTERI
   song with the changes;
 - an audio file becomes an EUTERIA project (`.euteria`) holding it, with its grid and
   chords, named as the song (renamed or not): in the library on the phone, where you
-  choose in Chrome and Edge, downloaded elsewhere.
+  choose in Chrome and Edge, downloaded elsewhere; so does a new empty project the
+  first time it is saved on a computer.
+
+**Save as new project…** (the card *File export and sharing*, beside *Share project*)
+asks a name (the song's, with *(copy)* after it, to start with) and saves the song as it
+is now, with its tracks, takes, bars, chords and settings, in a new project with a new
+identity: a second song in the library on the phone, a new file where you choose in
+Chrome and Edge on a computer (downloaded in the other browsers). The song goes on as
+the new project; the one saved before stays as it was saved, its changes not saved
+having gone with the copy.
+
+**New empty project** (in the Library) asks a name (*New project*, *New project 2*… to
+start with) and opens a project with no audio of its own, to record into: a grid at 120
+BPM in 4/4 for the metronome, the loop and the chords, 16 bars long until a take goes
+past them. On the phone it is in the library at once; on a computer *Save* asks where
+to put it. *Detect BPM*, *Detect chords* and the separation have nothing to analyse
+there; the metronome, the takes, the bars and chords, the loop and the MP3 export work
+as in any song. Its manifest has no audio members, only `audio.length_seconds`.
 
 Every song reopens as it was left (tracks, volumes, tempo, key, loop, position, zoom,
 the part in view, the grid shown or hidden, the edits not saved yet): the settings are
@@ -219,7 +236,10 @@ again. Its library is deleted with it, so first save the projects changed on the
 **Recording takes** (every device and browser). *Record*, the red dot beside *Loop*,
 records what you play over the song: if the song is paused it starts it from the
 playhead. *Record* again, as *Stop*, ends the take and the song and goes back to the
-start (of the loop, if it is on); *Pause* ends both where they are. While a take is
+start (of the loop, if it is on); *Pause* ends both where they are. A take may go on
+past the end of the song (an audio file, a project, an empty project): playback goes
+on, the song and its grid grow ahead of the playhead, and once the take is added the
+song is as long as its longest take (deleting the take shortens it again). While a take is
 recorded its waveform grows in the timeline, in red: on a computer in a row at the
 bottom (*Recording…* beside it), on the phone in a lane under the waveform. It is drawn
 as large as it can be, so a quiet input shows as clearly as a loud one; a flat line
@@ -478,7 +498,11 @@ the beats as set, the song silent, then the song on the next beat; a take record
 it begins where playback starts. A silent bar that takes the tracks fades them out over
 6 ms, ending 10 ms before its bar line (the engine knows the bar coming), so that its
 first beat is silent too, and back in the same way, so that the first beat after it is
-whole. The engine counts the passes of the loop, for the speed trainer.
+whole. The engine counts the passes of the loop, for the speed trainer. While a take is
+recorded it plays on past the end of the song (silence, and the clicks), and it measures
+the level of what plays before the clicks are added, so that the take's level follows
+the song, not the metronome; the song lasts as long as its longest track, takes
+included, or the length an empty project was given.
 
 The stretchers run at Signalsmith's default quality (120 ms blocks every 30 ms) with
 the work of each block spread over the audio callbacks: done all at once, it

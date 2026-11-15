@@ -141,7 +141,7 @@ export class SeparationFlow {
   // The open song can be separated: it has no stems yet.
   get applicable() {
     const { player } = this.ctx;
-    return !!player.song && !player.hasStems;
+    return !!player.song && !player.hasStems && player.tracks.some((t) => t.key === "original");
   }
 
   get supported() {

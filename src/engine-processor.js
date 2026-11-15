@@ -165,6 +165,9 @@
         case "loop":
           core.setLoop(m.on, m.start, m.end);
           break;
+        case "minlength":
+          core.setMinLength(m.seconds);
+          break;
         case "rec-start":
           this.recStart(m);
           break;
@@ -196,6 +199,10 @@
     // as a take), tail}.
     recStart(m) {
       if (this.rec) this.recEnd("stop");
+      // Recording, playback goes on past the end of the song: the take makes
+      // it longer. The level of what plays is measured without the clicks.
+      this.core.endless = true;
+      this.core.measureTracks = true;
       if (m.play !== null && m.play !== undefined) this.core.play(m.play, m.countIn);
       this.rec = {
         id: m.id,
@@ -327,6 +334,8 @@
         this.closeHop();
       }
       this.rec = null;
+      this.core.endless = false;
+      this.core.measureTracks = false;
       const inHops = Float32Array.from(r.inHops);
       const outHops = Float32Array.from(r.outHops);
       this.port.postMessage({ type: "rec-end", id: r.id, reason, frames: r.frames, begun: r.begun, inHops, outHops }, [inHops.buffer, outHops.buffer]);
@@ -401,7 +410,7 @@
         this.core.ended = false;
         this.port.postMessage({ type: "ended" });
       }
-      if (this.rec && this.rec === rec && rec.begun) this.loudness(input, left, right || this.scratch, n);
+      if (this.rec && this.rec === rec && rec.begun) this.loudness(input, this.core.preL, this.core.preR, n);
       if (this.rec && this.rec === rec) this.recAfter(n, wasPlaying);
       if (wasPlaying) {
         this.counter -= n;

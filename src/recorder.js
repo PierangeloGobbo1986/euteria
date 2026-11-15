@@ -473,6 +473,7 @@ export class Recorder {
       this.say(tr("The take could not be kept. {error}", { error: (error && error.message) || error }), "error");
     } finally {
       this.endLive();
+      player.updateDuration(); // as long as the takes, if one went past the end
       this.keepOpen();
       this.setState("idle");
     }

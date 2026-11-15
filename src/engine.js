@@ -142,6 +142,11 @@ export class Engine {
     this.send({ type: "loop", on, start, end });
   }
 
+  // The song lasts at least `seconds` (a project with no audio of its own).
+  setMinLength(seconds) {
+    this.send({ type: "minlength", seconds });
+  }
+
   // The metronome (src/engine-core.js setMetronome()): {on, volume, times
   // (song seconds, Float64Array), kinds, firsts (Uint8Array), play, mute,
   // random, silence, bar, seed}; the arrays may be left out to keep the

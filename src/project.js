@@ -191,10 +191,13 @@ export async function openProject(file, context, onProgress = () => {}) {
   const members = [["original", audio.original_member]];
   for (const stem of STEM_NAMES) members.push([stem, (audio.stems || {})[stem]]);
   const present = members.filter(([, member]) => member && zip.has(member));
-  if (!present.length) throw new Error(tr("This project has no audio."));
   const takeList = (Array.isArray(audio.takes) ? audio.takes : [])
     .filter((t) => t && t.id && typeof t.member === "string" && zip.has(t.member))
     .map((t) => takeFromManifest(t, info[t.member] || null));
+  // A project made empty in EUTERIA Web has no audio of its own: its length,
+  // then its takes.
+  const ownSeconds = +audio.length_seconds > 0 ? +audio.length_seconds : 0;
+  if (!present.length && !takeList.length && !ownSeconds) throw new Error(tr("This project has no audio."));
   const total = present.length + takeList.length;
 
   const tracks = [];
@@ -250,7 +253,10 @@ export async function openProject(file, context, onProgress = () => {}) {
     t.on = t.key in enabled ? !!enabled[t.key] : true;
     t.gain = Math.min(BOOST_CEILING, Math.max(0, volumes[t.key] ?? 1));
   }
-  const length = Math.max(...tracks.map((t) => t.length));
+  // Its length: its own audio's (or the empty project's), or longer where a
+  // take recorded past the end goes on.
+  const own = Math.max(Math.round(ownSeconds * context.sampleRate), ...tracks.map((t) => t.length));
+  const length = Math.max(own, ...takes.map((t) => t.start + t.length));
   return {
     manifest,
     title: manifest.title || songName(manifest),
@@ -259,5 +265,6 @@ export async function openProject(file, context, onProgress = () => {}) {
     alignment,
     sampleRate: context.sampleRate,
     duration: length / context.sampleRate,
+    baseDuration: own / context.sampleRate,
   };
 }

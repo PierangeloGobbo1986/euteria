@@ -89,6 +89,33 @@ export function rebuildGrid(old, duration) {
   return { ...old, beats, bars, chords, offset: old.offset - shift, shift };
 }
 
+// The grid fitted to a song that grew (a take recorded past its end: it goes
+// on at its tempo) or went back (the bars past the end go; the chords stay
+// with their bars, for when it grows again); the same grid if nothing
+// changes.
+export function extendGrid(grid, duration) {
+  if (!grid.bars.length || !grid.beats.length || !(grid.bpm > 0)) return grid;
+  const period = 60 / grid.bpm;
+  const barPeriod = (METER_BEATS[grid.meter] || 4) * period;
+  const fit = (list, step) => {
+    const out = list.filter((t) => t <= duration + 1e-9);
+    const last = out.length ? out[out.length - 1] : list[0] - step;
+    for (let k = 1; last + k * step <= duration + 1e-9; k++) out.push(last + k * step);
+    return out;
+  };
+  const beats = fit(grid.beats, period);
+  const bars = fit(grid.bars, barPeriod);
+  const same = (a, b) => a.length === b.length && a[a.length - 1] === b[b.length - 1];
+  if (same(beats, grid.beats) && same(bars, grid.bars)) return grid;
+  return { ...grid, beats, bars };
+}
+
+// A grid at `bpm` in `meter`, its first bar at 0 s, over `duration` seconds:
+// the one an empty project starts with.
+export function newGrid(bpm, meter, duration) {
+  return { ...emptyGrid(), bpm, meter, firstBeat: 0, ...buildGrid(0, bpm, meter, duration) };
+}
+
 // The edits of a grid as this browser keeps them until they are saved in the
 // project: everything but the beats and the bars, which are rebuilt from them
 // (`built`), or the project's own.

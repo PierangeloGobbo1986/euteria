@@ -25,7 +25,9 @@
  *
  * A track may start later than the song (a take recorded over it): `start`
  * is the song sample of its first sample, negative if it begins before the
- * song.
+ * song. The song lasts as long as its longest track, or `minLength` (a project
+ * with no audio of its own); while a take is recorded (`endless`) playback
+ * goes on past its end, and the take makes the song longer.
  *
  * The metronome clicks at the song times it is given (the beats of the grid,
  * or the beats found in the song: src/metronome.js), as they come out, so it
@@ -182,7 +184,14 @@
       this.masterLimit = true;
       this.limitGain = 1;
       this.limitRelease = 1 - Math.exp(-1 / (sampleRate * RELEASE_SECONDS));
-      this.length = 0; // samples of the longest track
+      this.length = 0; // samples of the longest track (or minLength)
+      this.minLength = 0; // samples the song lasts at least
+      this.endless = false; // a take being recorded: playback goes on past the end
+      // While a take is recorded, what the tracks play without the clicks, for
+      // the take's level (src/level.js).
+      this.measureTracks = false;
+      this.preL = new Float32Array(MAX_BLOCK);
+      this.preR = new Float32Array(MAX_BLOCK);
       this.list = []; // the tracks as an array, for the audio loop
       // The metronome (setMetronome()): its clicks as song samples, their
       // kind (0 a beat, 1 an accent, 2 silent) and whether each starts a bar;
@@ -260,8 +269,14 @@
       this._tracksChanged();
     }
 
+    // The song lasts at least `seconds` (a project with no audio of its own).
+    setMinLength(seconds) {
+      this.minLength = Math.max(0, Math.round((+seconds || 0) * this.sampleRate));
+      this._lengthChanged();
+    }
+
     _lengthChanged() {
-      let n = 0;
+      let n = this.minLength;
       for (const t of this.tracks.values()) n = Math.max(n, t.start + t.length);
       this.length = n;
       this._tracksChanged();
@@ -343,7 +358,7 @@
         t = this.out - this.delay * this.rate;
         if (this.loop.on && t < this.loopA && this.out >= this.loopA) t += this.loopB - this.loopA;
       }
-      return Math.min(Math.max(0, t / sr), this.duration);
+      return Math.min(Math.max(0, t / sr), this.endless ? Infinity : this.duration);
     }
 
     // The song sample coming out now, along the playback path and not clamped:
@@ -396,9 +411,19 @@
     render(out0, out1, n) {
       out0.fill(0, 0, n);
       out1.fill(0, 0, n);
-      if (!this.playing) return;
+      if (!this.playing) {
+        if (this.measureTracks) {
+          this.preL.fill(0, 0, n);
+          this.preR.fill(0, 0, n);
+        }
+        return;
+      }
       // A count-in: its clicks only, the song waiting.
       if (this.preroll > 0) {
+        if (this.measureTracks) {
+          this.preL.fill(0, 0, n);
+          this.preR.fill(0, 0, n);
+        }
         this._clicks(out0, out1, n, this.emission(), true);
         this.preroll = Math.max(0, this.preroll - n);
         if (!this.preroll) {
@@ -426,6 +451,10 @@
         this._mix(bus, this.feed, k, s.input[0], s.input[1]);
         s.stream(k, n, out0, out1);
       }
+      if (this.measureTracks) {
+        this.preL.set(out0.subarray(0, n));
+        this.preR.set(out1.subarray(0, n));
+      }
       if (e0 !== null) this._clicks(out0, out1, n, e0, false);
       else {
         this.click.left = 0;
@@ -438,7 +467,7 @@
       if (this.loop.on && this.out < this.loopB && this.out + k >= this.loopB) this.passes++;
       this.out = this._advance(this.out, k);
       this.sinceStart += n;
-      if (!this.loop.on && this.out >= this.length + this.delay * this.rate + n) {
+      if (!this.loop.on && !this.endless && this.out >= this.length + this.delay * this.rate + n) {
         this.playing = false;
         this.ended = true;
       }

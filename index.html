@@ -92,13 +92,14 @@
     <div class="open-buttons">
       <label id="add-label" class="button primary" for="add-input">Open MP3 / audio</label>
       <label id="add-project-label" class="button primary" for="add-project-input">Open EUTERIA project</label>
+      <button id="new-project-phone" class="new-project" type="button">New empty project</button>
       <input id="add-input" type="file" hidden accept="audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.caf">
       <input id="add-project-input" type="file" hidden>
     </div>
     <ul id="lib-list" class="lib-list"></ul>
     <div id="lib-empty" class="empty" hidden>
       <p>No songs yet.</p>
-      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open MP3 / audio</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords.</p>
+      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open MP3 / audio</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords. <b>New empty project</b> makes a project with no audio, to record into.</p>
     </div>
     <div id="lib-foot" class="lib-foot" hidden>
       <span id="lib-usage"></span>
@@ -114,8 +115,9 @@
     <div class="open-buttons">
       <button id="open-audio" class="primary big" type="button">Open MP3 / audio</button>
       <button id="open-project" class="primary big" type="button">Open EUTERIA project</button>
+      <button id="new-project" class="big new-project" type="button">New empty project</button>
     </div>
-    <p class="hint" data-i18n-html>Or drop a file on this window. <b>Open MP3 / audio</b> opens WAV, M4A, FLAC and the other audio files too, and in Chrome and Edge EUTERIA separates their instruments. <b>Open EUTERIA project</b> opens a <b>.euteria</b> project, or a <b>.musicproj</b> of EUTERIA (Python).</p>
+    <p class="hint" data-i18n-html>Or drop a file on this window. <b>Open MP3 / audio</b> opens WAV, M4A, FLAC and the other audio files too, and in Chrome and Edge EUTERIA separates their instruments. <b>Open EUTERIA project</b> opens a <b>.euteria</b> project, or a <b>.musicproj</b> of EUTERIA (Python). <b>New empty project</b> makes a project with no audio, to record into.</p>
     <h2 class="recent-title">Recent</h2>
     <ul id="recent-list" class="recent-list"></ul>
     <p id="recent-empty" class="hint" hidden>The songs you open are listed here, to open them again with one click.</p>
@@ -354,9 +356,10 @@
         <h2>File export and sharing</h2>
         <div class="card-cols">
           <div class="card-col">
-            <h3 class="sub computer-only">Share project</h3>
+            <h3 class="sub computer-only">Project</h3>
             <div class="row">
               <button id="share-song" type="button" class="primary">Share project…</button>
+              <button id="save-as" type="button">Save as new project…</button>
             </div>
             <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
             <p id="project-status" class="status" role="status" aria-live="polite"></p>
@@ -397,6 +400,19 @@
       <button value="save" class="primary">Save</button>
       <button value="discard" class="danger">Don't save</button>
       <button value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+<!-- The name of a new project: an empty one, made in the library, or the song saved as a
+     new project (the File export and sharing card). -->
+<dialog id="name-dialog" class="leave-dialog name-dialog" aria-labelledby="name-title">
+  <form method="dialog">
+    <p id="name-title">New empty project</p>
+    <p id="name-hint" class="hint"></p>
+    <input id="name-input" class="name-input" type="text" maxlength="120" aria-labelledby="name-title" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+    <div class="row">
+      <button id="name-ok" value="ok" class="primary">Create</button>
+      <button value="cancel" formnovalidate>Cancel</button>
     </div>
   </form>
 </dialog>

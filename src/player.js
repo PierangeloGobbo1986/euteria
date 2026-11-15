@@ -16,6 +16,7 @@ export const MIN_LOOP = 0.25; // seconds, as the engine
 const TEMPO_RANGE = [0.5, 2];
 export const KEY_RANGE = [-12, 12];
 const NEW_LOOP_SECONDS = 8;
+const GROW_SECONDS = 10; // a take past the end: the song grows by this much at a time
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -161,6 +162,12 @@ export class Player {
       this.position = heard;
       if (this.playing && !playing) this._wake(false);
       this.playing = playing;
+      // A take recorded past the end makes the song longer: it grows ahead
+      // of the playhead, GROW_SECONDS at a time, and takes the take's exact
+      // length once the take is added (updateDuration()).
+      if (this.recording && this.song && heard > this.song.duration - 1) {
+        this.song.duration = Math.ceil((heard + 1) / GROW_SECONDS) * GROW_SECONDS;
+      }
       // The loop went round (the speed trainer, app.js).
       if (Number.isFinite(passes)) {
         if (passes > this.loopPasses && this.onloop) this.onloop(passes - this.loopPasses);
@@ -223,7 +230,7 @@ export class Player {
   _load(song, kind) {
     const engine = this.engine;
     let wanted = new Set(song.tracks.map((t) => t.key).filter((k) => !this.peakKeys || this.peakKeys.includes(k)));
-    if (!wanted.size) wanted = new Set([song.tracks[0].key]);
+    if (!wanted.size && song.tracks.length) wanted = new Set([song.tracks[0].key]);
     this.tracks = song.tracks.map((t) => ({
       key: t.key,
       title: t.title,
@@ -237,10 +244,13 @@ export class Player {
       peaks: wanted.has(t.key) ? int16Peaks(t.channels, t.length) : null,
     }));
     for (const t of song.tracks) engine.addTrack(t); // hands the PCM to the audio thread
+    // duration: as long as the longest track, takes included; baseDuration:
+    // the song's own (its audio, or the length an empty project was given).
     this.song = {
       title: song.title,
       songName: song.songName,
       duration: song.duration,
+      baseDuration: song.baseDuration ?? song.duration,
       sampleRate: song.sampleRate,
       kind,
       manifest: song.manifest || null,
@@ -255,7 +265,25 @@ export class Player {
     engine.setRate(1);
     engine.setSemitones(0);
     engine.setLoop(false, 0, 0);
+    engine.setMinLength(this.song.baseDuration);
     engine.seek(0);
+  }
+
+  // The song's length: its own, or longer where a take goes past it.
+  // Returns whether it changed.
+  _updateDuration() {
+    if (!this.song) return false;
+    const sr = this.context.sampleRate;
+    let end = this.song.baseDuration;
+    for (const t of this.tracks) end = Math.max(end, (t.start + t.length) / sr);
+    if (Math.abs(end - this.song.duration) < 1e-9) return false;
+    this.song.duration = end;
+    return true;
+  }
+
+  // The same, told to the page (a take recorded or not, past the end).
+  updateDuration() {
+    if (this._updateDuration()) this._changed();
   }
 
   // Frees the song's audio.
@@ -377,6 +405,7 @@ export class Player {
     const t = { key: track.key, title: track.title, bus: "pitched", length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start, take: track.take, align: null, peaks };
     this.engine.addTrack({ key: t.key, bus: t.bus, channels: track.channels, length: t.length, gain: t.gain, on: t.on, start });
     this.tracks.push(t);
+    this._updateDuration();
     this._changed();
   }
 
@@ -385,6 +414,7 @@ export class Player {
     if (!t || !t.take || this.busy) return null;
     this.engine.removeTrack(key);
     this.tracks = this.tracks.filter((x) => x !== t);
+    this._updateDuration();
     this._changed();
     return t;
   }
@@ -396,6 +426,7 @@ export class Player {
     t.take.syncMs = Math.round(+ms || 0);
     t.start = takeStartSample(t.take, this.context.sampleRate);
     this.engine.setTrack(key, { start: t.start });
+    this._updateDuration();
     this._changed();
   }
 

@@ -123,5 +123,34 @@ export function newProjectManifest({ id, title, fileName, member, grid, state, t
   }, takes);
 }
 
+// The manifest of a project made empty in EUTERIA Web, to record into: no
+// audio of its own but its length (audio.length_seconds), a grid to play to.
+export function emptyProjectManifest({ id, title, grid, state, length }) {
+  const volumes = { original: 1, transposed: 1 };
+  for (const n of STEM_NAMES) volumes[n] = 1;
+  return {
+    format: "EUTERIA.musicproj",
+    format_version: WEB_FORMAT_VERSION,
+    variant: "web",
+    project_id: id,
+    title,
+    artist: "",
+    created_with: EDITED_WITH,
+    audio: {
+      original_filename: null,
+      original_member: null,
+      stems: Object.fromEntries(STEM_NAMES.map((n) => [n, null])),
+      transposed_member: null,
+      transposed_stems: {},
+      length_seconds: Math.round(length * 1000) / 1000,
+    },
+    separation: { status: "not_started", model: null, quality: "standard", error: null, job_id: null },
+    music: { key: null, ...musicFields(grid) },
+    practice: practiceFields({ track_volumes: volumes }, grid, state),
+    markers: [],
+    user_corrections: [],
+  };
+}
+
 // manifest.json as EUTERIA (Python) writes it: indented by two spaces, UTF-8.
 export const manifestBytes = (manifest) => new TextEncoder().encode(JSON.stringify(manifest, null, 2));
