@@ -28,7 +28,7 @@ import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
 import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
-import { loadMetronome, saveMetronome, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
+import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
@@ -350,10 +350,12 @@ function applyDetection(analysis, fit, { tempo = false, chords = false } = {}) {
 
 // ----- the metronome -------------------------------------------------------------------
 //
-// A card of its own, under Tempo and key (src/metronome.js), and a round
-// button in the transport, between Loop and Rec (M on a computer): the
-// metronome is only the click. Its settings are this browser's, for every
-// song, but on and off and the count-in: a song opens with both off. Its tempo
+// A card of its own, between Song analysis and Tempo and key
+// (src/metronome.js), and a round button in the transport, between Loop and
+// Rec (M on a computer): the metronome is only the click. Its volume, own
+// tempo, beats and what a silent bar silences are this browser's, for every
+// song; a song opens with the metronome off, a count-in of one bar, the
+// count-in only and no silent bars (songDefaults()). Its tempo
 // follows the grid of the song (and the beats found in it) until it is given
 // one of its own, which changes the click only; a song without a grid has the
 // metronome's own tempo, from its start. The clicks are made again whenever
@@ -2551,12 +2553,13 @@ function updateUi() {
   }
   f.key.set(player.semitones);
   f.key.disable(!song || locked);
-  // The metronome: off with every song that opens, as the speed trainer; its
-  // tempo follows the grid again when the grid's tempo, anchor or meter
-  // change; its clicks made again when the grid or the beats found change.
+  // The metronome: as songDefaults() with every song that opens, the speed
+  // trainer off; its tempo follows the grid again when the grid's tempo,
+  // anchor or meter change; its clicks made again when the grid or the beats
+  // found change.
   if (metroFor.song !== song && song) {
-    metro.on = false;
-    metro.countIn = 1;
+    // Off, a count-in of one bar, the count-in only, no silent bars.
+    songDefaults(metro);
     trainer.on = false;
     trainerPasses = 0;
   }

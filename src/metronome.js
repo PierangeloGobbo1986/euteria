@@ -20,8 +20,11 @@
 // beats come before the song, for a count-in at its start; the clicks go on
 // past its end, for a take recorded beyond it.
 //
-// On and off and the count-in are not kept: every song opens with the metronome
-// off and a count-in of one bar (heard only with the metronome on).
+// Kept in this browser: the volume, the metronome's own tempo, the beats of
+// each meter and what a silent bar silences. Not kept: every song opens with
+// the metronome off, a count-in of one bar (heard only with the metronome
+// on), the count-in only, and no silent bars (clicks for 4 bars, then 0
+// silent, not at random): songDefaults().
 
 import { METERS } from "./grid.js";
 
@@ -53,6 +56,9 @@ function defaultPattern(meter) {
   return Array.from({ length: beatsPerBar(meter) }, (_, i) => (i === 0 ? ACCENT : BEAT));
 }
 
+// What every song opens with (songDefaults()), never kept.
+const PER_SONG = ["on", "countIn", "mode", "play", "mute", "random"];
+
 export function defaultMetronome() {
   return {
     on: false,
@@ -68,7 +74,7 @@ export function defaultMetronome() {
   };
 }
 
-// The settings as kept, checked, or the defaults; off, without a count-in.
+// The settings as kept, checked, or the defaults; the rest as a song opens.
 export function loadMetronome() {
   const s = defaultMetronome();
   try {
@@ -80,11 +86,7 @@ export function loadMetronome() {
         const p = kept.patterns && kept.patterns[m];
         if (Array.isArray(p) && p.length === beatsPerBar(m) && p.every((v) => v === ACCENT || v === BEAT || v === SILENT)) s.patterns[m] = p.slice();
       }
-      if (Number.isInteger(kept.play)) s.play = Math.max(1, Math.min(MAX_BARS, kept.play));
-      if (Number.isInteger(kept.mute)) s.mute = Math.max(0, Math.min(MAX_BARS, kept.mute));
       if (kept.v === VERSION && SILENCE.includes(kept.silence)) s.silence = kept.silence;
-      if (MODES.includes(kept.mode)) s.mode = kept.mode;
-      s.random = kept.random === true;
     }
   } catch (_) {}
   return s;
@@ -93,10 +95,16 @@ export function loadMetronome() {
 export function saveMetronome(s) {
   try {
     const kept = { ...s, v: VERSION };
-    delete kept.on;
-    delete kept.countIn;
+    for (const k of PER_SONG) delete kept[k];
     localStorage.setItem(KEY, JSON.stringify(kept));
   } catch (_) {}
+}
+
+// A song opens: the metronome off, a count-in of one bar, the count-in only,
+// no silent bars.
+export function songDefaults(s) {
+  const d = defaultMetronome();
+  for (const k of PER_SONG) s[k] = d[k];
 }
 
 // The next state of a beat's button: beat, accent, silent, beat…

@@ -398,10 +398,12 @@ are counted from where the song starts (those of the count-in are not). A count-
 starts before the sound of the song (a song that opens with some seconds of silence)
 begins just before the sound, the silence skipped, so that it counts the music in whatever
 the length of that silence; from the sound on, or inside a loop, it starts where the playhead
-is. The tempo, the volume, the beats (per meter), *Plays* and the muted bars are kept in
-this browser, the same for every song; on and off and the count-in are not: every song
-opens with the metronome off and a count-in of 1 bar. (The settings kept before 2.0 go
-back to *Metronome and tracks*, the new default.)
+is. The volume, the metronome's own tempo, the beats (per meter) and *What to mute* are
+kept in this browser, the same for every song. The rest is not: every song opens with the
+metronome *Off*, a count-in of 1 bar, *Count-in only* and no muted bars (*Clicks for* 4
+*bars, then mute for* 0, *Random* off), whatever was set before (2.1.2: a *Random* left on
+from an earlier session no longer silences bars unannounced). (The settings kept before 2.0
+go back to *Metronome and tracks*, the new default.)
 
 **Speed training**, the last part of the metronome's card, under its own title: *On*/*Off*
 (as the metronome's), then, with the loop on, the speed changes by its *Step* (5% to
