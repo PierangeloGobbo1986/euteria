@@ -492,6 +492,7 @@ button.eye .icon { width: 18px; height: 18px; }
   text-align: right;
   white-space: nowrap;
 }
+.tl-side .lane-sections { height: var(--tl-sections, 22px); line-height: var(--tl-sections, 22px); }
 .tl-side .lane-bars { height: var(--tl-nums, 20px); line-height: var(--tl-nums, 20px); }
 .tl-side .lane-chords { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: var(--tl-chords, 24px); line-height: var(--tl-chords, 24px); color: #c9b48a; }
 .notation-btn { min-height: 0; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0; color: #c9b48a; white-space: nowrap; }
@@ -931,3 +932,19 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 .trainer.off .trainer-item { opacity: .55; }
 .metro-sub .hint { margin: 12px 0 0; }
 .metro-sub .hint.warn { color: var(--gold); margin-top: 6px; }
+
+/* ----- the menu of the sections' names (app/sectionmenu.js) ----- */
+.section-menu { position: fixed; z-index: 60; width: 300px; max-width: calc(100vw - 16px); padding: 10px; background: var(--panel); border: 1px solid var(--border-hi); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .55); }
+.section-menu.sheet { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-width: none; padding: 12px; }
+.section-menu-title { margin: 0 2px 8px; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.section-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.section-item { justify-content: flex-start; gap: 9px; min-height: 36px; padding: 6px 10px; font-size: 14px; text-align: left; }
+.section-menu.sheet .section-item { min-height: 40px; padding-top: 4px; padding-bottom: 4px; font-size: 15px; }
+.section-swatch { flex: none; width: 10px; height: 18px; border-radius: 3px; }
+.section-letters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+.section-letter { min-height: 36px; padding: 0; font-size: 15px; font-weight: 700; border-width: 2px; }
+.section-menu.sheet .section-letter { min-height: 40px; }
+.section-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+.section-actions > :only-child { grid-column: 1 / -1; }
+.section-remove { justify-content: center; }
+.section-menu .current { border-color: var(--gold); background: #2a2519; }

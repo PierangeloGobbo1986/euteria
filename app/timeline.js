@@ -1,5 +1,6 @@
-// The timeline of the player, from the top: the bar numbers and, under them,
-// the chords (when there is a grid and it is shown), the time scale, then the
+// The timeline of the player, from the top: the sections of the song, the bar
+// numbers and, under them, the chords (when there is a grid and it is shown),
+// the time scale, then the
 // waveform of each track (one row on the phone, one per track on a computer)
 // with the bar grid over it. The loop and the playhead are drawn over the
 // tracks only, so that the bars and their chords stay free to be clicked.
@@ -24,9 +25,21 @@
 // along them (or shift-click) selects several; otherwise a tap on a bar asks
 // for its chord to be edited (onBarTap) and dragging scrolls. The chords are
 // shown in the key the song is played in (setChordShift, src/chordnames.js).
+//
+// The lane of the sections (src/sections.js) selects in the same way, a
+// section at a time: a tap on a section selects all its bars, on a bar
+// without one that bar; dragging, or shift-click, takes in the next ones. A
+// tap on the bars selected opens the menu of the names (onSectionMenu). With
+// the loop on, what is selected there is looped (onSelect says the lane): a
+// tap on a section among several selected takes that one alone, and the menu
+// opens once the loop is on the bars selected. With
+// the loop on, shift-click moves an edge of the loop: on the bar numbers by
+// whole bars, on the time scale to the nearest beat (before the loop or after
+// it, the loop grows; inside, the nearer edge comes in).
 
 import { barNumber, barAt, nearestBar } from "../src/grid.js";
 import { chordView } from "../src/chordnames.js";
+import { sectionTitles, sectionColor, sectionIndexAt } from "../src/sections.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
 import { tr } from "../src/i18n.js";
 
@@ -90,15 +103,19 @@ export class Timeline {
   // start, end}) when a loop drag ends, onView() when the user has panned or
   // zoomed, onChange() after every redraw of the view, onSelect({anchor, lo,
   // hi}, done) while bars are selected (done: the press ended, tap: it did
-  // not move), onBarTap(index, {pointerType}) when a bar is tapped while not
-  // editing.
+  // not move, lane: "sections" from the lane of the sections), onBarTap(index,
+  // {pointerType}) when a bar is tapped while not editing, onSectionMenu({lo,
+  // hi, x, y, pointerType}) when the bars selected are tapped in the lane of
+  // the sections (x, y: where, in the window).
   // varsOn: the element that gets --tl-over, --tl-ruler, --tl-head, --tl-row,
-  // --tl-nums and --tl-chords (the height of the overview, of the time scale,
-  // of everything over the tracks, of a row, of the lane of the bar numbers
-  // and of the chord lane), so that a column beside can line up.
-  constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange, onSelect, onBarTap } = {}) {
+  // --tl-sections, --tl-nums and --tl-chords (the height of the overview, of
+  // the time scale, of everything over the tracks, of a row, of the lanes of
+  // the sections, of the bar numbers and of the chords), so that a column
+  // beside can line up.
+  constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange, onSelect, onBarTap, onSectionMenu } = {}) {
     this.onSelect = onSelect || (() => {});
     this.onBarTap = onBarTap || (() => {});
+    this.onSectionMenu = onSectionMenu || (() => {});
     this.editing = false;
     this.selection = null; // {anchor, lo, hi}: bars selected in the chord lane
     this.onScrub = onScrub || (() => {});
@@ -109,17 +126,18 @@ export class Timeline {
     this.onLoop = onLoop || (() => {});
     this.onView = onView || (() => {});
     this.onChange = onChange || (() => {});
-    // nums: the lane of the bar numbers; chords: the chord lane under it;
-    // ruler: the time scale over the tracks; tab: the handles of the loop at
-    // its ends.
+    // sections: the lane of the sections; nums: the lane of the bar numbers;
+    // chords: the chord lane under it; ruler: the time scale over the tracks;
+    // tab: the handles of the loop at its ends.
     this.dims = compact
-      ? { nums: 18, chords: 22, ruler: 26, row: 64, overview: 24, tab: { w: 12, h: 20 } }
-      : { nums: 20, chords: 24, ruler: 28, row: 60, overview: 26, tab: { w: 9, h: 16 } };
+      ? { sections: 24, nums: 18, chords: 22, ruler: 26, row: 64, overview: 24, tab: { w: 12, h: 20 } }
+      : { sections: 22, nums: 20, chords: 24, ruler: 28, row: 60, overview: 26, tab: { w: 9, h: 16 } };
     this.duration = 0;
     this.sampleRate = 48000;
     this.rows = [];
     this.live = null; // the take being recorded
-    this.grid = { beats: [], bars: [], offset: 0, chords: new Map(), bpm: null, meter: "4/4" };
+    this.grid = { beats: [], bars: [], offset: 0, chords: new Map(), sections: [], bpm: null, meter: "4/4" };
+    this.titles = []; // what each section shows (sectionTitles())
     // The chords as they are shown: in the key of now, the song moved by
     // chordShift semitones (src/chordnames.js).
     this.chordShift = 0;
@@ -162,6 +180,8 @@ export class Timeline {
   relabel() {
     this.main.setAttribute("aria-label", tr("Timeline: tap or drag the waveforms to move the playhead, drag inside the loop to move it, tap a bar to write its chord, drag the time scale to scroll, pinch to zoom"));
     this.over.setAttribute("aria-label", tr("Overview of the whole song: drag the frame of the view or of the loop to move it, tap elsewhere to bring the view there"));
+    this.titles = sectionTitles(this.grid.sections);
+    this.requestDraw();
   }
 
   // ----- content ------------------------------------------------------------
@@ -175,6 +195,7 @@ export class Timeline {
     this.rows = rows;
     this.grid = grid;
     this.chordNames = chordView(grid.chords.values(), this.chordShift);
+    this.titles = sectionTitles(grid.sections);
     this.gridVisible = gridVisible;
     this.barSec = spacing(grid.bars, grid.bpm ? (60 / grid.bpm) * 4 : 2);
     this.beatSec = spacing(grid.beats, grid.bpm ? 60 / grid.bpm : 0.5);
@@ -229,6 +250,7 @@ export class Timeline {
     const head = this.headHeight;
     this.grid = grid;
     this.chordNames = chordView(grid.chords.values(), this.chordShift);
+    this.titles = sectionTitles(grid.sections);
     this.barSec = spacing(grid.bars, grid.bpm ? (60 / grid.bpm) * 4 : 2);
     this.beatSec = spacing(grid.beats, grid.bpm ? 60 / grid.bpm : 0.5);
     const n = grid.bars.length;
@@ -298,9 +320,10 @@ export class Timeline {
     return Math.ceil(this.dims.tab.w / 2) + 1;
   }
 
-  // The bar numbers and the chords, at the top (none without a grid shown).
+  // The sections, the bar numbers and the chords, at the top (none without a
+  // grid shown).
   get barsHeight() {
-    return this.showChords ? this.dims.nums + this.dims.chords : 0;
+    return this.showChords ? this.dims.sections + this.dims.nums + this.dims.chords : 0;
   }
 
   // The time scale, under them.
@@ -430,7 +453,9 @@ export class Timeline {
     this.varsOn.style.setProperty("--tl-ruler", `${this.dims.ruler}px`);
     this.varsOn.style.setProperty("--tl-head", `${this.headHeight}px`);
     this.varsOn.style.setProperty("--tl-row", `${this.dims.row}px`);
-    // The lanes of the bar numbers and of the chords (none without a grid shown).
+    // The lanes of the sections, of the bar numbers and of the chords (none
+    // without a grid shown).
+    this.varsOn.style.setProperty("--tl-sections", `${this.barsHeight ? this.dims.sections : 0}px`);
     this.varsOn.style.setProperty("--tl-nums", `${this.barsHeight ? this.dims.nums : 0}px`);
     this.varsOn.style.setProperty("--tl-chords", `${this.barsHeight ? this.dims.chords : 0}px`);
     this.zoom = clamp(this.zoom, 1, this.zoomMax);
@@ -457,6 +482,7 @@ export class Timeline {
       return;
     }
     if (this.showChords) {
+      this._sections(ctx);
       this._numbers(ctx);
       this._chords(ctx);
     }
@@ -486,16 +512,17 @@ export class Timeline {
   // (every 2, 4… bars when they are narrow) and the beats as short ticks
   // along the bottom.
   _numbers(ctx) {
+    const y0 = this.dims.sections;
     const h = this.dims.nums;
     const W = this.width;
     ctx.fillStyle = C.ruler;
-    ctx.fillRect(0, 0, W, h);
+    ctx.fillRect(0, y0, W, h);
     const g = this.grid;
     const barPx = this.barSec * this.pps;
     if (this.beatSec * this.pps >= 5) {
       ctx.fillStyle = C.dim;
       const [a, b] = this._range(g.beats, 0);
-      for (let i = a; i < b; i++) ctx.fillRect(Math.round(this.x(g.beats[i])), h - 5, 1, 5);
+      for (let i = a; i < b; i++) ctx.fillRect(Math.round(this.x(g.beats[i])), y0 + h - 5, 1, 5);
     }
     const lines = this._every(barPx, 6);
     const labels = this._every(barPx, this.compact ? 24 : 28);
@@ -506,9 +533,54 @@ export class Timeline {
       const n = barNumber(g, i);
       const x = Math.round(this.x(g.bars[i]));
       ctx.fillStyle = C.text;
-      if (mod(n - 1, lines) === 0) ctx.fillRect(x, 3, 1, h - 3);
-      if (mod(n - 1, labels) === 0) ctx.fillText(String(n), x + this.textX, h - 6);
+      if (mod(n - 1, lines) === 0) ctx.fillRect(x, y0 + 3, 1, h - 3);
+      if (mod(n - 1, labels) === 0) ctx.fillText(String(n), x + this.textX, y0 + h - 6);
     }
+  }
+
+  // The sections, over the bar numbers: a block of its colour along the bars
+  // of each one, with its name (numbered when it comes back), cut to fit.
+  _sections(ctx) {
+    const h = this.dims.sections;
+    const W = this.width;
+    ctx.fillStyle = C.ruler;
+    ctx.fillRect(0, 0, W, h);
+    const g = this.grid;
+    const list = g.sections || [];
+    const n = g.bars.length;
+    ctx.font = `650 ${this.compact ? 11 : 11.5}px ${FONT}`;
+    ctx.textBaseline = "middle";
+    for (let k = 0; k < list.length; k++) {
+      const s = list[k];
+      if (s.lo >= n) continue;
+      const x0 = this.x(g.bars[s.lo]);
+      const x1 = s.hi + 1 < n ? this.x(g.bars[s.hi + 1]) : this.x(this.duration);
+      if (x1 < 0 || x0 > W) continue;
+      const a = Math.round(x0) + 1;
+      const b = Math.round(x1) - 1;
+      if (b - a < 2) continue;
+      const color = sectionColor(s);
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = color;
+      this._roundRect(ctx, a, 2, b - a, h - 4, 4);
+      ctx.globalAlpha = 1;
+      ctx.fillRect(a, 2, 3, h - 4);
+      ctx.restore();
+      // The name where the block is in view, at its left.
+      const left = Math.max(a, 0) + 7;
+      const room = Math.min(b, W) - left - 3;
+      if (room >= 9) {
+        const text = this._fit(ctx, this.titles[k] || "", room);
+        if (text) {
+          ctx.fillStyle = C.text;
+          ctx.fillText(text, left, h / 2 + 1);
+        }
+      }
+    }
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = C.border;
+    ctx.fillRect(0, h - 1, W, 1);
   }
 
   // The time scale, just over the tracks: the time every few seconds. The
@@ -546,7 +618,7 @@ export class Timeline {
   }
 
   _chords(ctx) {
-    const y0 = this.dims.nums;
+    const y0 = this.dims.sections + this.dims.nums;
     const h = this.dims.chords;
     const W = this.width;
     ctx.fillStyle = C.ruler;
@@ -899,12 +971,12 @@ export class Timeline {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
-  // What a press at (x, y) grabs: the bars ("chords" while editing, else
-  // "bars"), a loop edge ("start", "end"), the loop itself ("body"), or
-  // nothing (on the time scale: a tap places the playhead, dragging scrolls;
-  // on the waveforms: the playhead).
+  // What a press at (x, y) grabs: the sections ("sections" while editing),
+  // the bars ("chords" while editing, else "bars"), a loop edge ("start",
+  // "end"), the loop itself ("body"), or nothing (on the time scale: a tap
+  // places the playhead, dragging scrolls; on the waveforms: the playhead).
   _hit(x, y, type) {
-    if (y < this.barsHeight) return this.editing ? "chords" : "bars";
+    if (y < this.barsHeight) return !this.editing ? "bars" : y < this.dims.sections ? "sections" : "chords";
     const lp = this.loop;
     if (!lp.on || !(lp.end > lp.start)) return null;
     const mouse = type === "mouse";
@@ -945,6 +1017,54 @@ export class Timeline {
     return t;
   }
 
+  // What a press in the lane of the sections takes: the section under bar
+  // `i` (all its bars), or the bar alone.
+  _unitAt(i) {
+    const list = this.grid.sections || [];
+    const k = sectionIndexAt(list, i);
+    return k >= 0 ? { lo: list[k].lo, hi: list[k].hi } : { lo: i, hi: i };
+  }
+
+  // The end of bar `i` (the start of the next one, or the end of the song).
+  _barEnd(i) {
+    const bars = this.grid.bars;
+    return i + 1 < bars.length ? bars[i + 1] : this.duration;
+  }
+
+  // Whether the loop is on bars lo..hi.
+  _loopOver(lo, hi) {
+    const bars = this.grid.bars;
+    return !!bars.length && Math.abs(this.loop.start - bars[lo]) < 1e-6 && Math.abs(this.loop.end - this._barEnd(hi)) < 1e-6;
+  }
+
+  // The beat nearest to `t` (else the bar, else `t`).
+  _nearestBeat(t) {
+    const g = this.grid;
+    const list = g.beats.length ? g.beats : g.bars;
+    if (!list.length) return t;
+    const i = lowerBound(list, t);
+    let best = list[clamp(i, 0, list.length - 1)];
+    if (i > 0 && Math.abs(list[i - 1] - t) < Math.abs(best - t)) best = list[i - 1];
+    return best;
+  }
+
+  // Shift-click with the loop on: the span a..b (a bar, or a beat: a === b)
+  // moves the edge of the loop on its side; inside the loop, the nearer edge.
+  _loopTo(a, b) {
+    let { start, end } = this.loop;
+    if (a < start - 1e-9) start = a;
+    else if (b > end + 1e-9) end = b;
+    else if (a - start <= end - b) start = a;
+    else end = b;
+    start = clamp(start, 0, this.duration);
+    end = clamp(end, 0, this.duration);
+    if (end - start < MIN_LOOP) return;
+    this.loop = { on: true, start, end };
+    this.onLoop({ ...this.loop });
+    this.drawTop();
+    this.drawOverview();
+  }
+
   _down(e) {
     if (!(this.duration > 0)) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -969,6 +1089,34 @@ export class Timeline {
       return;
     }
     const zone = this._hit(p.x, p.y, e.pointerType);
+    const looping = this.loop.on && this.loop.end > this.loop.start;
+    // Shift-click with the loop on: an edge of the loop to a whole bar (the bar
+    // numbers) or to the nearest beat (the time scale).
+    if (e.shiftKey && looping && this.hasGrid) {
+      const nums = this.showChords && p.y >= this.dims.sections && p.y < this.dims.sections + this.dims.nums;
+      const ruler = p.y >= this.rulerTop && p.y < this.headHeight;
+      if (nums) {
+        const i = this.barIndexAt(p.x);
+        this._loopTo(this.grid.bars[i], this._barEnd(i));
+        return;
+      }
+      if (ruler) {
+        const t = this._nearestBeat(clamp(this.t(p.x), 0, this.duration));
+        this._loopTo(t, t);
+        return;
+      }
+    }
+    if (zone === "sections") {
+      const i = this.barIndexAt(p.x);
+      const sel = this.selection;
+      const onSelection = !e.shiftKey && !!sel && i >= sel.lo && i <= sel.hi;
+      const unit = this._unitAt(i);
+      // Shift: the selection grows to take in the section (or bar) clicked.
+      const from = e.shiftKey && sel ? { lo: sel.lo, hi: sel.hi, anchor: sel.anchor } : { lo: unit.lo, hi: unit.hi, anchor: unit.lo };
+      this.gesture = { kind: "section", id: e.pointerId, x0: p.x, i, from, onSelection, moved: false };
+      if (!onSelection) this._selectRange(from.anchor, Math.min(from.lo, unit.lo), Math.max(from.hi, unit.hi));
+      return;
+    }
     if (zone === "chords") {
       const i = this.barIndexAt(p.x);
       const anchor = e.shiftKey && this.selection ? this.selection.anchor : i;
@@ -991,7 +1139,7 @@ export class Timeline {
     if (!pt) {
       if (e.pointerType === "mouse") {
         const zone = this._hit(p.x, p.y, "mouse");
-        this.main.style.cursor = zone === "start" || zone === "end" ? "ew-resize" : zone === "body" ? "grab" : zone === "chords" || zone === "bars" ? "pointer" : "";
+        this.main.style.cursor = zone === "start" || zone === "end" ? "ew-resize" : zone === "body" ? "grab" : zone === "chords" || zone === "bars" || zone === "sections" ? "pointer" : "";
       }
       return;
     }
@@ -1011,6 +1159,13 @@ export class Timeline {
       if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
       g.moved = true;
       this._select(g.anchor, this.barIndexAt(p.x), false);
+      return;
+    }
+    if (g.kind === "section") {
+      if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
+      g.moved = true;
+      const unit = this._unitAt(this.barIndexAt(p.x));
+      this._selectRange(g.from.anchor, Math.min(g.from.lo, unit.lo), Math.max(g.from.hi, unit.hi));
       return;
     }
     if (g.kind === "start" || g.kind === "end") {
@@ -1083,6 +1238,26 @@ export class Timeline {
     };
     if (g.kind === "select") {
       if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled });
+    } else if (g.kind === "section") {
+      const sel = this.selection;
+      if (!sel || cancelled) {
+        // nothing to do
+      } else if (g.onSelection && !g.moved) {
+        // A tap on the bars selected: the menu of the names. With the loop on,
+        // on a section among several selected, that section alone (looped);
+        // on bars selected that the loop is not on yet, the loop goes there.
+        const u = this._unitAt(g.i);
+        const inside = sectionIndexAt(this.grid.sections, g.i) >= 0 && u.lo >= sel.lo && u.hi <= sel.hi && (u.lo > sel.lo || u.hi < sel.hi);
+        if (this.loop.on && inside) {
+          this.selection = { anchor: u.lo, lo: u.lo, hi: u.hi };
+          this.onSelect({ ...this.selection }, { done: true, tap: true, pointerType: e.pointerType, lane: "sections" });
+        } else if (this.loop.on && !this._loopOver(sel.lo, sel.hi)) {
+          this.onSelect({ ...sel }, { done: true, tap: true, pointerType: e.pointerType, lane: "sections" });
+        } else {
+          const r = this.main.getBoundingClientRect();
+          this.onSectionMenu({ lo: sel.lo, hi: sel.hi, x: r.left + (pt ? pt.x : 0), y: r.top + this.dims.sections, pointerType: e.pointerType });
+        }
+      } else this.onSelect({ ...sel }, { done: true, tap: !g.moved, pointerType: e.pointerType, lane: "sections" });
     } else if (g.kind === "start" || g.kind === "end") commitLoop();
     else if (g.kind === "body") {
       if (g.moved) commitLoop();
@@ -1107,6 +1282,12 @@ export class Timeline {
     this.selection = { anchor, lo: Math.min(anchor, i), hi: Math.max(anchor, i) };
     this.drawTop();
     this.onSelect({ ...this.selection }, { done });
+  }
+
+  _selectRange(anchor, lo, hi) {
+    this.selection = { anchor: clamp(anchor, lo, hi), lo, hi };
+    this.drawTop();
+    this.onSelect({ ...this.selection }, { done: false, lane: "sections" });
   }
 
   _wheel(e) {

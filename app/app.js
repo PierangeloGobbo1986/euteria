@@ -25,6 +25,8 @@ import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { getNotation, setNotation } from "../src/chordnames.js";
 import { Editor } from "./editor.js";
+import { SectionMenu } from "./sectionmenu.js";
+import { sectionIndexAt } from "../src/sections.js";
 import { SeparationFlow } from "./separate.js";
 import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
@@ -54,13 +56,13 @@ const HINTS = phone
       view: () =>
         tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a bar or its chord to write the chord. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
       edit: () =>
-        tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+        tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped."),
     }
   : {
       view: () =>
         tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a bar or its chord to write the chord. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
       edit: () =>
-        tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+        tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: click a section or a bar to select it, click the bars selected to name them. With the loop on, a section clicked is looped, shift-click takes in more; shift-click on the bar numbers or on the time scale moves an edge of the loop by whole bars or to the nearest beat."),
     };
 
 const player = new Player();
@@ -93,6 +95,7 @@ const app = {
   projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
 let editor = null; // app/editor.js, made with the timeline
+let sectionMenu = null; // app/sectionmenu.js
 let separation = null; // app/separate.js
 let detection = null; // app/detect.js
 let recording = null; // app/recording.js
@@ -317,6 +320,7 @@ async function openSong(file, origin) {
     if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
     showView("player");
     renderPlayer(saved && saved.view);
+    if (sectionMenu) sectionMenu.close();
     editor.songOpened({ differs: !!edits, built: !!(edits && edits.built), dirty: !!(saved && saved.dirty) });
     prepareSoon();
     window.scrollTo(0, 0);
@@ -700,6 +704,57 @@ function renderTrainer() {
   hint.hidden = !song || !trainer.on || player.loop.on;
   const text = tr("Speed training changes the speed at each pass of the loop: switch the loop on.");
   if (hint.textContent !== text) hint.textContent = text;
+}
+
+// ----- the sections of the song ------------------------------------------------------
+//
+// Named in the lane of the sections (app/timeline.js): a tap on the bars
+// selected opens the menu of the names (app/sectionmenu.js), whose choice goes
+// to those bars (Editor.setSectionOf). With the loop on, the sections selected
+// there are looped.
+
+let sectionBars = null; // {lo, hi}: the bars the menu is open for
+
+function openSectionMenu({ lo, hi, x, y, pointerType }) {
+  if (!player.song || editor.locked || !app.grid.bars.length) return;
+  sectionBars = { lo, hi };
+  const list = app.grid.sections || [];
+  const k = sectionIndexAt(list, lo);
+  // The section the bars are, when they are exactly one: marked in the menu.
+  const current = k >= 0 && list[k].lo === lo && list[k].hi === hi ? list[k] : null;
+  const removable = list.some((s) => s.hi >= lo && s.lo <= hi);
+  sectionMenu.show({ x, y, current, removable, pointerType });
+}
+
+async function pickSection(value) {
+  const bars = sectionBars;
+  sectionBars = null;
+  if (!bars || !player.song) return;
+  if (value && value.other) {
+    const list = app.grid.sections || [];
+    const k = sectionIndexAt(list, bars.lo);
+    const label = await askName({
+      title: tr("Name of the section"),
+      hint: tr("A name of your own, for example Coda, Vamp or Tag."),
+      ok: tr("OK"),
+      value: k >= 0 && list[k].label ? list[k].label : "",
+    });
+    if (!label || !player.song) return;
+    editor.setSectionOf(bars.lo, bars.hi, { label });
+    return;
+  }
+  editor.setSectionOf(bars.lo, bars.hi, value);
+}
+
+// The loop over bars lo..hi (from the first beat of the first one to the end
+// of the last one).
+function loopBars(lo, hi) {
+  const bars = app.grid.bars;
+  if (!player.song || !bars.length) return;
+  const a = Math.max(0, Math.min(lo, bars.length - 1));
+  const b = Math.max(a, Math.min(hi, bars.length - 1));
+  const end = b + 1 < bars.length ? bars[b + 1] : player.song.duration;
+  player.setLoop({ on: true, start: bars[a], end });
 }
 
 // ----- the notation of the chords ---------------------------------------------------
@@ -1214,7 +1269,12 @@ function buildControls() {
     onLoop: (lp) => player.setLoop({ on: true, start: lp.start, end: lp.end }),
     onView: settingsChanged,
     onChange: updateZoom,
-    onSelect: (sel, info) => editor.onSelect(sel, info),
+    onSelect: (sel, info) => {
+      editor.onSelect(sel, info);
+      // With the loop on, the sections selected (their lane) are looped.
+      if (info && info.done && info.lane === "sections" && !info.cancelled && player.loop.on) loopBars(sel.lo, sel.hi);
+    },
+    onSectionMenu: openSectionMenu,
     // A bar tapped while Bars and Chords is closed: it opens on that bar.
     onBarTap: (i, info) => {
       if (editor.locked) notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
@@ -1252,6 +1312,7 @@ function buildControls() {
       return song;
     },
   });
+  sectionMenu = new SectionMenu({ phone, onPick: pickSection });
   editor = new Editor({
     app,
     player,
@@ -2752,6 +2813,7 @@ function wire() {
     app.gridVisible = !app.gridVisible;
     app.timeline.setGridVisible(app.gridVisible);
     editor.setOn(app.gridVisible);
+    sectionMenu.close();
     settingsChanged();
     scheduleUi();
   });

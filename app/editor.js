@@ -24,6 +24,7 @@
 import { h, numberField, fmtTime, fmtSigned, parseTime, confirmTap } from "./controls.js";
 import { chordView } from "../src/chordnames.js";
 import { barChords } from "../src/chords.js";
+import { setSection, sectionTitles, sectionIndexAt } from "../src/sections.js";
 import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
 import { tr, trn } from "../src/i18n.js";
 
@@ -310,7 +311,7 @@ export class Editor {
   onSelect(sel, info = {}) {
     if (!this.on) return;
     this.select(sel);
-    if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone) this.chord.focus();
+    if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone && info.lane !== "sections") this.chord.focus();
   }
 
   // A bar tapped in the timeline while Bars and Chords is closed: it opens
@@ -449,6 +450,26 @@ export class Editor {
     const bpm = Math.round((this.grid.bpm || DEFAULT_BPM) * factor * 1000) / 1000;
     if (bpm < BPM_RANGE[0] || bpm > BPM_RANGE[1]) return;
     this.rebuild({ bpm }, tr("Grid at {bpm} BPM.", { bpm: bpm.toFixed(1) }));
+  }
+
+  // Bars lo..hi made a section ({kind} or {label}), or no longer one (null):
+  // what is left of the sections there stays (src/sections.js). Said with
+  // its name as it shows (numbered when it comes back).
+  setSectionOf(lo, hi, value) {
+    if (!this.ctx.player.song || !this.grid.bars.length) return;
+    this.commitInput();
+    const g = this.grid;
+    const sections = setSection(g.sections, lo, hi, value);
+    this.ctx.app.grid = { ...g, sections };
+    const from = barNumber(g, lo);
+    const to = barNumber(g, hi);
+    let said;
+    if (value) {
+      const k = sectionIndexAt(sections, lo);
+      const name = k >= 0 ? sectionTitles(sections)[k] : "";
+      said = from === to ? tr("{name}: bar {from}.", { name, from }) : tr("{name}: bars {from} to {to}.", { name, from, to });
+    } else said = from === to ? tr("No section in bar {from}.", { from }) : tr("No section in bars {from} to {to}.", { from, to });
+    this._edited(said);
   }
 
   // The chords go; the grid stays (hidden with the eye, if not wanted).

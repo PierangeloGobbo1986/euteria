@@ -1,9 +1,12 @@
 // The bar grid and the chords of a song as EUTERIA (Python) keeps them in
 // manifest.music: the times of the beats and of the bars in seconds, the
 // shift of the bar numbers (bar_number_offset: the first bar is number
-// offset + 1) and the chords, one per bar, keyed by the bar's index. The
-// grid is edited here too: rebuilt from its anchor (the first beat of a
+// offset + 1) and the chords, one per bar, keyed by the bar's index; and the
+// sections of the song (its form, src/sections.js), which EUTERIA Web adds.
+// The grid is edited here too: rebuilt from its anchor (the first beat of a
 // bar), tempo and meter, as in EUTERIA (Python).
+
+import { readSections, sectionsFields, shiftSections } from "./sections.js";
 
 const METER_BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
 export const METERS = Object.keys(METER_BEATS);
@@ -35,7 +38,7 @@ const times = (list, duration) =>
   (Array.isArray(list) ? list.map(Number) : []).filter((t) => Number.isFinite(t) && t >= 0 && t <= duration + 1e-6).sort((a, b) => a - b);
 
 // The grid of a project (an audio file has none): {beats, bars, offset,
-// chords: Map(bar index -> text), meter, bpm, firstBeat}. As in EUTERIA
+// chords: Map(bar index -> text), sections, meter, bpm, firstBeat}. As in EUTERIA
 // (Python), the saved beats and bars are the grid; a project saved without
 // them has none.
 export function readGrid(manifest, duration) {
@@ -51,13 +54,14 @@ export function readGrid(manifest, duration) {
     bars: times(m.bars, duration),
     offset,
     chords,
+    sections: readSections(m.sections),
     meter: METER_BEATS[m.time_signature] ? m.time_signature : "4/4",
     bpm: +m.bpm > 0 ? +m.bpm : null,
     firstBeat: +m.first_beat >= 0 ? +m.first_beat : 0,
   };
 }
 
-export const emptyGrid = () => ({ beats: [], bars: [], offset: 0, chords: new Map(), meter: "4/4", bpm: null, firstBeat: 0 });
+export const emptyGrid = () => ({ beats: [], bars: [], offset: 0, chords: new Map(), sections: [], meter: "4/4", bpm: null, firstBeat: 0 });
 
 // Index of the bar starting nearest to `t` (-1 without bars).
 export function nearestBar(bars, t) {
@@ -74,10 +78,10 @@ export function nearestBar(bars, t) {
 
 // The grid rebuilt from its anchor, tempo and meter (fields `firstBeat`,
 // `bpm`, `meter` already changed): a new grid. EUTERIA (Python) keeps the
-// chords and the bar numbers on the same indexes; here they stay with the
-// bars they belong to, measured at the anchor, so that a bar appearing or
-// vanishing at the start of the song (the anchor moved by a few hundredths,
-// the tempo changed) shifts nothing.
+// chords and the bar numbers on the same indexes; here they (and the
+// sections) stay with the bars they belong to, measured at the anchor, so
+// that a bar appearing or vanishing at the start of the song (the anchor
+// moved by a few hundredths, the tempo changed) shifts nothing.
 export function rebuildGrid(old, duration) {
   const { beats, bars } = buildGrid(old.firstBeat, old.bpm, old.meter, duration);
   let shift = 0;
@@ -86,7 +90,8 @@ export function rebuildGrid(old, duration) {
   if (before >= 0 && after >= 0) shift = after - before;
   const chords = new Map();
   for (const [i, text] of old.chords) chords.set(i + shift, text);
-  return { ...old, beats, bars, chords, offset: old.offset - shift, shift };
+  const sections = shiftSections(old.sections, shift);
+  return { ...old, beats, bars, chords, sections, offset: old.offset - shift, shift };
 }
 
 // The grid fitted to a song that grew (a take recorded past its end: it goes
@@ -127,6 +132,7 @@ export function gridEdits(grid, built) {
     firstBeat: grid.firstBeat,
     offset: grid.offset,
     chords: Object.fromEntries(grid.chords),
+    sections: sectionsFields(grid.sections),
     empty: !grid.bars.length,
   };
 }
@@ -142,6 +148,7 @@ export function applyGridEdits(grid, edits, duration) {
     out.chords = new Map();
     for (const [k, v] of Object.entries(edits.chords)) if (/^-?\d+$/.test(k) && typeof v === "string" && v.trim()) out.chords.set(+k, v.trim());
   }
+  if (Array.isArray(edits.sections)) out.sections = readSections(edits.sections);
   if (edits.empty) {
     out.beats = [];
     out.bars = [];
@@ -163,6 +170,7 @@ export function musicFields(grid) {
     bars: grid.bars.map(r6),
     bar_number_offset: grid.offset,
     chords: Object.fromEntries([...grid.chords].sort((a, b) => a[0] - b[0]).map(([k, v]) => [String(k), v])),
+    sections: sectionsFields(grid.sections),
   };
 }
 

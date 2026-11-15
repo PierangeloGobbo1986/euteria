@@ -188,6 +188,29 @@ as long as the eye is open:
 - **Bar numbers**: *Bar* shows the number of the bar selected; typing another number
   renumbers every bar from it (the bar number offset of EUTERIA (Python)), for a pickup
   bar or a song that starts in the middle.
+- **The sections** (2.2): the form of the song, in a lane of its own over the bar numbers
+  (*Sections*, beside it on a computer), each section a coloured block along its bars with
+  its name. The names are *Intro*, *Verse*, *Pre-chorus*, *Chorus*, *Bridge*, *Solo*,
+  *Interlude* and *Outro* (in Italian *Intro*, *Strofa*, *Pre-ritornello*, *Ritornello*,
+  *Bridge*, *Assolo*, *Interludio*, *Finale*), the letters *A* to *D* of a jazz form, or one
+  typed (*Other…*, up to 24 characters); a name that comes back is numbered in order (*Verse
+  1*, *Verse 2*; *A1*, *A2*, *B*, *A3*). The lane selects as the bars do, a section at a time:
+  a click or a tap on a section selects all its bars, on a bar without one that bar; dragging
+  along the lane, or shift-click, takes in more. A click or a tap on the bars selected opens
+  the menu of the names (under the click on a computer; a panel at the bottom of the screen on
+  the phone, the page moving up so that the bars selected stay in view over it), with *Remove
+  section* when they hold one. Bars selected on their numbers or their chords are named the
+  same way, by a click on them in the lane of the sections: so a section can be given to part
+  of another one, which keeps the rest of its bars. With the loop on, a section clicked or
+  tapped is looped, from the first beat of its first bar to the end of its last one;
+  shift-click takes in more sections, and a click on a section among several selected loops
+  that one alone (the menu opens once the loop is on the bars selected). Shift-click on a bar
+  number moves the edge of the loop on its side to that bar, whole (inside the loop, the
+  nearer edge comes in); shift-click on the time scale moves it to the nearest beat. The loop's
+  handles are dragged as before. The sections stay with their bars when the grid is rebuilt
+  (BPM, ×2, ÷2, meter, first beat, a new tempo found), as the chords do, and are saved in the
+  project as `music.sections` (`first_bar`, `last_bar`, and `kind` or `label`), which EUTERIA
+  (Python) leaves alone.
 
 Every edit is kept in the browser at once, so nothing is lost if the page closes; until
 it is saved, a dot on *Save* and the line under the card's rows say so. Leaving the song for the
