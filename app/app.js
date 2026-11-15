@@ -2504,16 +2504,25 @@ function updateUi() {
   const hint = (editor.on && song ? HINTS.edit : HINTS.view)();
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
-  // Separating the instruments (a song without stems, on a computer).
+  // Separating the instruments (a song without stems, on a computer); once the
+  // song has its stems, the button stays, grey.
   const sep = $("separate");
   const separable = !phone && !!song && separation.applicable;
-  sep.hidden = !separable;
+  const separated = !phone && !!song && player.hasStems;
+  sep.hidden = !(separable || separated);
   if (separable) {
     sep.disabled = !separation.supported || separation.running || busy || takesBusy;
     sep.classList.toggle("running", separation.running);
     const label = separation.running ? tr("Separating…") : tr("Separate instruments");
     if (sep.textContent !== label) sep.textContent = label;
     const title = separation.supported ? tr("Separate the six instruments of this song and save them with it in an EUTERIA project (.euteria)") : separation.reason;
+    if (sep.title !== title) sep.title = title;
+  } else if (separated) {
+    sep.disabled = true;
+    sep.classList.remove("running");
+    const label = tr("Separate instruments");
+    if (sep.textContent !== label) sep.textContent = label;
+    const title = tr("The instruments of this song are separated already.");
     if (sep.title !== title) sep.title = title;
   }
   if (song && !ownAudio()) {

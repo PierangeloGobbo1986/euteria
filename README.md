@@ -150,7 +150,9 @@ as long as the eye is open:
   grid starts at 180 BPM as in EUTERIA (Python), once the first beat is set; *Detect
   tempo* makes the grid from the tempo found (below).
 - **The chords**: a tap or a click on a bar, on its number or its chord, selects it;
-  dragging along the bars (or shift-click) selects several. The chord typed goes to every bar selected (an empty
+  dragging along the bars (or shift-click) selects several. No bar is selected when a
+  song opens, so the keys stay the transport's (← → five seconds) until a bar is chosen;
+  ‹ and › start from the bar at the playhead, and Escape lets the selection go. The chord typed goes to every bar selected (an empty
   chord removes it); Return (*next* on the phone keyboard) goes on to the following
   bar, so a song is entered chord after chord without leaving the keyboard. ‹ and ›
   move the selection. *Copy* and *Paste* copy the chords of the bars selected: pasted
@@ -313,7 +315,8 @@ audio interface sound better. EUTERIA (Python) does not show the takes.
 
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*
-at the top of the column of the tracks, beside the time scale. It first asks where to
+first in the *Song analysis* card; once the song has its stems the button stays there,
+grey, and says the instruments are separated already. It first asks where to
 save the EUTERIA project (`.euteria`) it is going to make, so that a separation left to
 run on its own is saved when it ends. The first time, it downloads the separation model
 (336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
@@ -502,7 +505,15 @@ instance. Tempo and key change live, the tracks cannot drift apart, and the drum
 their pitch, as in EUTERIA (Python). Volumes above 100% use the same soft limiter as
 EUTERIA (Python). During playback the sum goes through a limiter: where it would go over
 −0.9 dB the gain drops at once, just enough, and comes back over 120 ms, so the peaks of
-a song and a take played together are lowered rather than cut.
+a song and a take played together are lowered rather than cut. While the metronome clicks
+over the song the gain is held instead: on a loud song every click goes over the limit,
+and a gain coming back at once made the whole song dip with each click and swell between
+them (2.1.1 fixes it: about 3 dB of pumping at 100%, measured on what the engine plays).
+A gain lowered for a click now stays down for two bars (or as many as the silent bars and
+one more, 16 s at most), each peak within 2 dB of the limit holding it again (a click
+lands on the song's waveform a little differently each time), and then comes back over
+1.5 s: the song stays at one level, a few dB lower while the clicks are loud, within 0.01 dB
+in the test. The count-in goes through the limiter too, and every start begins afresh.
 
 The metronome is mixed after the stretchers, at its own pitch: the engine has the
 song times of its clicks (`src/metronome.js`: the beats of the grid, moved onto the

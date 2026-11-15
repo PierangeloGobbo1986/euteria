@@ -45,6 +45,7 @@ export const IT = {
   "Stop": "Interrompi",
   "Close this message": "Chiudi questo messaggio",
   "Set first beat": "Imposta primo beat",
+  "The instruments of this song are separated already.": "Gli strumenti di questo brano sono già separati.",
   "Song analysis": "Analisi del brano",
   "{bpm} BPM at this speed": "{bpm} BPM a questa velocità",
   "Plays": "Suona",

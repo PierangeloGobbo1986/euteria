@@ -57,6 +57,19 @@
   // RELEASE_SECONDS. The peaks are lowered rather than cut, which a song and a
   // take played together need (a mastered song already reaches full scale).
   const RELEASE_SECONDS = 0.12;
+  // While the metronome clicks over the song, a gain the limiter lowered stays
+  // down for HOLD_BARS bars, or as many as the silent bars and one more
+  // (MAX_HOLD_SECONDS at most), and then comes back over
+  // CLICK_RELEASE_SECONDS. On a loud song each click goes over LIMIT: coming
+  // back at once, the whole mix would dip with every click and swell between
+  // them (the song pumping with the beat); held, it stays at one level.
+  const HOLD_BARS = 2;
+  const MAX_HOLD_SECONDS = 16;
+  const CLICK_RELEASE_SECONDS = 1.5;
+  // A peak this near the limit (2 dB under it) holds the gain too: a click
+  // lands on the song's waveform a little differently each time, and needs a
+  // little more or less, which must not move the level.
+  const HOLD_NEAR = 0.8;
 
   // Signalsmith's default quality (120 ms blocks every 30 ms), with the work of
   // each block spread over the audio callbacks instead of done all at once:
@@ -184,6 +197,8 @@
       this.masterLimit = true;
       this.limitGain = 1;
       this.limitRelease = 1 - Math.exp(-1 / (sampleRate * RELEASE_SECONDS));
+      this.limitReleaseClicks = 1 - Math.exp(-1 / (sampleRate * CLICK_RELEASE_SECONDS));
+      this.limitHold = 0; // output samples the gain stays down (the metronome on)
       this.length = 0; // samples of the longest track (or minLength)
       this.minLength = 0; // samples the song lasts at least
       this.endless = false; // a take being recorded: playback goes on past the end
@@ -381,6 +396,9 @@
     _restart() {
       this.startOut = this.out;
       this.sinceStart = 0;
+      // The limiter starts afresh (a gain held for the clicks of before goes).
+      this.limitGain = 1;
+      this.limitHold = 0;
       this.frac = 0;
       this.preroll = 0;
       this.barsHeard = 0;
@@ -425,6 +443,7 @@
           this.preR.fill(0, 0, n);
         }
         this._clicks(out0, out1, n, this.emission(), true);
+        if (this.masterLimit) this._limit(out0, out1, n);
         this.preroll = Math.max(0, this.preroll - n);
         if (!this.preroll) {
           // The bars of the song are counted from here; the first is never silent.
@@ -606,20 +625,30 @@
       this.lastPos = pos;
     }
 
-    // The mix kept under LIMIT (see RELEASE_SECONDS).
+    // The mix kept under LIMIT (see RELEASE_SECONDS); with the metronome
+    // clicking over the song, the gain held down (see HOLD_BARS).
     _limit(out0, out1, n) {
       let g = this.limitGain;
-      const rel = this.limitRelease;
+      const clicking = this.metro.on && this.metro.bar > 0;
+      let hold = clicking ? this.limitHold : 0;
+      const bars = Math.max(HOLD_BARS, this.metro.mute + 1);
+      const holdFor = clicking ? Math.min(MAX_HOLD_SECONDS * this.sampleRate, (bars * this.metro.bar) / this.rate) : 0;
+      const rel = clicking ? this.limitReleaseClicks : this.limitRelease;
       for (let i = 0; i < n; i++) {
         const a = out0[i] < 0 ? -out0[i] : out0[i];
         const b = out1[i] < 0 ? -out1[i] : out1[i];
         const peak = a > b ? a : b;
-        g += (1 - g) * rel;
-        if (peak * g > LIMIT) g = LIMIT / peak;
+        if (hold > 0) hold--;
+        else g += (1 - g) * rel;
+        if (peak * g > LIMIT) {
+          g = LIMIT / peak;
+          hold = holdFor;
+        } else if (holdFor && peak * g > LIMIT * HOLD_NEAR) hold = holdFor;
         out0[i] *= g;
         out1[i] *= g;
       }
       this.limitGain = g;
+      this.limitHold = hold;
     }
 
     // Mixes `count` samples of the bus's tracks along the playback path from

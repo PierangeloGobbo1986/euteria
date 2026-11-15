@@ -5,18 +5,20 @@
 // several bars, clearing the chords. Every edit is kept in this browser at
 // once (src/settings.js), and written in the song's file by Save (app.js).
 //
-// On a computer the grid comes from the tempo detection (app/detect.js) the
-// first time a song opens: Bars and Chords waits for it (ctx.locked()), and
-// detected() puts the new grid in place of the one the song had.
+// The editor is in the Song analysis card, always at hand: the bars and the
+// chords can be edited whenever they are shown (the eye), except while the
+// tempo detection runs (ctx.locked()); detected() puts the grid it makes in
+// place of the one the song had.
 //
 // Bars are selected in the timeline, by their numbers or their chords: a tap
-// or a click selects one, dragging along them (or shift-click) several; a
-// bar tapped while Bars and Chords is closed opens it there. The chord typed
-// applies to every bar selected; Return goes on to the next bar. With the
-// song transposed (Key), the chord field shows and takes the chords in the
-// key of now, and the bars keep them in the song's own key
-// (src/chordnames.js), so that the song saved is the same in any key.
-// Detect chords (beside the chord field, wired in app/app.js) writes the
+// or a click selects one, dragging along them (or shift-click) several; ‹ and
+// › start from the bar at the playhead. No bar is selected until then, so that
+// the keys stay the transport's (← → five seconds) until a bar is chosen;
+// Escape lets it go. The chord typed applies to every bar selected; Return
+// goes on to the next bar. With the song transposed (Key), the chord field
+// shows and takes the chords in the key of now, and the bars keep them in the
+// song's own key (src/chordnames.js), so that the song saved is the same in
+// any key. Detect chords (Song analysis, wired in app/app.js) writes the
 // chords found in the song (app/detect.js, src/chords.js) in every bar.
 
 import { h, numberField, fmtTime, fmtSigned, parseTime, confirmTap } from "./controls.js";
@@ -220,7 +222,7 @@ export class Editor {
     // The bars and the chords can be edited whenever they are shown.
     this.on = !!this.ctx.player.song && this.ctx.app.gridVisible && !this.locked;
     this.ctx.timeline.setEditing(this.on);
-    if (this.on) this._selectAtPlayhead();
+    this.ctx.timeline.setSelection(null);
     this.loadInput();
     this.refresh();
   }
@@ -239,8 +241,7 @@ export class Editor {
     this.sel = null;
     this.target = null;
     this.ctx.timeline.setGrid(grid);
-    if (this.on) this._selectAtPlayhead();
-    else this.ctx.timeline.setSelection(null);
+    this.ctx.timeline.setSelection(null);
     this.loadInput();
     this.ctx.refreshPage();
   }
@@ -270,8 +271,8 @@ export class Editor {
       this.ctx.changed();
     }
     timeline.setEditing(on);
-    if (on) this._selectAtPlayhead();
-    else this.sel = null;
+    this.sel = null;
+    timeline.setSelection(null);
     this.loadInput();
     this.ctx.refreshPage();
   }
@@ -439,10 +440,7 @@ export class Editor {
     this.built = true;
     if (this.sel) this.sel = { anchor: this.sel.anchor + shift, lo: this.sel.lo + shift, hi: this.sel.hi + shift };
     this._edited(message);
-    if (this.on) {
-      if (this.sel) this.select(this.sel);
-      else this._selectAtPlayhead();
-    }
+    if (this.on && this.sel) this.select(this.sel);
   }
 
   // ×2 and ÷2: the tempo of the grid doubled or halved, from the anchor
@@ -554,8 +552,9 @@ export class Editor {
       return true;
     }
     if (mod || e.altKey) return false;
+    // ← → move the bars selected; with none, they are the transport's (5 seconds).
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-      if (!this.grid.bars.length) return false;
+      if (!this.grid.bars.length || !this.sel) return false;
       e.preventDefault();
       this.move(e.key === "ArrowLeft" ? -1 : 1, e.shiftKey);
       return true;
@@ -625,8 +624,8 @@ export class Editor {
     this.bar.set(sel ? barNumber(g, sel.lo) : 0);
     if (!sel && document.activeElement !== this.bar.input) this.bar.input.value = "";
     this.bar.disable(!sel);
-    $("bar-prev").disabled = !sel || sel.lo <= 0;
-    $("bar-next").disabled = !sel || sel.hi >= g.bars.length - 1;
+    $("bar-prev").disabled = busy || !has || (!!sel && sel.lo <= 0);
+    $("bar-next").disabled = busy || !has || (!!sel && sel.hi >= g.bars.length - 1);
     this.chord.disabled = !sel;
     $("chord-copy").disabled = !sel;
     $("chord-paste").disabled = !sel || !this.clip.length;
