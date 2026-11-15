@@ -445,7 +445,15 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 [data-layout=computer] .loop-controls .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .loop-controls .num input { font-size: 15px; }
 .num.time input { width: 4.6em; } /* before .num.anchor input, which overrides it */
-[data-layout=phone] .loop-controls { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
+/* Phone: Loop beside the playhead's field, under the timeline; the loop's ends under them. */
+[data-layout=phone] .loop-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 12px; }
+[data-layout=phone] .loop-controls #loop { min-height: 44px; padding: 0 16px; }
+[data-layout=phone] .loop-controls .loop-sets { grid-column: 1 / -1; }
+/* Phone: the eye of the bars and chords over the timeline, where Loop was. */
+[data-layout=phone] .tl-toolbar .grid-view { display: flex; align-items: center; gap: 8px; }
+[data-layout=phone] .tl-toolbar .grid-view[hidden] { display: none; }
+[data-layout=phone] .tl-toolbar .grid-view-label { color: var(--text); font-size: 14px; font-weight: 650; white-space: nowrap; }
+[data-layout=phone] .tl-toolbar .grid-view .eye { min-width: 44px; min-height: 44px; }
 [data-layout=phone] .position-box .num { display: flex; width: 100%; }
 [data-layout=phone] .position-box .num .value { flex: 1; }
 [data-layout=phone] .loop-sets button { flex: 1; min-height: 44px; }

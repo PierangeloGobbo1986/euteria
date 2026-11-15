@@ -116,8 +116,8 @@ snaps to the bars), a tap elsewhere brings the view there.
 The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
 them freely): with a finger by their handles at the foot of the time scale, with a
 mouse also anywhere along them. Next to
-*Loop* (in the timeline's toolbar on a computer, under the timeline on the phone, after
-the editing tools) one field shows the playhead to the hundredth of a second: it
+*Loop* (in the timeline's toolbar on a computer; on the phone under the timeline, in the
+row of this field, on its left) one field shows the playhead to the hundredth of a second: it
 follows the yellow line, and typing a time or − and + (a hundredth at a time, held to
 repeat) move the line. *Set start* and *Set end* put the start or the end of the loop
 at the playhead; *Set end* also switches the loop on. A loop switched on with *Loop*
@@ -125,9 +125,13 @@ starts at the bar being played (or in the middle of the view if the playhead is
 elsewhere) and lasts 16 seconds, at most half of what is in view, in whole bars; a loop
 already placed and in view stays where it is. While the song plays, the view follows
 the playhead, except for a few seconds after it was moved by hand.
-The eye beside *Bars and chords*, in the *Song analysis* card, shows or hides the grid
-lines and the chords (open: shown and editable, closed: hidden; the choice is kept with the
-song). Bar numbers start from the number saved by
+The eye beside *Bars and chords*, in the *Song analysis* card (on the phone over the
+timeline, on the left of *Zoom*), shows or hides the sections, the grid lines and the chords
+(open: shown and editable, closed: hidden; the choice is kept with the song, in this browser,
+and saved in the project). When nothing is over the waveforms, the line under the timeline
+says why first: the song has no bars yet (on the phone the tempo is not detected: *Set first
+beat* makes them, or the project saved on a computer after *Detect tempo* brings them), or
+they are hidden, and where the eye is. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
 **Editing the grid and the chords.** The *Song analysis* card (between the tracks and

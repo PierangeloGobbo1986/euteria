@@ -55,12 +55,16 @@ const HINTS = phone
   ? {
       view: () =>
         tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a bar or its chord to write the chord. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
+      noGrid: () => tr("No bars in this song yet: put the playhead on the first beat of a bar and tap Set first beat, in Song analysis (on a computer, Detect tempo finds them)."),
+      hidden: () => tr("The sections, the bars and the chords are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
         tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped."),
     }
   : {
       view: () =>
         tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a bar or its chord to write the chord. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
+      noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and press Set first beat."),
+      hidden: () => tr("The sections, the bars and the chords are hidden: the eye beside Bars and chords, in Song analysis, shows them."),
       edit: () =>
         tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: click a section or a bar to select it, click the bars selected to name them. With the loop on, a section clicked is looped, shift-click takes in more; shift-click on the bar numbers or on the time scale moves an edge of the loop by whole bars or to the nearest beat."),
     };
@@ -1337,8 +1341,12 @@ function buildControls() {
   if (phone) {
     // The transport joins the app bar: one banner at the top, always in view.
     document.querySelector(".appbar").append($("transport"));
-    // Under the timeline: the playhead and the loop.
+    // Under the timeline: Loop beside the playhead, then the loop's ends.
     $("tl-wrap").after($("loop-controls"));
+    $("loop-controls").prepend($("loop"));
+    // Over the timeline, where Loop was: the bars, the chords and the
+    // sections shown or hidden (the eye of Song analysis).
+    document.querySelector(".timeline-card .tl-toolbar").prepend($("grid-view"));
   } else {
     // On a computer the tracks are the rows of the timeline; at the top of the
     // column of the tracks, beside the bars and the time scale, All stems and
@@ -2564,7 +2572,9 @@ function updateUi() {
   setIcon(eye, app.gridVisible ? "eye" : "eyeClosed");
   eye.setAttribute("aria-pressed", String(app.gridVisible));
   eye.title = app.gridVisible ? tr("The grid is shown: click to hide it") : tr("The grid is hidden: click to show it");
-  const hint = (editor.on && song ? HINTS.edit : HINTS.view)();
+  // Nothing over the waveforms: why, first (no bars yet, or hidden).
+  const state = !song ? "" : !hasGrid ? HINTS.noGrid() : !app.gridVisible ? HINTS.hidden() : "";
+  const hint = state ? `${state} ${HINTS.view()}` : (editor.on && song ? HINTS.edit : HINTS.view)();
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
   // Separating the instruments (a song without stems, on a computer); once the
