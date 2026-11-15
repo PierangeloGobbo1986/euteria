@@ -1,0 +1,46 @@
+# One-off: fetches the small model of Beat This! (small0, MIT) converted to ONNX, for the
+# tempo detection on phones and on browsers without WebGPU; checks it with ONNX Runtime and
+# hands it over as an artifact, to be checked before it goes into models/beat-this.
+name: Fetch the small Beat This! model
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find and download small0.onnx
+        run: |
+          set -e
+          mkdir -p out
+          curl -sSL https://huggingface.co/api/models/ashudesai/songbird-models > out/api.json
+          python3 -c "import json; d=json.load(open('out/api.json')); print([s['rfilename'] for s in d.get('siblings', [])])"
+          path=$(python3 -c "import json; d=json.load(open('out/api.json')); print(next(s['rfilename'] for s in d['siblings'] if s['rfilename'].endswith('small0.onnx')))")
+          echo "path: $path"
+          echo "$path" > out/path.txt
+          curl -sSL -o out/small0.onnx "https://huggingface.co/ashudesai/songbird-models/resolve/main/$path"
+          curl -sSL -o out/tree.json "https://huggingface.co/api/models/ashudesai/songbird-models/tree/main" || true
+          curl -sSL -o out/README.md "https://huggingface.co/ashudesai/songbird-models/resolve/main/README.md" || true
+          ls -l out
+          sha256sum out/small0.onnx | tee out/sha256.txt
+      - name: Check it with ONNX Runtime
+        run: |
+          pip install --quiet onnxruntime numpy onnx
+          python3 - <<'PY'
+          import onnxruntime as ort, numpy as np, onnx
+          m = onnx.load("out/small0.onnx")
+          print("opset", [(o.domain, o.version) for o in m.opset_import])
+          print("parameters", sum(int(np.prod(t.dims)) for t in m.graph.initializer))
+          s = ort.InferenceSession("out/small0.onnx")
+          for i in s.get_inputs(): print("in", i.name, i.shape, i.type)
+          for o in s.get_outputs(): print("out", o.name, o.shape, o.type)
+          x = np.random.randn(1, 1500, 128).astype(np.float32)
+          r = s.run(None, {s.get_inputs()[0].name: x})
+          print([a.shape for a in r])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beat-this-small0
+          path: out/
+          retention-days: 3
