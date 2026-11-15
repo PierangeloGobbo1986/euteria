@@ -21,6 +21,7 @@
 
 html, body {
   margin: 0;
+  overscroll-behavior-x: none; /* the two-finger swipe along the tracks must not go back a page */
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
@@ -461,18 +462,11 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 }
 .tl-main canvas { position: absolute; left: 0; top: 0; display: block; }
 .tl-overview { display: block; margin-bottom: var(--tl-gap); border-radius: 6px; touch-action: none; cursor: pointer; }
-/* Computer: Bars and Chords over the timeline, as wide as the column of the
-   tracks, and beside it Grid with its eye (the grid shown or hidden); the
-   column starts beside the bars and the time scale, under the overview. */
-.edit-bar { display: flex; flex-direction: column; }
-[data-layout=computer] .edit-bar { flex-direction: row; align-items: center; gap: 12px; margin-bottom: 10px; }
-[data-layout=computer] #edit-toggle { flex: none; width: calc(var(--tl-col) - 10px); }
 .grid-view { display: flex; align-items: center; gap: 6px; }
 .grid-view[hidden] { display: none; }
 .grid-view-label { font-size: 13px; font-weight: 600; color: var(--muted); }
 button.eye { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 8px; }
 button.eye .icon { width: 18px; height: 18px; }
-[data-layout=phone] .edit-bar { margin-top: 12px; }
 [data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 72px)); }
 /* Beside everything over the tracks: the names of the lanes of the bar numbers
    and of the chords, each in line with its lane, then, beside the time scale,
@@ -497,9 +491,11 @@ button.eye .icon { width: 18px; height: 18px; }
   white-space: nowrap;
 }
 .tl-side .lane-bars { height: var(--tl-nums, 20px); line-height: var(--tl-nums, 20px); }
-.tl-side .lane-chords { height: var(--tl-chords, 24px); line-height: var(--tl-chords, 24px); color: #c9b48a; }
+.tl-side .lane-chords { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: var(--tl-chords, 24px); line-height: var(--tl-chords, 24px); color: #c9b48a; }
+.notation-btn { min-height: 0; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0; color: #c9b48a; white-space: nowrap; }
+[data-layout=phone] .notation-btn { height: 44px; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .tl-side-tools { flex: none; height: var(--tl-ruler, 28px); display: flex; flex-direction: column; justify-content: center; }
-[data-layout=computer] .edit-bar > button, .tl-side-tools > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
+.tl-side-tools > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
 .tl-heads .track {
   height: var(--tl-row, 60px);
@@ -537,7 +533,6 @@ button.eye .icon { width: 18px; height: 18px; }
 .tl-heads .track .num.sync input { width: 3em; }
 
 /* ----- editing the grid and the chords ----- */
-#edit-toggle.dirty::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex: none; }
 .edit-panel { margin: 0 0 10px; }
 .edit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .edit-row + .edit-row { margin-top: 8px; }
@@ -548,15 +543,21 @@ button.eye .icon { width: 18px; height: 18px; }
 .edit-status.dirty { color: var(--gold); }
 .edit-status.ok { color: var(--ok); }
 .edit-status.error { color: var(--danger); }
-.save-row #clear-chords { margin-left: auto; }
-/* Detect BPM, over the Tempo field, then the meter and the tempo of the grid;
-   Detect chords, before the chord field. */
-.find-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
-.find-row:not(:has(> :not([hidden]))) { display: none; }
-.find-row .num { flex: none; }
-[data-layout=computer] .find-row .num { height: 36px; border-radius: 9px; }
-[data-layout=computer] .find-row .num select { font-size: 15px; }
-[data-layout=phone] .find-row .find-btn { min-height: 44px; }
+.chord-edit #clear-chords { margin-left: auto; }
+/* Song analysis: the buttons that find (separate, tempo, chords), then the grid
+   and the chords, in the card's own rows. */
+.analysis-find { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 12px; }
+.analysis-find:not(:has(> :not([hidden]))) { display: none; }
+[data-layout=computer] .analysis-find .find-btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
+[data-layout=phone] .analysis-find .find-btn { min-height: 44px; }
+.tempo-bpm { margin: 0; color: var(--dim); font-size: 13px; white-space: nowrap; }
+.analysis-card .edit-panel { background: none; border: 0; padding: 0; margin: 0 0 12px; }
+.analysis-card .grid-edit { display: block; }
+.analysis-card .grid-row { gap: 10px 22px; }
+.analysis-card .sep-panel { margin-bottom: 12px; }
+.analysis-card .edit-status { margin: 0; }
+.chord-edit .grid-view { gap: 8px; margin-right: 6px; }
+.chord-edit .grid-view-label { color: var(--text); font-size: 14px; font-weight: 650; white-space: nowrap; }
 .find-btn { flex: none; white-space: nowrap; }
 .find-btn::before { content: "✦ "; color: var(--accent, #d6a85f); }
 /* ×2 and ÷2 beside the tempo of the grid. */
@@ -592,10 +593,6 @@ button.eye .icon { width: 18px; height: 18px; }
 .num.meter select option { background: var(--panel); color: var(--text); }
 .num.bpm input { width: 3em; }
 .num.anchor input { width: 5.4em; }
-[data-layout=computer] .edit-panel { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
-[data-layout=computer] .grid-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-bottom: 8px; }
-[data-layout=computer] .grid-edit .edit-row + .edit-row { margin-top: 0; }
-[data-layout=computer] .grid-edit .save-row { flex: 1; min-width: 300px; }
 [data-layout=computer] .edit-panel .num { height: 36px; }
 [data-layout=computer] .edit-panel .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .edit-panel .num input, [data-layout=computer] .edit-panel .num select { font-size: 15px; }
@@ -613,7 +610,6 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .zoom button { min-width: 36px; }
 [data-layout=phone] .zoom #zoom-level { min-width: 52px; }
 [data-layout=phone] .tl-toolbar .toggle-pill { padding-left: 10px; padding-right: 10px; }
-[data-layout=phone] .edit-panel { margin: 12px 0 0; }
 [data-layout=phone] .bar-nav { gap: 4px; }
 [data-layout=phone] .bar-nav > button { min-width: 36px; }
 [data-layout=phone] .num.bar input { width: 2.6em; }
@@ -623,7 +619,6 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .anchor-item { flex: 1 1 100%; }
 [data-layout=phone] .anchor-item .num { flex: 1; }
 [data-layout=phone] .anchor-item .num .value { flex: 1; }
-[data-layout=phone] .save-row .edit-status { order: 9; flex: 1 1 100%; }
 
 /* ----- separating the instruments ----- */
 .sep-panel { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 8px 10px; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; }
@@ -840,7 +835,7 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=computer] .transport-inner { grid-template-columns: auto 1fr auto; grid-template-areas: "now . total" "seek seek seek" "buttons buttons buttons"; gap: 4px 10px; }
   .timeline-card { --tl-col: 150px; }
   :lang(it) .timeline-card { --tl-col: 194px; }
-  [data-layout=computer] .edit-bar > button, .tl-side-tools > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
+  .tl-side-tools > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
 }
 @media (max-width: 900px) {
   [data-layout=computer] .brand .acronym span { display: block; }
@@ -896,11 +891,11 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 .metro-beats .beat.accent { background: var(--gold); border-color: var(--gold); color: #1a1408; font-weight: 800; }
 .metro-beats .beat.silent { background: transparent; border-style: dashed; color: var(--muted); opacity: .7; text-decoration: line-through; }
 .metro .num { min-width: 0; }
-.metro.off .metro-cycle > * { opacity: .55; }
+.metro.off .metro-cycle > *, .metro.count-only .metro-cycle > * { opacity: .55; }
 /* The count-in and what the silent bars silence: menus as wide as their longest
    choice ("2 bars"). */
-.metro .num.metro-count .value, .metro .num.metro-silence .value { min-width: 0; padding: 0 2px; }
-.metro .num.metro-count .value select, .metro .num.metro-silence .value select { width: auto; padding: 0 10px; text-align: left; text-align-last: left; cursor: pointer; }
+.metro .num.metro-count .value, .metro .num.metro-mode .value, .metro .num.metro-silence .value { min-width: 0; padding: 0 2px; }
+.metro .num.metro-count .value select, .metro .num.metro-mode .value select, .metro .num.metro-silence .value select { width: auto; padding: 0 10px; text-align: left; text-align-last: left; cursor: pointer; }
 .metro .num .value select option { background: var(--panel); color: var(--text); }
 [data-layout=phone] .metro-row { column-gap: 20px; }
 
@@ -911,13 +906,13 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
    sentence going on to the next line where the row ends), At random, and what they
    mute, its name over the menu. */
 .metro-cycle-row { align-items: flex-end; column-gap: 8px; }
-.metro-count-item { margin-right: 10px; }
+.metro-count-item, .metro-mode-item { margin-right: 10px; }
 .metro-cycle { display: contents; }
 .metro-cycle-row .mini-label { line-height: 44px; }
 .metro-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
 .metro-pair { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 [data-layout=computer] .metro-group .num .step { width: 40px; }
-[data-layout=phone] .metro-count-item { flex-basis: 100%; margin-right: 0; }
+[data-layout=phone] .metro-count-item, [data-layout=phone] .metro-mode-item { flex-basis: 100%; margin-right: 0; }
 [data-layout=phone] .metro-group .num .step { width: 38px; }
 [data-layout=phone] .metro-group .num .value { min-width: 54px; }
 .metro-cycle > .toggle-pill { margin-bottom: 4px; }

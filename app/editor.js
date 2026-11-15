@@ -1,6 +1,6 @@
 // Editing the grid and the chords of the open song, as in EUTERIA (Python):
 // the tempo of the grid (BPM, doubled or halved with ×2 and ÷2), the meter,
-// the anchor (the first beat of a bar; Set anchor puts it at the playhead),
+// the first beat (a bar starts there; Set first beat puts it at the playhead),
 // the numbers of the bars, a chord per bar, copying and pasting the chords of
 // several bars, clearing the chords. Every edit is kept in this browser at
 // once (src/settings.js), and written in the song's file by Save (app.js).
@@ -97,10 +97,10 @@ export class Editor {
     $("bpm-box").append(this.bpm.el);
     this.meter = h("select", { "aria-label": tr("Meter") });
     for (const m of METERS) this.meter.append(new Option(m, m));
-    this.meter.addEventListener("change", () => this.rebuild({ meter: this.meter.value }, tr("Meter {meter}: grid rebuilt from the anchor.", { meter: this.meter.value })));
+    this.meter.addEventListener("change", () => this.setMeter(this.meter.value));
     $("meter-box").append(h("div", { class: "num meter" }, h("div", { class: "value" }, this.meter)));
     this.anchor = numberField({
-      label: tr("Anchor"),
+      label: tr("First beat"),
       min: 0,
       max: 0,
       step: 0.01,
@@ -109,12 +109,12 @@ export class Editor {
       format: (v) => fmtTime(v, 3),
       parse: parseTime,
       className: "time anchor",
-      onChange: (v) => this.rebuild({ firstBeat: v }, tr("Anchor at {time}.", { time: fmtTime(v, 3) })),
+      onChange: (v) => this.rebuild({ firstBeat: v }, tr("First beat at {time}.", { time: fmtTime(v, 3) })),
     });
     $("anchor-box").append(this.anchor.el);
     $("set-anchor").addEventListener("click", () => {
-      const t = clamp(this.ctx.player.position, 0, this.duration);
-      this.rebuild({ firstBeat: t }, tr("Anchor at {time}: a bar starts there, the grid goes both ways.", { time: fmtTime(t, 3) }));
+      const t = this._beatNear(clamp(this.ctx.player.position, 0, this.duration));
+      this.rebuild({ firstBeat: t }, tr("First beat at {time}: a bar starts there, the grid goes both ways.", { time: fmtTime(t, 3) }));
     });
     $("bpm-double").addEventListener("click", () => this.scaleTempo(2));
     $("bpm-half").addEventListener("click", () => this.scaleTempo(0.5));
@@ -152,14 +152,25 @@ export class Editor {
     input.addEventListener("blur", () => this.commitInput());
     input.addEventListener("keydown", (e) => this._inputKey(e));
 
-    $("edit-toggle").addEventListener("click", () => this.setOn(!this.on));
+  }
+
+  // Time `t` put on the beat the tempo detection found nearest to it, if one is
+  // near (a third of a beat); else as it is.
+  _beatNear(t) {
+    const found = this.ctx.app.analysis && this.ctx.app.analysis.beats;
+    if (!Array.isArray(found) || !found.length) return t;
+    const bpm = this.grid.bpm || DEFAULT_BPM;
+    const tol = 20 / bpm;
+    let best = null;
+    for (const b of found) if (Math.abs(b - t) <= tol && (best === null || Math.abs(b - t) < Math.abs(best - t))) best = b;
+    return best === null ? t : clamp(best, 0, this.duration);
   }
 
   // The names of the controls, again in the language in use.
   relabel() {
     this.bpm.relabel(tr("Tempo of the grid"));
     this.meter.setAttribute("aria-label", tr("Meter"));
-    this.anchor.relabel(tr("Anchor"));
+    this.anchor.relabel(tr("First beat"));
     this.bar.relabel(tr("Number of the selected bar"));
     this.bar.input.title = tr("Type a number to renumber the bars from here");
     if (this.ctx.player.song) this.chord.placeholder = this._placeholder(); // else the page's own
@@ -206,7 +217,8 @@ export class Editor {
     this.target = null;
     this.message = null;
     this.anchor.setRange(0, this.duration);
-    if (!this.ctx.player.song) this.on = false;
+    // The bars and the chords can be edited whenever they are shown.
+    this.on = !!this.ctx.player.song && this.ctx.app.gridVisible && !this.locked;
     this.ctx.timeline.setEditing(this.on);
     if (this.on) this._selectAtPlayhead();
     this.loadInput();
@@ -580,24 +592,8 @@ export class Editor {
   refresh() {
     const { player, phone } = this.ctx;
     const song = player.song;
-    const show = this.on && !!song;
+    const show = !!song;
     const g = this.grid;
-    const toggle = $("edit-toggle");
-    toggle.classList.toggle("on", show);
-    toggle.classList.toggle("dirty", !!song && this.dirty);
-    setAttr(toggle, "aria-pressed", String(show));
-    const locked = this.locked;
-    toggle.disabled = !song || locked;
-    setAttr(toggle, "aria-busy", String(locked));
-    setAttr(
-      toggle,
-      "title",
-      locked
-        ? tr("Bars and Chords opens when the tempo detection ends.")
-        : this.dirty
-          ? tr("Edit the bars and the chords (changes not saved)")
-          : tr("Edit the bars and the chords")
-    );
     $("grid-edit").hidden = !show;
     $("chord-edit").hidden = !show;
     if (!show) return;
@@ -609,12 +605,14 @@ export class Editor {
       if (keyNote.textContent !== text) keyNote.textContent = text;
     }
 
-    const busy = !!player.busy;
+    const busy = !!player.busy || this.locked;
     this.bpm.set(g.bpm || DEFAULT_BPM);
     this.bpm.disable(busy);
     const bpm = g.bpm || DEFAULT_BPM;
-    $("bpm-double").disabled = busy || bpm * 2 > BPM_RANGE[1];
-    $("bpm-half").disabled = busy || bpm / 2 < BPM_RANGE[0];
+    const hasBars = g.bars.length > 0;
+    this.bpm.disable(busy || !hasBars);
+    $("bpm-double").disabled = busy || !hasBars || bpm * 2 > BPM_RANGE[1];
+    $("bpm-half").disabled = busy || !hasBars || bpm / 2 < BPM_RANGE[0];
     if (document.activeElement !== this.meter) this.meter.value = g.meter;
     this.meter.disabled = busy;
     this.anchor.set(g.firstBeat || 0);
@@ -642,8 +640,8 @@ export class Editor {
         : has
           ? ""
           : phone
-            ? tr("No grid: set the anchor at the first beat of a bar.")
-            : tr("No grid: put the playhead on the first beat of a bar and set the anchor.");
+            ? tr("No grid: set the first beat at the first beat of a bar.")
+            : tr("No grid: put the playhead on the first beat of a bar and set the first beat.");
     setText(status, text);
     setAttr(status, "class", `edit-status ${m ? m.kind : this.dirty ? "dirty" : ""}`.trim());
   }

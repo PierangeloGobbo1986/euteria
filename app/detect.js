@@ -1,7 +1,7 @@
 // Finding the tempo and the chords of a song, when asked (a computer, Chrome
-// or Edge with WebGPU): Detect BPM (the Tempo card) finds the beats and the
+// or Edge with WebGPU): Detect tempo (the Song analysis card) finds the beats and the
 // downbeats (Beat This!, src/beats.js) and makes a new grid from them
-// (src/tempo.js); Detect chords (Bars and Chords) finds the chords (BTC, kept
+// (src/tempo.js); Detect chords (Song analysis) finds the chords (BTC, kept
 // as segments: src/chords.js) and writes them in the bars, finding the tempo
 // first for a song without a grid. The result is kept in the song
 // (manifest.music.beat_tracking and chord_recognition, written by Save and by

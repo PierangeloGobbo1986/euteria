@@ -9,7 +9,7 @@
 
 import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder, gainToSlider } from "./project.js";
-import { int16Peaks } from "./peaks.js";
+import { int16Peaks, PEAK_BUCKET } from "./peaks.js";
 import { tr } from "./i18n.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
@@ -78,6 +78,9 @@ export function runRenderWorker(message, onProgress) {
     worker.postMessage(message, transfer);
   });
 }
+
+// A count-in ends this long before the first sound of the song (seconds).
+const COUNT_LEAD_SECONDS = 0.05;
 
 export class Player {
   constructor() {
@@ -445,6 +448,7 @@ export class Player {
     if (!this.playing) {
       play = this.position;
       if (play >= this.song.duration - 0.05) play = this.loop.on ? this.loop.start : 0;
+      play = this._countStart(play);
       this.position = play;
     }
     const id = ++this.recordId;
@@ -469,6 +473,45 @@ export class Player {
 
   // ----- transport ---------------------------------------------------------------
 
+  // Where the song's own sound begins (seconds): the first stretch of the
+  // tracks (takes left out) that is not near silence, from their envelopes; 0
+  // without any (an empty project, a track whose envelope is not kept).
+  firstSound() {
+    let first = null;
+    for (const t of this.tracks) {
+      if (t.take || !t.peaks) continue;
+      const { min, max } = t.peaks;
+      const n = max.length;
+      const level = new Uint8Array(n);
+      for (let i = 0; i < n; i++) level[i] = Math.max(Math.abs(min[i]), Math.abs(max[i]));
+      const sorted = Uint8Array.from(level).sort();
+      const ref = sorted[Math.min(n - 1, Math.floor(n * 0.99))];
+      const limit = Math.max(2, ref * 0.04);
+      // Three buckets in a row (about 15 ms), so that a click or a pop is not the start.
+      let at = -1;
+      for (let i = 0; i + 2 < n; i++) {
+        if (level[i] >= limit && level[i + 1] >= limit && level[i + 2] >= limit) {
+          at = i;
+          break;
+        }
+      }
+      if (at < 0) continue;
+      const time = (at * PEAK_BUCKET + (t.start || 0)) / this.song.sampleRate;
+      if (first === null || time < first) first = time;
+    }
+    return first === null ? 0 : first;
+  }
+
+  // The playhead for a start with a count-in: from before the song's sound, the
+  // count-in ends just where the sound begins (the silence before it is
+  // skipped), so that it counts the song in whatever comes first in it. As
+  // it was from the playhead after the sound, in a loop, or with no count-in.
+  _countStart(at) {
+    if (!(this.countIn > 0) || this.loop.on || !this.song) return at;
+    const lead = Math.max(0, this.firstSound() - COUNT_LEAD_SECONDS);
+    return at < lead ? lead : at;
+  }
+
   async play() {
     if (!this.song || this.busy) return;
     this.unlock();
@@ -477,6 +520,7 @@ export class Player {
     } catch (_) {}
     let at = this.position;
     if (at >= this.song.duration - 0.05) at = this.loop.on ? this.loop.start : 0;
+    at = this._countStart(at);
     this.position = at;
     this.engine.play(at, this.countIn);
     this.playing = true;

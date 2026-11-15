@@ -216,19 +216,22 @@ function name(n, italian, glyphs) {
 }
 
 // Every chord of `text` moved by `semitones` and written in `key` (the key
-// they land in); the other words as they are.
-function transposeText(text, semitones, key) {
-  if (!text || !semitones) return text || "";
+// they land in), and in the Italian names (Do Re Mi…) or in letters (C D E…)
+// if `italian` says so (true, false; null: as they were written); the other
+// words as they are.
+function transposeText(text, semitones, key, italian = null) {
+  if (!text || (!semitones && italian === null)) return text || "";
   return String(text)
     .split(" ")
     .map((word) => {
       const w = parseWord(word);
       if (!w) return word;
       const { chord } = w;
+      const it = italian === null ? chord.italian : italian;
       const q = quality(chord.suffix);
-      const root = spellRoot((chord.root.pc + semitones + 1200) % 12, q, key);
-      let out = name(root, chord.italian, chord.glyphs) + chord.suffix;
-      if (chord.bass) out += "/" + name(spellBass((chord.bass.pc + semitones + 1200) % 12, root, q, key), chord.italian, chord.glyphs);
+      const root = semitones ? spellRoot((chord.root.pc + semitones + 1200) % 12, q, key) : chord.root;
+      let out = name(root, it, chord.glyphs) + chord.suffix;
+      if (chord.bass) out += "/" + name(semitones ? spellBass((chord.bass.pc + semitones + 1200) % 12, root, q, key) : chord.bass, it, chord.glyphs);
       return w.pre + out + w.post;
     })
     .join(" ");
@@ -241,12 +244,22 @@ export function nameChord(pc, suffix, key) {
   return name(spellRoot(((pc % 12) + 12) % 12, quality(suffix), k), false, false) + suffix;
 }
 
+// How the chords are shown: in letters (C D E…) or in the Italian names (Do
+// Re Mi…), whatever way they were written. A choice of the page, kept by it.
+let notation = "letters";
+export const getNotation = () => notation;
+export function setNotation(n) {
+  notation = n === "italian" ? "italian" : "letters";
+}
+
 // The chords of a song (an iterable of texts) seen with the song moved by
-// `semitones`: show(text) is how a chord of the song looks in the key of now,
-// store(text) brings a chord typed in the key of now back to the song's own
-// key. Without a transposition both leave the text as it is.
+// `semitones`: show(text) is how a chord of the song looks in the key of now
+// and in the notation chosen, store(text) brings a chord typed in the key of
+// now back to the song's own key (as it was typed). The views are made again
+// when the notation changes.
 export function chordView(texts, semitones = 0) {
   const shift = Math.round(+semitones || 0);
+  const italian = notation === "italian";
   const found = shift ? estimateKey(texts) : null;
   const home = found || { pc: 0, minor: false };
   const now = keyAt(home.pc + shift, home.minor);
@@ -256,10 +269,10 @@ export function chordView(texts, semitones = 0) {
     shift,
     key: found,
     show(text) {
-      if (!shift || !text) return text || "";
+      if (!text) return "";
       let out = cache.get(text);
       if (out === undefined) {
-        out = transposeText(text, shift, now);
+        out = transposeText(text, shift, now, italian);
         cache.set(text, out);
       }
       return out;

@@ -18,16 +18,17 @@ import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, 
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
-import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid, METERS } from "../src/grid.js";
+import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, parseTime, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
 import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
+import { getNotation, setNotation } from "../src/chordnames.js";
 import { Editor } from "./editor.js";
 import { SeparationFlow } from "./separate.js";
 import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
-import { loadMetronome, saveMetronome, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
+import { loadMetronome, saveMetronome, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
@@ -53,13 +54,13 @@ const HINTS = phone
       view: () =>
         tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a bar or its chord to write the chord. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
       edit: () =>
-        tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+        tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     }
   : {
       view: () =>
         tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a bar or its chord to write the chord. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
       edit: () =>
-        tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set anchor makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+        tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     };
 
 const player = new Player();
@@ -379,8 +380,9 @@ function metronomeClicksNow() {
 }
 
 function pushMetronome(clicks) {
-  player.countIn = metro.countIn;
-  const m = { on: metro.on, volume: metro.volume / 100, play: metro.play, mute: metro.mute, random: metro.random, silence: SILENCE.indexOf(metro.silence) };
+  // The count-in is heard with the metronome on; the clicks of the song only in "Whole song".
+  player.countIn = metro.on ? metro.countIn : 0;
+  const m = { on: metro.on && metro.mode === "song", volume: metro.volume / 100, play: metro.play, mute: metro.mute, random: metro.random, silence: SILENCE.indexOf(metro.silence) };
   if (clicks) m.clicks = player.song ? metronomeClicksNow() : null;
   player.setMetronome(m);
 }
@@ -469,6 +471,10 @@ function wireMetronome() {
     metro.countIn = +e.target.value;
     metroChanged();
   });
+  $("metro-mode").addEventListener("change", (e) => {
+    metro.mode = MODES.includes(e.target.value) ? e.target.value : "count";
+    metroChanged();
+  });
   relabelMetronome();
 }
 
@@ -477,6 +483,11 @@ function relabelMetronome() {
   count.textContent = "";
   for (const n of COUNT_IN) count.append(new Option(n === 0 ? tr("Off") : trn(n, "{n} bar", "{n} bars"), String(n)));
   count.value = String(metro.countIn);
+  const mode = $("metro-mode");
+  mode.textContent = "";
+  const plays = { count: tr("Count-in only"), song: tr("Whole song") };
+  for (const k of MODES) mode.append(new Option(plays[k], k));
+  mode.value = metro.mode;
   const silence = $("metro-silence");
   silence.textContent = "";
   const said = { metronome: tr("Metronome only"), all: tr("Metronome and tracks"), tracks: tr("Tracks only") };
@@ -544,8 +555,11 @@ function renderMetronome() {
   }
   metroFields.play.set(metro.play);
   metroFields.mute.set(metro.mute);
-  metroFields.play.disable(off);
-  metroFields.mute.disable(off);
+  // With the count-in only, the bars with and without the clicks do not apply.
+  const countOnly = metro.mode === "count";
+  $("metro").classList.toggle("count-only", countOnly);
+  metroFields.play.disable(off || countOnly);
+  metroFields.mute.disable(off || countOnly);
   // The words after the fields, as many bars as they say.
   const playUnit = trn(metro.play, "bar,", "bars,");
   if ($("metro-play-unit").textContent !== playUnit) $("metro-play-unit").textContent = playUnit;
@@ -553,24 +567,32 @@ function renderMetronome() {
   if ($("metro-mute-unit").textContent !== muteUnit) $("metro-mute-unit").textContent = muteUnit;
   const silence = $("metro-silence");
   if (document.activeElement !== silence) silence.value = metro.silence;
-  silence.disabled = off;
+  silence.disabled = off || countOnly;
   const random = $("metro-random");
   random.classList.toggle("on", metro.random);
   setAttr(random, "aria-pressed", String(metro.random));
-  random.disabled = off;
+  random.disabled = off || countOnly;
   // At random: what it does, while it is on.
   const randomHint = $("metro-random-hint");
-  randomHint.hidden = !song || !metro.random;
+  randomHint.hidden = !song || !metro.random || countOnly;
   if (!randomHint.hidden) {
     const total = metro.play + metro.mute;
     const text = metro.mute
-      ? `${tr("At random: the muted bars come unannounced, {mute} in every {total} on average, so you cannot count them.", { mute: metro.mute, total })} ${trn(metro.play, "The first bar always plays.", "The first {n} bars always play.")}`
-      : tr("At random: set some muted bars first.");
+      ? `${tr("Random: the muted bars come unannounced, {mute} in every {total} on average, so you cannot count them.", { mute: metro.mute, total })} ${trn(metro.play, "The first bar always plays.", "The first {n} bars always play.")}`
+      : tr("Random: set some muted bars first.");
     if (randomHint.textContent !== text) randomHint.textContent = text;
   }
   const count = $("metro-count");
   if (document.activeElement !== count) count.value = String(metro.countIn);
   count.disabled = off;
+  const mode = $("metro-mode");
+  if (document.activeElement !== mode) mode.value = metro.mode;
+  mode.disabled = off;
+  // Count-in only, with no count-in: nothing to hear.
+  const modeHint = $("metro-mode-hint");
+  modeHint.hidden = !song || !(countOnly && metro.countIn === 0);
+  const modeText = tr("Count-in only, with the count-in off: the metronome has nothing to play. Choose a count-in, or Whole song.");
+  if (modeHint.textContent !== modeText) modeHint.textContent = modeText;
   // A song without bars: the click at the metronome's own tempo, from its start.
   const hint = $("metro-hint");
   hint.hidden = !song || songGrid();
@@ -578,37 +600,16 @@ function renderMetronome() {
   if (hint.textContent !== text) hint.textContent = text;
 }
 
-// The meter and the tempo of the grid, beside Detect BPM: the meter may be
-// changed there (the grid made again from its anchor; without bars, the
-// meter alone, the metronome's and the grid's to come); the tempo, at
-// another speed, also as it is played (120 → 96 BPM at 80%).
-function wireTempoFound() {
-  const meter = $("tempo-meter");
-  for (const m of METERS) meter.append(new Option(m, m));
-  meter.addEventListener("change", () => {
-    const said = editor.setMeter(meter.value);
-    if (said && !editor.on) notice(said, "ok", 4000);
-  });
-}
-
-function renderTempoFound(locked) {
-  const g = app.grid;
-  const song = !!player.song;
-  const grid = songGrid();
-  const meter = $("tempo-meter");
-  $("tempo-meter-box").hidden = !song;
-  if (song && document.activeElement !== meter && meter.value !== g.meter) meter.value = g.meter;
-  meter.disabled = !song || locked || !!player.busy || !!(detection && detection.running);
+// The tempo of the grid at the speed set (Song analysis), beside the field of the
+// grid's tempo: 120 BPM played at 80% is 96 BPM.
+function renderTempoFound() {
   const line = $("tempo-bpm");
-  line.hidden = !grid;
-  if (!grid) return;
-  const found = fmtBpm(g.bpm);
-  const now = fmtBpm(g.bpm * player.rate);
-  const same = found === now;
-  const text = same ? `${found} BPM` : `${found} → ${now} BPM`;
+  const g = app.grid;
+  const show = songGrid() && player.rate !== 1;
+  line.hidden = !show;
+  if (!show) return;
+  const text = tr("{bpm} BPM at this speed", { bpm: fmtBpm(g.bpm * player.rate) });
   if (line.textContent !== text) line.textContent = text;
-  const title = same ? tr("Tempo of the grid") : tr("Tempo of the grid, then at the speed set");
-  if (line.title !== title) line.title = title;
 }
 
 // ----- speed training ------------------------------------------------------------------
@@ -699,10 +700,44 @@ function renderTrainer() {
   if (hint.textContent !== text) hint.textContent = text;
 }
 
-// ----- Detect BPM and Detect chords ---------------------------------------------------
+// ----- the notation of the chords ---------------------------------------------------
 //
-// Detect BPM (the Tempo card) puts in place of the grid the one made from the
-// beats found; Detect chords (Bars and Chords) writes the chords found in every
+// Letters (C D E…) or the Italian names (Do Re Mi…), for every chord shown: the
+// button beside the chord lane (a phone: beside the chord field) names the one
+// it changes to. A choice of this browser.
+
+const NOTATION_KEY = "euteria-notation";
+try {
+  setNotation(localStorage.getItem(NOTATION_KEY));
+} catch (_) {}
+
+function renderNotation() {
+  const italian = getNotation() === "italian";
+  const label = italian ? "C D E…" : "Do Re Mi…";
+  const title = italian ? tr("The chords are in the Italian names: click for letters (C D E…)") : tr("The chords are in letters: click for the Italian names (Do Re Mi…)");
+  for (const b of document.querySelectorAll(".notation-btn")) {
+    if (b.textContent !== label) b.textContent = label;
+    if (b.title !== title) b.title = title;
+  }
+}
+
+function toggleNotation() {
+  setNotation(getNotation() === "italian" ? "letters" : "italian");
+  try {
+    localStorage.setItem(NOTATION_KEY, getNotation());
+  } catch (_) {}
+  renderNotation();
+  if (!player.song) return;
+  editor.commitInput();
+  app.timeline.setGrid(app.grid);
+  editor.loadInput();
+  scheduleUi();
+}
+
+// ----- Detect tempo and Detect chords ---------------------------------------------------
+//
+// Detect tempo (Song analysis) puts in place of the grid the one made from the
+// beats found; Detect chords (Song analysis) writes the chords found in every
 // bar, finding the tempo first for a song without a grid. What a song kept
 // from an earlier detection is used at once, so the buttons bring back the
 // grid or the chords as they were found after any change; else (a computer,
@@ -1195,7 +1230,6 @@ function buildControls() {
   });
   confirmTap($("find-bpm"), () => (phone ? tr("Tap again to replace the grid") : tr("Click again to replace the grid")), findTempo, 4000, () => app.grid.bars.length > 0);
   confirmTap($("find-chords"), () => (phone ? tr("Tap again to rewrite the chords") : tr("Click again to rewrite the chords")), findChords, 4000, () => app.grid.chords.size > 0);
-  wireTempoFound();
   wireMetronome();
   wireTrainer();
   separation = new SeparationFlow({
@@ -1240,17 +1274,12 @@ function buildControls() {
   if (phone) {
     // The transport joins the app bar: one banner at the top, always in view.
     document.querySelector(".appbar").append($("transport"));
-    // Under the timeline: the playhead and the loop; at the bottom of the
-    // card, Bars and Chords (the editor), whose tools open under it (the
-    // chord of the bars selected, then the grid).
+    // Under the timeline: the playhead and the loop.
     $("tl-wrap").after($("loop-controls"));
-    $("tl-hint").after($("edit-bar"));
-    $("edit-bar").after($("chord-edit"), $("grid-edit"));
   } else {
-    // On a computer the tracks are the rows of the timeline. Over it, in a row
-    // of its own, Bars and Chords (the editor); at the top of the column of
-    // the tracks, beside the bars and the time scale, All stems and Original
-    // only.
+    // On a computer the tracks are the rows of the timeline; at the top of the
+    // column of the tracks, beside the bars and the time scale, All stems and
+    // Original only.
     $("tl-side-tools").prepend($("quick"));
     $("tl-hint").before($("tracks-note"));
   }
@@ -2462,17 +2491,12 @@ function updateUi() {
     app.timeline.setLoop(player.loop);
     app.timeline.setPosition(player.position, player.playing);
   }
-  // The grid shown or hidden: Grid in the toolbar (phone), the eye beside
-  // Bars and Chords (computer).
+  // The grid shown or hidden: the eye beside Bars and chords.
   const hasGrid = !!(song && app.grid.bars.length);
-  const grid = $("grid-toggle");
-  grid.hidden = !hasGrid;
   // While the tempo is being found, the grid waits for it.
-  grid.disabled = detection.running;
   $("grid-eye").disabled = detection.running;
-  grid.classList.toggle("on", app.gridVisible);
-  grid.setAttribute("aria-pressed", String(app.gridVisible));
   $("grid-view").hidden = !hasGrid;
+  renderNotation();
   const eye = $("grid-eye");
   setIcon(eye, app.gridVisible ? "eye" : "eyeClosed");
   eye.setAttribute("aria-pressed", String(app.gridVisible));
@@ -2510,7 +2534,7 @@ function updateUi() {
   const f = app.fields;
   const tempo = Math.round(player.rate * 100);
   f.tempo.set(tempo);
-  renderTempoFound(locked);
+  renderTempoFound();
   f.tempo.disable(!song || locked);
   if (f.tempoSlider) {
     if (+f.tempoSlider.value !== tempo) f.tempoSlider.value = String(tempo);
@@ -2523,7 +2547,7 @@ function updateUi() {
   // change; its clicks made again when the grid or the beats found change.
   if (metroFor.song !== song && song) {
     metro.on = false;
-    metro.countIn = 0;
+    metro.countIn = 1;
     trainer.on = false;
     trainerPasses = 0;
   }
@@ -2538,7 +2562,7 @@ function updateUi() {
   }
   renderMetronome();
   renderTrainer();
-  // Detect BPM and Detect chords: on a computer that can find them, or with
+  // Detect tempo and Detect chords: on a computer that can find them, or with
   // what the song kept from an earlier detection.
   const findBpm = $("find-bpm");
   findBpm.hidden = !song || !ownAudio() || !(detection.supported || hasBeats(app.analysis));
@@ -2709,14 +2733,16 @@ function wire() {
     app.timeline.setView({ zoom: 1, start: 0 });
     settingsChanged();
   });
-  const toggleGrid = () => {
+  for (const b of document.querySelectorAll(".notation-btn")) b.addEventListener("click", toggleNotation);
+  renderNotation();
+  // The eye: the bars and the chords shown, and editable, or hidden.
+  $("grid-eye").addEventListener("click", () => {
     app.gridVisible = !app.gridVisible;
     app.timeline.setGridVisible(app.gridVisible);
+    editor.setOn(app.gridVisible);
     settingsChanged();
     scheduleUi();
-  };
-  $("grid-toggle").addEventListener("click", toggleGrid);
-  $("grid-eye").addEventListener("click", toggleGrid);
+  });
   $("set-a").addEventListener("click", setLoopStartHere);
   $("set-b").addEventListener("click", setLoopEndHere);
   $("export").addEventListener("click", exportMp3);

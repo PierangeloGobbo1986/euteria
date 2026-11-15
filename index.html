@@ -168,7 +168,6 @@
 
     <section class="card timeline-card">
       <div class="tl-toolbar">
-        <button id="grid-toggle" type="button" class="small toggle-pill on phone-only" aria-pressed="true" hidden>Grid</button>
         <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
         <div id="loop-controls" class="loop-controls">
           <div id="position-box" class="position-box"></div>
@@ -187,72 +186,14 @@
           </div>
         </div>
       </div>
-      <!-- Bars and Chords (the editor): over the timeline on a computer, Grid and its eye beside it
-           (shown or hidden); at the bottom of this card on the phone, whose Grid is in the toolbar -->
-      <div id="edit-bar" class="edit-bar">
-        <button id="edit-toggle" type="button" class="small toggle-pill" aria-pressed="false" title="Edit the bars and the chords">Bars and Chords</button>
-        <div id="grid-view" class="grid-view computer-only" hidden>
-          <span class="grid-view-label" aria-hidden="true">Grid</span>
-          <button id="grid-eye" type="button" class="small eye" aria-pressed="true" aria-label="Show the grid"></button>
-        </div>
-      </div>
-      <!-- Separating the instruments (computer) -->
-      <div id="sep-panel" class="sep-panel computer-only" hidden>
-        <div id="sep-bar" class="sep-bar"><div id="sep-fill" class="sep-fill"></div></div>
-        <p id="sep-text" class="sep-text" role="status" aria-live="polite"></p>
-        <button id="sep-stop" type="button" class="small ghost danger">Stop</button>
-        <button id="sep-close" type="button" class="small ghost" aria-label="Close this message" hidden>✕</button>
-      </div>
-      <!-- Editing: the grid (tempo, meter, anchor) and saving -->
-      <div id="grid-edit" class="edit-panel grid-edit" hidden>
-        <div class="edit-row grid-row">
-          <div class="edit-item bpm-item">
-            <div id="bpm-box"></div>
-            <div class="bpm-scale" role="group" aria-label="Double or halve the tempo of the grid">
-              <button id="bpm-double" type="button" class="small" title="Double the tempo of the grid: bars half as long"><span translate="no">×2</span></button>
-              <button id="bpm-half" type="button" class="small" title="Halve the tempo of the grid: bars twice as long"><span translate="no">÷2</span></button>
-            </div>
-          </div>
-          <div id="meter-box" class="edit-item"></div>
-          <div class="edit-item anchor-item">
-            <button id="set-anchor" type="button" class="small" title="A bar starts at the playhead: the first beat of the grid">Set anchor</button>
-            <div id="anchor-box"></div>
-          </div>
-        </div>
-        <div class="edit-row save-row">
-          <span id="edit-status" class="edit-status" role="status" aria-live="polite"></span>
-          <button id="clear-chords" type="button" class="small ghost danger" title="Remove all the chords: the grid stays">Clear chords</button>
-        </div>
-      </div>
-      <!-- Editing: the chords of the bars selected in the chord lane -->
-      <div id="chord-edit" class="edit-panel chord-edit" hidden>
-        <div class="edit-row">
-          <button id="find-chords" type="button" class="small find-btn" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
-          <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
-          <div class="bar-nav">
-            <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
-            <span class="mini-label">Bar</span>
-            <div id="bar-box"></div>
-            <button id="bar-next" type="button" class="small" aria-label="Next bar" title="Next bar">›</button>
-          </div>
-          <div class="clip">
-            <button id="chord-copy" type="button" class="small" title="Copy the chords of the selected bars">Copy</button>
-            <button id="chord-paste" type="button" class="small" title="Paste the chords copied">Paste</button>
-          </div>
-        </div>
-        <!-- With the song transposed: the chords are shown in the new key -->
-        <p id="chord-key" class="hint chord-key" hidden></p>
-      </div>
       <div id="tl-wrap" class="tl-wrap">
         <div id="tl-heads" class="tl-heads computer-only">
           <!-- Beside the lanes over the tracks: their names (the bars, the chords), then,
                beside the time scale, the buttons of the tracks. -->
           <div id="tl-side" class="tl-side">
             <span class="lane-name lane-bars">Bars</span>
-            <span class="lane-name lane-chords">Chords</span>
-            <div id="tl-side-tools" class="tl-side-tools">
-              <button id="separate" type="button" class="small" hidden>Separate instruments</button>
-            </div>
+            <span class="lane-name lane-chords"><button id="chord-notation" type="button" class="notation-btn" title="Chords in the Italian names or in letters"></button><span>Chords</span></span>
+            <div id="tl-side-tools" class="tl-side-tools"></div>
           </div>
           <div id="tl-rows"></div>
         </div>
@@ -273,33 +214,69 @@
       <p id="tracks-note" class="hint" hidden></p>
     </section>
 
-    <div class="panels">
-      <section class="card">
-        <h2>Tempo and key</h2>
-        <div class="card-cols">
-          <div class="card-col">
-            <!-- Detect BPM, then the meter and the tempo of the grid; a meter found wrong
-                 is changed here (the grid is made again from its anchor). -->
-            <div class="find-row">
-              <button id="find-bpm" type="button" class="small find-btn" title="Find the tempo of the song and make the grid of its bars" hidden>Detect BPM</button>
-              <div id="tempo-meter-box" class="num meter" hidden><div class="value"><select id="tempo-meter" aria-label="Meter of the grid" title="Meter of the grid"></select></div></div>
-              <p id="tempo-bpm" class="tempo-bpm" hidden></p>
+    <!-- Song analysis: the instruments separated (a computer), the tempo and the chords
+         found, the grid of the bars (its tempo, meter and first beat) and the chords of
+         the bars selected in the timeline. -->
+    <section id="analysis-card" class="card analysis-card">
+      <h2>Song analysis</h2>
+      <div class="analysis-find">
+        <button id="separate" type="button" class="small find-btn" hidden>Separate instruments</button>
+        <button id="find-bpm" type="button" class="small find-btn" title="Find the tempo of the song and make the grid of its bars" hidden>Detect tempo</button>
+        <button id="find-chords" type="button" class="small find-btn" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
+      </div>
+      <!-- Separating the instruments (computer) -->
+      <div id="sep-panel" class="sep-panel computer-only" hidden>
+        <div id="sep-bar" class="sep-bar"><div id="sep-fill" class="sep-fill"></div></div>
+        <p id="sep-text" class="sep-text" role="status" aria-live="polite"></p>
+        <button id="sep-stop" type="button" class="small ghost danger">Stop</button>
+        <button id="sep-close" type="button" class="small ghost" aria-label="Close this message" hidden>✕</button>
+      </div>
+      <!-- The grid: tempo, meter and first beat -->
+      <div id="grid-edit" class="edit-panel grid-edit" hidden>
+        <div class="edit-row grid-row">
+          <div class="edit-item bpm-item">
+            <div id="bpm-box"></div>
+            <div class="bpm-scale" role="group" aria-label="Double or halve the tempo of the grid">
+              <button id="bpm-double" type="button" class="small" title="Double the tempo of the grid: bars half as long"><span translate="no">×2</span></button>
+              <button id="bpm-half" type="button" class="small" title="Halve the tempo of the grid: bars twice as long"><span translate="no">÷2</span></button>
             </div>
-            <div class="field">
-              <span class="label">Tempo</span>
-              <div id="tempo-box" class="control-box"></div>
-            </div>
+            <p id="tempo-bpm" class="tempo-bpm" hidden></p>
           </div>
-          <div class="card-col">
-            <div class="field">
-              <span class="label">Key</span>
-              <div id="key-box" class="control-box"></div>
-            </div>
-            <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
+          <div id="meter-box" class="edit-item"></div>
+          <div class="edit-item anchor-item">
+            <button id="set-anchor" type="button" class="small" title="A bar starts at the playhead: the first beat of the grid">Set first beat</button>
+            <div id="anchor-box"></div>
           </div>
         </div>
-      </section>
+      </div>
+      <!-- The chords of the bars selected in the chord lane -->
+      <div id="chord-edit" class="edit-panel chord-edit" hidden>
+        <div class="edit-row">
+          <div id="grid-view" class="grid-view" hidden>
+            <span class="grid-view-label">Bars and chords</span>
+            <button id="grid-eye" type="button" class="small eye" aria-pressed="true" aria-label="Show the grid"></button>
+          </div>
+          <button id="chord-notation-phone" type="button" class="small notation-btn phone-only" title="Chords in the Italian names or in letters"></button>
+          <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
+          <div class="bar-nav">
+            <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
+            <span class="mini-label">Bar</span>
+            <div id="bar-box"></div>
+            <button id="bar-next" type="button" class="small" aria-label="Next bar" title="Next bar">›</button>
+          </div>
+          <div class="clip">
+            <button id="chord-copy" type="button" class="small" title="Copy the chords of the selected bars">Copy</button>
+            <button id="chord-paste" type="button" class="small" title="Paste the chords copied">Paste</button>
+          </div>
+          <button id="clear-chords" type="button" class="small ghost danger" title="Remove all the chords: the grid stays">Clear chords</button>
+        </div>
+        <!-- With the song transposed: the chords are shown in the new key -->
+        <p id="chord-key" class="hint chord-key" hidden></p>
+      </div>
+      <p id="edit-status" class="edit-status" role="status" aria-live="polite"></p>
+    </section>
 
+    <div class="panels">
       <!-- The metronome, on the beats of the grid or at a tempo of its own
            (src/metronome.js): on and off, its tempo, its volume, each beat of the bar a
            beat, an accent or silent; the bars of count-in before playback; bars with the
@@ -328,16 +305,23 @@
               <span class="mini-label">Count-in</span>
               <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
             </div>
+            <div class="metro-item metro-mode-item">
+              <label class="mini-label" for="metro-mode">Plays</label>
+              <div class="num metro-mode"><div class="value"><select id="metro-mode"></select></div></div>
+            </div>
+          </div>
+          <div class="metro-row metro-cycle-row">
             <div class="metro-cycle">
               <span class="metro-group"><span class="mini-label">Clicks for</span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label">bars,</span></span></span>
               <span class="metro-group"><span class="mini-label">then mute for</span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
-              <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">At random</button>
+              <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">Random 💀</button>
               <div class="metro-stack">
                 <label class="stack-label" for="metro-silence">What to mute</label>
                 <div class="num metro-silence"><div class="value"><select id="metro-silence"></select></div></div>
               </div>
             </div>
           </div>
+          <p id="metro-mode-hint" class="hint" hidden></p>
           <p id="metro-random-hint" class="hint" hidden></p>
           <p id="metro-hint" class="hint" hidden></p>
         </div>
@@ -353,6 +337,25 @@
           </div>
           <p class="hint">With the loop on, the speed goes up by the step at every pass of the loop, or every few passes, up to the speed to reach. Start from a slower speed, set in Tempo and key (for example 70%).</p>
           <p id="trainer-hint" class="hint warn" hidden></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Tempo and key</h2>
+        <div class="card-cols">
+          <div class="card-col">
+            <div class="field">
+              <span class="label">Tempo</span>
+              <div id="tempo-box" class="control-box"></div>
+            </div>
+          </div>
+          <div class="card-col">
+            <div class="field">
+              <span class="label">Key</span>
+              <div id="key-box" class="control-box"></div>
+            </div>
+            <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
+          </div>
         </div>
       </section>
 

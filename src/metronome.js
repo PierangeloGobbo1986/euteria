@@ -15,12 +15,13 @@
 // The bars may alternate between some with the clicks and some silent (play,
 // mute), or be silent at random in the same proportion; a silent bar
 // silences the metronome, the tracks, or both. A count-in plays the bars
-// before the song starts with the beats as set, also with the metronome off,
+// before the song starts, with the metronome on, with the beats as set,
 // outside that alternation (its bars are not counted in it). Two bars of
 // beats come before the song, for a count-in at its start; the clicks go on
 // past its end, for a take recorded beyond it.
 //
-// On and off and the count-in are not kept: every song opens with both off.
+// On and off and the count-in are not kept: every song opens with the metronome
+// off and a count-in of one bar (heard only with the metronome on).
 
 import { METERS } from "./grid.js";
 
@@ -33,6 +34,9 @@ export const ACCENT = 1;
 export const BEAT = 0;
 export const SILENT = 2;
 export const COUNT_IN = [0, 1, 2];
+// What the metronome plays once on: the count-in only (the clicks that count the
+// bars in before the song or a take), or the whole song.
+export const MODES = ["count", "song"];
 export const MAX_BARS = 16; // for play and mute
 export const VOLUME_MAX = 200; // percent: 100 as loud as the click was up to 0.10, 200 twice
 export const BPM_MIN = 20;
@@ -57,9 +61,10 @@ export function defaultMetronome() {
     patterns: Object.fromEntries(METERS.map((m) => [m, defaultPattern(m)])),
     play: 4, // bars with the clicks…
     mute: 0, // …then silent bars (0: always on)
+    mode: "count", // what it plays: the count-in only, or the whole song
     silence: "all", // what they silence
     random: false, // silent bars at random, in the same proportion
-    countIn: 0, // bars before the song starts
+    countIn: 1, // bars before the song starts (with the metronome on)
   };
 }
 
@@ -78,6 +83,7 @@ export function loadMetronome() {
       if (Number.isInteger(kept.play)) s.play = Math.max(1, Math.min(MAX_BARS, kept.play));
       if (Number.isInteger(kept.mute)) s.mute = Math.max(0, Math.min(MAX_BARS, kept.mute));
       if (kept.v === VERSION && SILENCE.includes(kept.silence)) s.silence = kept.silence;
+      if (MODES.includes(kept.mode)) s.mode = kept.mode;
       s.random = kept.random === true;
     }
   } catch (_) {}

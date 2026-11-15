@@ -50,8 +50,8 @@ open, the keys of the player do nothing and the page under it stays still.
   song, its name (with its tracks and length on the same line), play, stop, −5 s, +5 s,
   the loop, Record and the position join the bar at the top, with *Library* and *Save*:
   one banner that stays in view as the page scrolls. Under it come *Recording input*
-  (see below), then the card of the timeline, with *Bars and Chords* (the editor, see
-  below) at its bottom, then the tracks. Deleting a song frees the space of the app's copy; the file it was added from
+  (see below), then the card of the timeline, the tracks, *Song analysis* (below), *Metronome*,
+  *Tempo and key* and *File export and sharing*. Deleting a song frees the space of the app's copy; the file it was added from
   (in Files, in a chat) is not touched, as a web app cannot reach it.
 - **Computer layout**: songs are opened from any folder (*Open MP3 / audio*, *Open
   EUTERIA project*, or dropped on the window), so the folder where you keep the songs
@@ -60,12 +60,11 @@ open, the keys of the player do nothing and the page under it stays still.
   permission). The transport stays in view as the page scrolls, the song's name at its
   top (its tracks and length on the same line; a click on the name renames the project,
   see Saving). Under it comes *Recording input* (see
-  below), then the card of the timeline. Over the timeline, *Bars and Chords* (the
-  editor, see below) has a row of its own, with *Grid* and its eye beside it, then
-  comes the overview; the column of the tracks starts with *All stems*
-  and *Original only*, beside the bars and the time scale. *Tempo and key*, *Metronome* and
-  *File export and sharing* follow, each across the page (*Tempo and key* and *File export
-  and sharing* in two columns). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
+  below), then the card of the timeline, with the overview, the bars, the chords and the
+  tracks as rows; the column of the tracks starts with *All stems*
+  and *Original only*, beside the bars and the time scale. *Song analysis*,
+  *Metronome*, *Tempo and key* and *File export and sharing* follow, each across the page
+  (*File export and sharing* in two columns). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save.
@@ -126,27 +125,30 @@ starts at the bar being played (or in the middle of the view if the playhead is
 elsewhere) and lasts 16 seconds, at most half of what is in view, in whole bars; a loop
 already placed and in view stays where it is. While the song plays, the view follows
 the playhead, except for a few seconds after it was moved by hand.
-*Grid* shows or hides the grid lines and the chords: on a computer the eye beside the
-word *Grid*, next to *Bars and Chords* (open: shown, closed: hidden); on the phone the
-*Grid* button of the timeline's toolbar. Bar numbers start from the number saved by
+The eye beside *Bars and chords*, in the *Song analysis* card, shows or hides the grid
+lines and the chords (open: shown and editable, closed: hidden; the choice is kept with the
+song). Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
-**Editing the grid and the chords.** *Bars and Chords* (on a computer, in its own row
-over the timeline; on the phone, at the bottom of the card of the timeline, with its
-tools opening under it) opens the editor of EUTERIA (Python), the same in both layouts:
+**Editing the grid and the chords.** The *Song analysis* card (between the tracks and
+the metronome, the same on the computer and on the phone) holds the editor of EUTERIA
+(Python); it is always at hand, with the bars and the chords selectable in the timeline
+as long as the eye is open:
 
-- **The grid**: *BPM* (20-400, by half beats per minute; *×2* and *÷2* double or
-  halve it), the meter (4/4, 3/4, 6/8) and the anchor, the first beat of a bar: *Set
-  anchor* puts it at the playhead (placed exactly with the playhead field), and the
-  field beside it moves it by hundredths of a second. Each change rebuilds the grid from
-  the anchor, both ways, as EUTERIA (Python) does. Chords and bar numbers stay with their
-  bars measured from the anchor, so a bar that appears or vanishes at the start of the
-  song (an anchor moved by a few hundredths, a different tempo) shifts nothing. *Clear
-  chords* (two taps) removes every chord and keeps the grid; a grid not wanted is
-  hidden with *Grid*. *Detect BPM* makes the grid from the tempo found (below);
-  without it a song without a grid starts at 180 BPM as in EUTERIA (Python), and *Set
-  anchor* makes it. Beside *Tempo*, the grid's beats a minute at the tempo set (for
-  example *96 BPM* at 80% of a song at 120).
+- **The grid** (the row under the buttons that find): *BPM* (20-400, by half beats per
+  minute; *×2* and *÷2* double or halve it; at another speed, a grey line says the tempo
+  played, for example *96 BPM at this speed* at 80% of a song at 120), the meter (4/4,
+  3/4, 6/8; a song without bars keeps the meter alone, for the metronome and for the grid
+  to come) and the first beat, where a bar starts: *Set first beat* puts it at the
+  playhead, on the beat the tempo detection found nearest to it if one is within a third
+  of a beat (else exactly where the playhead is), and the field beside it moves it by
+  hundredths of a second. It corrects a detection that missed the first beat: the bars
+  and the chords stay with the music and the whole grid, and the count-in, follow the new
+  first beat. Each change rebuilds the grid from the first beat, both ways, as EUTERIA
+  (Python) does. Chords and bar numbers stay with their bars measured from it, so a bar
+  that appears or vanishes at the start of the song shifts nothing. A song without a
+  grid starts at 180 BPM as in EUTERIA (Python), once the first beat is set; *Detect
+  tempo* makes the grid from the tempo found (below).
 - **The chords**: a tap or a click on a bar, on its number or its chord, selects it;
   dragging along the bars (or shift-click) selects several. The chord typed goes to every bar selected (an empty
   chord removes it); Return (*next* on the phone keyboard) goes on to the following
@@ -156,12 +158,19 @@ tools opening under it) opens the editor of EUTERIA (Python), the same in both l
   bar they all go in from there. On a computer: a click puts the cursor in the chord
   field, a key from A to G starts a chord, ← → move the selection (Shift: extend it),
   Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
-- **Detect chords** (before the chord field): the chords found (below) written in every
+- **The chords' row**: *Bars and chords* with its eye, the chord field, ‹ Bar n ›, *Copy*
+  and *Paste*, and, at the right end, *Clear chords* (two taps: it removes every chord and
+  keeps the grid; a grid not wanted is hidden with the eye). A button beside *Chords*, in the column of
+  the timeline (on the phone, beside the chord field), switches every chord between letters
+  and the Italian names: it says the notation it changes to (*Do Re Mi…* while the chords
+  are in letters, *C D E…* in Italian); the choice is kept in this browser, and the chord
+  field takes either.
+- **Detect chords** (the third button of the card): the chords found (below) written in every
   bar, one chord a bar, or two when each half of the bar has its own; a bar without a
   clear chord stays empty. Pressed again (a second click when the bars have chords), it
   writes them again as they were found, in place of the chords changed or typed since:
   the song keeps what was found, so this is at once, on the phone too, and after a
-  change of tempo or anchor the chords go in the new bars. They are suggestions to check
+  change of tempo or first beat the chords go in the new bars. They are suggestions to check
   by ear: the model often writes a triad where a seventh is played (G for G7, Dm for
   Dm7), and the names are spelled in the key of the song.
 - **The chords follow the key**: with the song transposed (*Key*), the timeline and the
@@ -179,7 +188,7 @@ tools opening under it) opens the editor of EUTERIA (Python), the same in both l
   bar or a song that starts in the middle.
 
 Every edit is kept in the browser at once, so nothing is lost if the page closes; until
-it is saved, a dot on *Bars and Chords* and on *Save* says so. Leaving the song for the
+it is saved, a dot on *Save* and the line under the card's rows say so. Leaving the song for the
 Library or another song then asks, as EUTERIA (Python) does: *Save*, *Don't save* (the
 song goes back to what its file has) or *Cancel*. A song opens with the name its file
 gives it (an audio file, its file name); a click or a tap on the name at the top turns it
@@ -212,7 +221,7 @@ having gone with the copy.
 start with) and opens a project with no audio of its own, to record into: a grid at 120
 BPM in 4/4 for the metronome, the loop and the chords, 16 bars long until a take goes
 past them. On the phone it is in the library at once; on a computer *Save* asks where
-to put it. *Detect BPM*, *Detect chords* and the separation have nothing to analyse
+to put it. *Detect tempo*, *Detect chords* and the separation have nothing to analyse
 there; the metronome, the takes, the bars and chords, the loop and the MP3 export work
 as in any song. Its manifest has no audio members, only `audio.length_seconds`.
 
@@ -308,7 +317,7 @@ at the top of the column of the tracks, beside the time scale. It first asks whe
 save the EUTERIA project (`.euteria`) it is going to make, so that a separation left to
 run on its own is saved when it ends. The first time, it downloads the separation model
 (336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
-browser. A bar under *Bars and Chords* shows the progress, the speed and the time left;
+browser. A bar in the *Song analysis* card shows the progress, the speed and the time left;
 *Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps, with the
 Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3 too), the
 grid, the chords, the practice settings and the takes recorded over the song, and the
@@ -338,22 +347,20 @@ Two modes, chosen from what the device can do:
   separate it.
 
 **Tempo and chord detection** (computer, Chrome or Edge with WebGPU), on request:
-**Detect BPM**, over the tempo in the *Tempo and key* card, finds the beats and the
+**Detect tempo**, in the *Song analysis* card (the buttons are *Separate instruments*,
+*Detect tempo* and *Detect chords*, in the order they are pressed), finds the beats and the
 downbeats of the song with Beat This! (see *How the tempo detection works*) and makes
 the grid from them: the tempo, the meter (4/4 or 3/4; two beats a bar become a 6/8) and
-the anchor, the first downbeat. Beside it come the meter and the tempo of the grid; a
-meter found wrong is changed there (the grid is rebuilt from the anchor, as in *Bars
-and Chords*; a song without bars keeps the meter alone, for the metronome and for the
-grid to come). **Detect chords**, before the chord field of *Bars and
-Chords*, finds the chords with BTC (see *How the chord recognition works*) and writes
+the first beat, the first downbeat. Under the buttons come the tempo of the grid and its
+meter; a meter found wrong is changed there, and a first beat found wrong is put right with
+*Set first beat*. **Detect chords** finds the chords with BTC (see *How the chord recognition works*) and writes
 them in the bars, finding the tempo first for a song without a grid. The song plays
-meanwhile; the line under the top bar tells the progress, *Bars and Chords* and *Grid*
-wait for the end, and a separation started meanwhile waits too. The new grid replaces
+meanwhile; the line under the top bar tells the progress, the grid and the chords wait for the end, and a separation started meanwhile waits too. The new grid replaces
 the one the song had (bars numbered from 1, chords kept with their bars) and is shown.
 The tempo found is said, with a warning when it varies in the song, and how many bars
 got a chord. The song is analysed as it was recorded, whatever the tempo set to play
-it: the grid is right at 100% and follows any tempo; at another tempo the BPM beside
-*Detect BPM* show both, the tempo found and the tempo played (`120 → 96 BPM` at 80%). What was found is kept in this browser and written in the
+it: the grid is right at 100% and follows any tempo; at another tempo a grey line beside the
+BPM says the tempo played (`96 BPM at this speed` at 80%). What was found is kept in this browser and written in the
 project by *Save* and by the separation, so a song is analysed once: pressed again,
 the buttons bring back the grid or the chords as they were found, at once, after a
 second click when they replace a grid or chords; the phone gets them ready and can do
@@ -361,11 +368,10 @@ the same. The changes they make are changes to save. On the phone, and in the ot
 browsers, a song never analysed has no buttons: its grid is the one it brings, or one
 made by hand.
 
-**The metronome** (a card of its own under *Tempo and key*, every device, and a round
+**The metronome** (a card of its own, between *Song analysis* and *Tempo and key*, every device, and a round
 button with a metronome in the transport, between *Loop* and *Rec*, M on a computer) is
-only the click: the tempo and the bars of the song stay those of *Tempo and key* and
-*Bars and Chords*. It clicks on the beats of the grid, each on the beat found in the
-song when there is one near it (*Detect BPM*), so it stays with a recording whose tempo
+only the click: the tempo and the bars of the song stay those of *Song analysis*. It clicks on the beats of the grid, each on the beat found in the
+song when there is one near it (*Detect tempo*), so it stays with a recording whose tempo
 moves, a live one above all, as one steady tempo would not; it follows the tempo set,
 the loop and every jump. Its first row has *On*/*Off*, its tempo in BPM (− and +), the
 *Volume* up to 200% (a slider on a computer, and the value with − and +, as for the
@@ -375,18 +381,24 @@ silent, then a beat again, for example the first beat accented, or only 2 and 4.
 tempo field says the song's tempo; changed, the click goes steadily at its own tempo,
 from the first bar, and *Follow the song* brings it back (a new tempo of the grid does
 too). A song without bars clicks at the metronome's own tempo from its start, with the
-meter beside *Detect BPM*. The second row has the *Count-in*, *Off*, 1 or 2 bars of
-clicks before the song starts, before playback and before a take, also with the
-metronome off, with the beats as set; then *Clicks for* N *bars, then mute for* M *bars*
-(0: none; *bar* for 1), *At random*, and *What to mute* over its menu: *Metronome and
-tracks* (the default: the band drops out, to keep the time alone), *Metronome only* or
-*Tracks only* (the click goes on). *At random* makes the muted bars come unannounced,
-as many on the whole, the first N bars always on; while it is on, a line under the row
-says so with the numbers set. The bars are counted from where the song starts (those
-of the count-in are not). The tempo, the volume, the beats (per meter) and the muted
-bars are kept in this browser, the same for every song; on and off and the count-in are
-not: every song opens with both off. (The settings kept before 2.0 go back to *Metronome
-and tracks*, the new default.)
+meter in *Song analysis*. The second row has the *Count-in* (*Off*, 1 or 2 bars; 1 by
+default) of clicks before the song starts, before playback and before a take, with the
+beats as set, heard only with the metronome *On* (the same for the key M and the round
+button), and *Plays*, *Count-in only* (the default: the metronome counts the bars in, then
+goes quiet) or *Whole song*. A third row, which applies to the whole song only (it is
+dimmed with the count-in only), has *Clicks for* N *bars, then mute for* M *bars* (0: none; *bar* for 1),
+*Random 💀*, and *What to mute* over its menu: *Metronome and tracks* (the default: the band
+drops out, to keep the time alone), *Metronome only* or *Tracks only* (the click goes on).
+*Random* makes the muted bars come unannounced, as many on the whole, the first N bars
+always on; while it is on, a line under the row says so with the numbers set. The bars
+are counted from where the song starts (those of the count-in are not). A count-in that
+starts before the sound of the song (a song that opens with some seconds of silence)
+begins just before the sound, the silence skipped, so that it counts the music in whatever
+the length of that silence; from the sound on, or inside a loop, it starts where the playhead
+is. The tempo, the volume, the beats (per meter), *Plays* and the muted bars are kept in
+this browser, the same for every song; on and off and the count-in are not: every song
+opens with the metronome off and a count-in of 1 bar. (The settings kept before 2.0 go
+back to *Metronome and tracks*, the new default.)
 
 **Speed training**, the last part of the metronome's card, under its own title: *On*/*Off*
 (as the metronome's), then, with the loop on, the speed changes by its *Step* (5% to
@@ -502,7 +514,10 @@ and every jump. Without a grid, or at a tempo of its own, the clicks are steady,
 the anchor of the grid or the start of the song, and go on past its end. A count-in is
 output time before the song starts: the clicks of the bars before the start point, with
 the beats as set, the song silent, then the song on the next beat; a take recorded with
-it begins where playback starts. A silent bar that takes the tracks fades them out over
+it begins where playback starts. The start point of a count-in that begins before the song's
+sound is moved to 50 ms before it (`Player.firstSound()`: the first three consecutive 5 ms
+envelope buckets above 4% of the 99th percentile of the tracks, takes left out), which the
+clicks of the grid, two bars of them before the song, lead into. A silent bar that takes the tracks fades them out over
 6 ms, ending 10 ms before its bar line (the engine knows the bar coming), so that its
 first beat is silent too, and back in the same way, so that the first beat after it is
 whole. The engine counts the passes of the loop, for the speed trainer. While a take is
