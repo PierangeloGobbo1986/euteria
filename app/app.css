@@ -407,6 +407,8 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
    --meter-yellow, red from --meter-red; the part the level does not reach is
    dark, a line holds the highest peak for a moment. Its scale, in dB, under it. */
 .input-meter { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 5px; flex: 1 1 220px; min-width: 200px; max-width: 400px; }
+/* Computer: the meter fills the row, from a little after the menu of the inputs to the end of the card. */
+[data-layout=computer] .input-meter { max-width: none; margin-left: 16px; }
 .meter-bar {
   grid-column: 1;
   grid-row: 1;
