@@ -479,8 +479,8 @@ function relabelMetronome() {
   count.value = String(metro.countIn);
   const silence = $("metro-silence");
   silence.textContent = "";
-  const said = { metronome: tr("Metronome only"), all: tr("Metronome and all tracks"), tracks: tr("Tracks only") };
-  for (const k of SILENCE) silence.append(new Option(said[k], k));
+  const said = { metronome: tr("Metronome only"), all: tr("Metronome and tracks"), tracks: tr("Tracks only") };
+  for (const k of ["all", "metronome", "tracks"]) silence.append(new Option(said[k], k));
   silence.value = metro.silence;
   if (metroFields.play) {
     metroFields.bpm.relabel(tr("Tempo of the metronome"));
@@ -546,6 +546,11 @@ function renderMetronome() {
   metroFields.mute.set(metro.mute);
   metroFields.play.disable(off);
   metroFields.mute.disable(off);
+  // The words after the fields, as many bars as they say.
+  const playUnit = trn(metro.play, "bar,", "bars,");
+  if ($("metro-play-unit").textContent !== playUnit) $("metro-play-unit").textContent = playUnit;
+  const muteUnit = trn(metro.mute, "bar", "bars");
+  if ($("metro-mute-unit").textContent !== muteUnit) $("metro-mute-unit").textContent = muteUnit;
   const silence = $("metro-silence");
   if (document.activeElement !== silence) silence.value = metro.silence;
   silence.disabled = off;
@@ -553,6 +558,16 @@ function renderMetronome() {
   random.classList.toggle("on", metro.random);
   setAttr(random, "aria-pressed", String(metro.random));
   random.disabled = off;
+  // At random: what it does, while it is on.
+  const randomHint = $("metro-random-hint");
+  randomHint.hidden = !song || !metro.random;
+  if (!randomHint.hidden) {
+    const total = metro.play + metro.mute;
+    const text = metro.mute
+      ? `${tr("At random: the muted bars come unannounced, {mute} in every {total} on average, so you cannot count them.", { mute: metro.mute, total })} ${trn(metro.play, "The first bar always plays.", "The first {n} bars always play.")}`
+      : tr("At random: set some muted bars first.");
+    if (randomHint.textContent !== text) randomHint.textContent = text;
+  }
   const count = $("metro-count");
   if (document.activeElement !== count) count.value = String(metro.countIn);
   count.disabled = off;
@@ -596,11 +611,11 @@ function renderTempoFound(locked) {
   if (line.title !== title) line.title = title;
 }
 
-// ----- the speed trainer ---------------------------------------------------------------
+// ----- speed training ------------------------------------------------------------------
 //
-// In the Tempo and key card, under the speed: with the loop on, the speed goes
-// up (or down) by `step` % every `every` passes, until `target` %. Its
-// settings are this browser's; it is off whenever a song opens.
+// A part of the metronome's card: with the loop on, the speed goes up (or
+// down) by `step` % every `every` passes, until `target` %. Its settings are
+// this browser's; it is off whenever a song opens.
 
 const TRAINER_KEY = "euteria-trainer";
 const trainer = (() => {
@@ -671,6 +686,8 @@ function renderTrainer() {
   b.classList.toggle("on", trainer.on);
   setAttr(b, "aria-pressed", String(trainer.on));
   b.disabled = !song;
+  const state = trainer.on ? tr("On") : tr("Off");
+  if ($("trainer-state").textContent !== state) $("trainer-state").textContent = state;
   $("trainer").classList.toggle("off", !trainer.on);
   trainerFields.step.set(trainer.step);
   trainerFields.every.set(trainer.every);
@@ -678,7 +695,7 @@ function renderTrainer() {
   for (const k of ["step", "every", "target"]) trainerFields[k].disable(!song);
   const hint = $("trainer-hint");
   hint.hidden = !song || !trainer.on || player.loop.on;
-  const text = tr("The trainer changes the speed at each pass of the loop: switch the loop on.");
+  const text = tr("Speed training changes the speed at each pass of the loop: switch the loop on.");
   if (hint.textContent !== text) hint.textContent = text;
 }
 

@@ -289,17 +289,6 @@
               <span class="label">Tempo</span>
               <div id="tempo-box" class="control-box"></div>
             </div>
-            <!-- The speed trainer: with the loop on, the speed changes by a step every
-                 few passes, up to a target. -->
-            <div id="trainer" class="trainer">
-              <button id="trainer-on" type="button" class="small toggle-pill" aria-pressed="false">Speed trainer</button>
-              <div class="trainer-fields">
-                <span class="trainer-item"><span class="mini-label">Step</span><span id="trainer-step-box"></span></span>
-                <span class="trainer-item"><span class="mini-label">Passes per step</span><span id="trainer-every-box"></span></span>
-                <span class="trainer-item"><span class="mini-label">Up to</span><span id="trainer-target-box"></span></span>
-              </div>
-            </div>
-            <p id="trainer-hint" class="hint" hidden></p>
           </div>
           <div class="card-col">
             <div class="field">
@@ -334,21 +323,36 @@
               <div id="metro-beats" class="metro-beats" role="group" aria-label="The beats of the bar: a click goes from beat to accent to silent"></div>
             </div>
           </div>
-          <div class="metro-row">
-            <div class="metro-item">
+          <div class="metro-row metro-cycle-row">
+            <div class="metro-item metro-count-item">
               <span class="mini-label">Count-in</span>
               <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
             </div>
-            <div class="metro-item metro-cycle">
-              <span class="mini-label">Clicks for</span>
-              <div id="metro-play-box"></div>
-              <span class="mini-label">bars, then silent for</span>
-              <div id="metro-mute-box"></div>
-              <div class="num metro-silence"><div class="value"><select id="metro-silence" aria-label="What the silent bars silence"></select></div></div>
-              <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Silent bars at random, as many on the whole">At random</button>
+            <div class="metro-cycle">
+              <span class="metro-group"><span class="mini-label">Clicks for</span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label">bars,</span></span></span>
+              <span class="metro-group"><span class="mini-label">then mute for</span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
+              <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">At random</button>
+              <div class="metro-stack">
+                <label class="stack-label" for="metro-silence">What to mute</label>
+                <div class="num metro-silence"><div class="value"><select id="metro-silence"></select></div></div>
+              </div>
             </div>
           </div>
+          <p id="metro-random-hint" class="hint" hidden></p>
           <p id="metro-hint" class="hint" hidden></p>
+        </div>
+        <!-- Speed training: with the loop on, the speed goes up by a step every few passes
+             of the loop, up to a target. -->
+        <div class="metro-sub">
+          <h3 class="card-sub">Speed training</h3>
+          <div id="trainer" class="trainer">
+            <button id="trainer-on" type="button" class="metro-on" aria-pressed="false" aria-label="Speed training" title="Turns the speed training on or off"><span class="dot" aria-hidden="true"></span><span id="trainer-state">Off</span></button>
+            <span class="trainer-item"><span class="mini-label">Step</span><span id="trainer-step-box"></span></span>
+            <span class="trainer-item"><span class="mini-label">Passes per step</span><span id="trainer-every-box"></span></span>
+            <span class="trainer-item"><span class="mini-label">Up to</span><span id="trainer-target-box"></span></span>
+          </div>
+          <p class="hint">With the loop on, the speed goes up by the step at every pass of the loop, or every few passes, up to the speed to reach. Start from a slower speed, set in Tempo and key (for example 70%).</p>
+          <p id="trainer-hint" class="hint warn" hidden></p>
         </div>
       </section>
 

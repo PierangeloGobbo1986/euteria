@@ -11,7 +11,10 @@ the chords, record yourself over the song, and export the parts you need as MP3.
 (listening mode: the player with the library and the MP3 export, the timeline, editing
 and saving the grid and the chords) are done and tested on smartphone and computer.
 Phase 2 (the separation of the instruments in the app, on a computer) and the recording
-of takes over a song (version 0.5 and later) are online and being tested.
+of takes over a song (version 0.5 and later) are online and being tested. The version
+went from 0.12 to **2.0** in November 2026: with the separation, the takes, the tempo and
+chord detection, the metronome and the empty projects, the web app is EUTERIA's second
+version; the 0.x numbers below are those of its development releases.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page (not linked from the app): https://pierangelogobbo1986.github.io/euteria/lab/
@@ -374,20 +377,24 @@ from the first bar, and *Follow the song* brings it back (a new tempo of the gri
 too). A song without bars clicks at the metronome's own tempo from its start, with the
 meter beside *Detect BPM*. The second row has the *Count-in*, *Off*, 1 or 2 bars of
 clicks before the song starts, before playback and before a take, also with the
-metronome off, with the beats as set; then *Clicks for* N bars, *then silent for* M bars
-(0: none), and what the silent bars silence: *Metronome only*, *Metronome and all
-tracks* (the band drops out, to keep the time alone) or *Tracks only* (the click goes
-on). *At random* makes the silent bars come at random, as many on the whole, the first
-N bars always on. The bars are counted from where the song starts (those of the
-count-in are not). The tempo, the volume, the beats (per meter) and the silent bars are
-kept in this browser, the same for every song; on and off and the count-in are not:
-every song opens with both off.
+metronome off, with the beats as set; then *Clicks for* N *bars, then mute for* M *bars*
+(0: none; *bar* for 1), *At random*, and *What to mute* over its menu: *Metronome and
+tracks* (the default: the band drops out, to keep the time alone), *Metronome only* or
+*Tracks only* (the click goes on). *At random* makes the muted bars come unannounced,
+as many on the whole, the first N bars always on; while it is on, a line under the row
+says so with the numbers set. The bars are counted from where the song starts (those
+of the count-in are not). The tempo, the volume, the beats (per meter) and the muted
+bars are kept in this browser, the same for every song; on and off and the count-in are
+not: every song opens with both off. (The settings kept before 2.0 go back to *Metronome
+and tracks*, the new default.)
 
-**The speed trainer**, under the speed in *Tempo and key*: with the loop on, the speed
-changes by its *Step* (5% to start with) every so many passes of the loop, *Up to* the
-speed set (100%), and says when it gets there; from 70%, for example, a hard passage
-comes up to tempo a little at a time. Its settings are kept in this browser; it is off
-whenever a song opens.
+**Speed training**, the last part of the metronome's card, under its own title: *On*/*Off*
+(as the metronome's), then, with the loop on, the speed changes by its *Step* (5% to
+start with) every so many passes of the loop (*Passes per step*), *Up to* the speed set
+(100%), and says when it gets there; from 70%, for example, a hard passage comes up to
+tempo a little at a time. A line under it says how it works, and another one asks for
+the loop while it is off. Its settings are kept in this browser; it is off whenever a
+song opens.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).

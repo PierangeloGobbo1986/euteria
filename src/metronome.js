@@ -25,6 +25,9 @@
 import { METERS } from "./grid.js";
 
 const KEY = "euteria-metronome";
+// The settings' version: what a silent bar silences was kept from 2.0 on (by
+// default the metronome and the tracks; before, the metronome only).
+const VERSION = 2;
 const BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
 export const ACCENT = 1;
 export const BEAT = 0;
@@ -54,7 +57,7 @@ export function defaultMetronome() {
     patterns: Object.fromEntries(METERS.map((m) => [m, defaultPattern(m)])),
     play: 4, // bars with the clicks…
     mute: 0, // …then silent bars (0: always on)
-    silence: "metronome", // what they silence
+    silence: "all", // what they silence
     random: false, // silent bars at random, in the same proportion
     countIn: 0, // bars before the song starts
   };
@@ -74,7 +77,7 @@ export function loadMetronome() {
       }
       if (Number.isInteger(kept.play)) s.play = Math.max(1, Math.min(MAX_BARS, kept.play));
       if (Number.isInteger(kept.mute)) s.mute = Math.max(0, Math.min(MAX_BARS, kept.mute));
-      if (SILENCE.includes(kept.silence)) s.silence = kept.silence;
+      if (kept.v === VERSION && SILENCE.includes(kept.silence)) s.silence = kept.silence;
       s.random = kept.random === true;
     }
   } catch (_) {}
@@ -83,7 +86,7 @@ export function loadMetronome() {
 
 export function saveMetronome(s) {
   try {
-    const kept = { ...s };
+    const kept = { ...s, v: VERSION };
     delete kept.on;
     delete kept.countIn;
     localStorage.setItem(KEY, JSON.stringify(kept));
