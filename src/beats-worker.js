@@ -1,6 +1,6 @@
 /*
- * Web Worker that analyses a song on the graphics card, through ONNX Runtime
- * Web and WebGPU: its beats and downbeats with Beat This! (Foscarin, Schlüter
+ * Web Worker that analyses a song on the graphics card (ONNX Runtime Web and
+ * WebGPU) or on the CPU (WebAssembly): its beats and downbeats with Beat This! (Foscarin, Schlüter
  * and Widmer, ISMIR 2024, MIT licence), its "final0" model converted to ONNX
  * (musetric/beat-this-onnx), and its chords with BTC (Park et al., ISMIR 2019,
  * MIT licence; models/btc).
@@ -20,6 +20,10 @@
  * with the mean and the deviation BTC was trained with, the model run on
  * windows of 108 frames (the last one padded with zeros), the probability of
  * each of the 170 chords per frame (a softmax of the logits).
+ *
+ * The small model of Beat This! (models/beat-this) runs in the same way; its
+ * beats are surer than it says, a beat counting from a logit of -1
+ * (model.beatThreshold; its downbeats from 0, as the full one's).
  *
  * The model files are downloaded once into the browser's private storage
  * (src/model-store.js). Messages: status, download, detect ({audio: mono
@@ -157,7 +161,7 @@ async function detect({ audio, model, runtime, ep }) {
     for (const t of Object.values(out)) if (t.dispose) t.dispose();
     progress("analyse", { done: w + 1, total: starts.length });
   }
-  const beats = peaks(beat);
+  const beats = peaks(beat, model.beatThreshold || 0);
   const downbeats = snapDownbeats(peaks(downbeat), beats);
   return {
     beats,
@@ -241,15 +245,15 @@ async function chords({ audio, model, runtime, ep }) {
   };
 }
 
-// Times (s) of the frames whose logit is above 0 and the highest within
-// RADIUS frames, groups of adjacent ones replaced by their mean
-// (deduplicate_peaks, width 1).
-function peaks(logits) {
+// Times (s) of the frames whose logit is above `threshold` (0, as beat_this)
+// and the highest within RADIUS frames, groups of adjacent ones replaced by
+// their mean (deduplicate_peaks, width 1).
+function peaks(logits, threshold = 0) {
   const n = logits.length;
   const frames = [];
   for (let t = 0; t < n; t++) {
     const v = logits[t];
-    if (!(v > 0)) continue;
+    if (!(v > threshold)) continue;
     let top = true;
     for (let k = Math.max(0, t - RADIUS); k <= Math.min(n - 1, t + RADIUS); k++) {
       if (logits[k] > v) {

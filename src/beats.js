@@ -1,9 +1,11 @@
-// Tempo and chord detection (computer, Chrome or Edge with WebGPU): the beats
-// and the downbeats of a song found by Beat This!, and its chords by BTC, in
+// Tempo and chord detection, wherever the browser can run it: the beats and
+// the downbeats of a song found by Beat This!, and its chords by BTC, in
 // src/beats-worker.js, from the song as the player has it (its Original
-// Track, at 22050 Hz, mono). This module holds the model and runtime choices
-// and talks to the worker; the grid made from the beats is in src/tempo.js,
-// the chords of the bars in src/chords.js.
+// Track, at 22050 Hz, mono). A computer with a graphics card WebGPU can use
+// runs the full model of Beat This! on it; a phone or a tablet, or another
+// browser or computer, its small model on the CPU (app/detect.js). This module
+// holds the model and runtime choices and talks to the worker; the grid made
+// from the beats is in src/tempo.js, the chords of the bars in src/chords.js.
 
 import { tr } from "./i18n.js";
 import { openZip } from "./zip.js";
@@ -19,6 +21,23 @@ const MODEL = {
   url: "https://huggingface.co/musetric/beat-this-onnx/resolve/main/beat_this.onnx",
   approxMB: 191,
 };
+// The small model of Beat This! ("small0", 2.1 million parameters, MIT),
+// converted to ONNX by others (huggingface.co/ashudesai/songbird-models;
+// input [batch, time, 128], any time) and fixed here (its table of positions
+// was cut at 300 frames: models/beat-this/fix_rotary.py), kept with the app:
+// for phones and tablets, and for browsers and computers without a graphics
+// card WebGPU can use, on the CPU.
+const SMALL_MODEL = {
+  key: "beat-this-small0",
+  file: "beat_this_small0.onnx",
+  url: new URL("../models/beat-this/small0.onnx", import.meta.url).href,
+  sha256: "463a3dabe3764aa1367ea70cf815a54335cc826674f212b723e890fdccbab6be",
+  bytes: 10401044,
+  approxMB: 10,
+  // Its beats come from a logit of -1 (measured on test songs: more beats
+  // found on bare clicks and a waltz, as precise on a band).
+  beatThreshold: -1,
+};
 // BTC's large-vocabulary model (MIT), converted to ONNX (models/btc), kept
 // with the app; the mean and deviation of the features it was trained with.
 const CHORD_MODEL = {
@@ -31,12 +50,21 @@ const CHORD_MODEL = {
   mean: -2.2279878897355596,
   std: 1.7191329394436938,
 };
-// The ONNX Runtime Web build the separation uses (WebGPU).
+// The ONNX Runtime Web build the separation uses (WebGPU, and the CPU should
+// the graphics card fail); for the CPU alone, its lighter build (half the
+// download: no WebGPU in it).
 const RUNTIME = { key: "1.31", base: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/", bundle: "ort.webgpu.min.mjs" };
+const CPU_RUNTIME = { key: "1.31-wasm", base: RUNTIME.base, bundle: "ort.wasm.min.mjs" };
 
 // Settings the automated tests can change (a stand-in model, local files,
 // the CPU instead of WebGPU).
-export const config = { model: MODEL, chordModel: CHORD_MODEL, runtime: RUNTIME, ep: "webgpu" };
+export const config = { model: MODEL, smallModel: SMALL_MODEL, chordModel: CHORD_MODEL, runtime: RUNTIME, cpuRuntime: CPU_RUNTIME, ep: "webgpu" };
+
+// How a detection runs: the full model on the graphics card, or (`light`)
+// the small one on the CPU. {model (of the beats), ep, runtime}.
+export function detectionPlan(light) {
+  return light ? { model: config.smallModel, ep: "wasm", runtime: config.cpuRuntime } : { model: config.model, ep: config.ep, runtime: config.runtime };
+}
 
 export class BeatTracker {
   constructor() {
@@ -90,18 +118,19 @@ export class BeatTracker {
   }
 
   // `audio`: mono Float32Array at 22050 Hz (handed over to the worker).
-  // Resolves with {beats, downbeats} (seconds), and timings.
-  detect(audio, model = config.model) {
-    const { key, base, bundle } = config.runtime;
-    return this._call({ type: "detect", audio, model, runtime: { key, base, bundle }, ep: config.ep }, [audio.buffer]);
+  // Resolves with {beats, downbeats} (seconds), and timings. `plan`: as
+  // detectionPlan() gives it (by default, the full model).
+  detect(audio, plan = detectionPlan(false)) {
+    const { key, base, bundle } = plan.runtime;
+    return this._call({ type: "detect", audio, model: plan.model, runtime: { key, base, bundle }, ep: plan.ep }, [audio.buffer]);
   }
 
   // The chords: `audio` as for detect(). Resolves with {probs (frames x 170,
   // the probability of each of BTC's chords per frame), times (s, the middle
   // of each frame), frames, classes, hop (s)}, and timings.
-  chords(audio, model = config.chordModel) {
-    const { key, base, bundle } = config.runtime;
-    return this._call({ type: "chords", audio, model, runtime: { key, base, bundle }, ep: config.ep }, [audio.buffer]);
+  chords(audio, plan = detectionPlan(false)) {
+    const { key, base, bundle } = plan.runtime;
+    return this._call({ type: "chords", audio, model: config.chordModel, runtime: { key, base, bundle }, ep: plan.ep }, [audio.buffer]);
   }
 
   terminate() {

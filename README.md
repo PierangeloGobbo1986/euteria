@@ -129,9 +129,8 @@ The eye beside *Bars and chords*, in the *Song analysis* card (on the phone over
 timeline, on the left of *Zoom*), shows or hides the sections, the grid lines and the chords
 (open: shown and editable, closed: hidden; the choice is kept with the song, in this browser,
 and saved in the project). When nothing is over the waveforms, the line under the timeline
-says why first: the song has no bars yet (on the phone the tempo is not detected: *Set first
-beat* makes them, or the project saved on a computer after *Detect tempo* brings them), or
-they are hidden, and where the eye is. Bar numbers start from the number saved by
+says why first: the song has no bars yet (*Detect tempo* finds them; *Set first beat* makes
+them by hand), or they are hidden, and where the eye is. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
 **Editing the grid and the chords.** The *Song analysis* card (between the tracks and
@@ -376,9 +375,15 @@ Two modes, chosen from what the device can do:
   export and sharing. A note under the tracks of a song without stems says how to
   separate it.
 
-**Tempo and chord detection** (computer, Chrome or Edge with WebGPU), on request:
-**Detect tempo**, in the *Song analysis* card (the buttons are *Separate instruments*,
-*Detect tempo* and *Detect chords*, in the order they are pressed), finds the beats and the
+**Tempo and chord detection** (every device, 2.3: only the separation stays with
+computers), on request. A computer with Chrome or Edge and a graphics card WebGPU can use
+finds the beats with the full model of Beat This! on it; a phone or a tablet, another
+browser, or a computer whose graphics card WebGPU cannot use (asked when a detection
+starts), with its small model on the CPU (about 10 MB to download the first time instead of 191, the same
+steps, a few seconds more; a first downbeat found wrong is more likely there, and is put right
+with *Set first beat*). The chords are found by the same model everywhere.
+**Detect tempo**, in the *Song analysis* card (the buttons are *Separate instruments*, on a
+computer, *Detect tempo* and *Detect chords*, in the order they are pressed), finds the beats and the
 downbeats of the song with Beat This! (see *How the tempo detection works*) and makes
 the grid from them: the tempo, the meter (4/4 or 3/4; two beats a bar become a 6/8) and
 the first beat, the first downbeat. Under the buttons come the tempo of the grid and its
@@ -393,10 +398,9 @@ it: the grid is right at 100% and follows any tempo; at another tempo a grey lin
 BPM says the tempo played (`96 BPM at this speed` at 80%). What was found is kept in this browser and written in the
 project by *Save* and by the separation, so a song is analysed once: pressed again,
 the buttons bring back the grid or the chords as they were found, at once, after a
-second click when they replace a grid or chords; the phone gets them ready and can do
-the same. The changes they make are changes to save. On the phone, and in the other
-browsers, a song never analysed has no buttons: its grid is the one it brings, or one
-made by hand.
+second click when they replace a grid or chords. The changes they make are changes to
+save. Only in a browser without workers or WebAssembly does a song never analysed have no
+buttons: its grid is the one it brings, or one made by hand.
 
 **The metronome** (a card of its own, between *Song analysis* and *Tempo and key*, every device, and a round
 button with a metronome in the transport, between *Loop* and *Rec*, M on a computer) is
@@ -662,10 +666,16 @@ the file chosen, read back, then opened.
 ## How the tempo detection works
 
 The beats and the downbeats come from Beat This! (Foscarin, Schlüter and Widmer, ISMIR
-2024, MIT License), its `final0` model converted to ONNX with a fixed window of 1500
-frames (`musetric/beat-this-onnx`, about 191 MB, downloaded from Hugging Face the first
-time and kept in the browser's private storage, as the separation model). It is not
-part of this repository.
+2024, MIT License). A computer with Chrome or Edge and WebGPU runs its `final0` model
+converted to ONNX with a fixed window of 1500 frames (`musetric/beat-this-onnx`, about
+191 MB, downloaded from Hugging Face the first time and kept in the browser's private
+storage, as the separation model; it is not part of this repository), on the graphics card.
+The graphics card is asked for when a detection first starts, as for the separation; where
+WebGPU finds none it can use, or only its software stand-in, the computer runs the small
+model, as phones, tablets and the other browsers do: its `small0` model (2.1 million parameters,
+about 10 MB, in `models/beat-this`, with where it comes from and the fix it needed) on the
+CPU with the WebAssembly build of ONNX Runtime Web (`ort.wasm.min.mjs`, half the download of
+the WebGPU one), in the same windows of 1500 frames; its beats count from a logit of −1.
 
 `src/beats.js` reads the song as the player has it: its Original Track (or, in a
 project without it, its stems added together), mono, at 22050 Hz, trimmed as the
@@ -681,8 +691,9 @@ Web 1.31 on the graphics card, as the `beat_this` package does without its DBN:
   ending at the end of the song, zeros outside it (`split_piece`); the windows joined
   keeping the earlier one where they overlap, without their 6 border frames
   (`aggregate_prediction`, `keep_first`);
-- a beat (or downbeat) is a frame whose logit is above 0 and the highest within 3
-  frames, adjacent ones merged; each downbeat moves to the nearest beat.
+- a beat (or downbeat) is a frame whose logit is above 0 (a beat of the small model: −1)
+  and the highest within 3 frames, adjacent ones merged; each downbeat moves to the
+  nearest beat.
 
 `src/tempo.js` makes the grid: the beats are fitted on one straight line (beat k at
 a + kT), first on the middle of the song and then on wider and wider stretches, each
@@ -696,8 +707,12 @@ that the tempo varies. All the beats and downbeats are kept in the project, for 
 that could follow them.
 
 The chain was tested in the browser with a stand-in model of the same inputs and
-outputs (an onset detector) on songs of known tempo, meter and first downbeat; the
-model itself was not reachable from the test machine.
+outputs (an onset detector) on songs of known tempo, meter and first downbeat; the full
+model itself was not reachable from the test machine. The small model was run for real, on
+the CPU as a phone runs it: a band at 96 BPM, clicks at 120 and 100 BPM and a waltz of clicks
+at 93.5 BPM each got the right tempo, meter and first downbeat (the figures are in
+`models/beat-this/README.md`); a synthetic swing at 140 and 200 BPM the right tempo with the
+first downbeat two beats off; a synthetic slow swing ballad (70 BPM) a wrong tempo, 228 BPM.
 
 ## How the chord recognition works
 
@@ -721,8 +736,9 @@ what BTC's `test.py` does:
   code to 1e-3 in the lowest values and 5e-5 elsewhere;
 - the features normalised with the mean and deviation BTC was trained with, the model
   run on each chunk (108 frames) with ONNX Runtime Web on the graphics card (the CPU if
-  it cannot), the probability of each chord per frame; checked in the browser against
-  the same chain in Python to 2e-6.
+  it cannot, and wherever the tempo runs on the small model), the probability of each
+  chord per frame; checked in the browser against the
+  same chain in Python to 2e-6.
 
 `src/chords.js` keeps them as segments: the probabilities averaged over 5 frames (half
 a second), the most likely chord of each frame, frames in a row with the same chord

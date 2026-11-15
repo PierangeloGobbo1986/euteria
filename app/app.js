@@ -55,7 +55,7 @@ const HINTS = phone
   ? {
       view: () =>
         tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a bar or its chord to write the chord. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
-      noGrid: () => tr("No bars in this song yet: put the playhead on the first beat of a bar and tap Set first beat, in Song analysis (on a computer, Detect tempo finds them)."),
+      noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and tap Set first beat."),
       hidden: () => tr("The sections, the bars and the chords are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
         tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped."),
@@ -2645,8 +2645,8 @@ function updateUi() {
   }
   renderMetronome();
   renderTrainer();
-  // Detect tempo and Detect chords: on a computer that can find them, or with
-  // what the song kept from an earlier detection.
+  // Detect tempo and Detect chords: on any device that can find them (the
+  // phone too), or with what the song kept from an earlier detection.
   const findBpm = $("find-bpm");
   findBpm.hidden = !song || !ownAudio() || !(detection.supported || hasBeats(app.analysis));
   findBpm.disabled = !song || locked || detection.running;

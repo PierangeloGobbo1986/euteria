@@ -1,5 +1,9 @@
-// Finding the tempo and the chords of a song, when asked (a computer, Chrome
-// or Edge with WebGPU): Detect tempo (the Song analysis card) finds the beats and the
+// Finding the tempo and the chords of a song, when asked, on every device
+// whose browser can run it (the separation alone stays with computers): a
+// computer with Chrome or Edge and a graphics card WebGPU can use runs the
+// full model of Beat This! (about 191 MB) on it; a phone or a tablet, another
+// browser, or a computer whose graphics card WebGPU cannot use, its small
+// model (about 10 MB) on the CPU. Detect tempo (the Song analysis card) finds the beats and the
 // downbeats (Beat This!, src/beats.js) and makes a new grid from them
 // (src/tempo.js); Detect chords (Song analysis) finds the chords (BTC, kept
 // as segments: src/chords.js) and writes them in the bars, finding the tempo
@@ -9,16 +13,16 @@
 // buttons use it, with no new analysis (app/app.js). The song plays
 // meanwhile; Bars and Chords waits for it (app/editor.js), and so does a
 // separation. The progress is told in the line under the bar at the top. The
-// models (about 191 MB and 12 MB) are downloaded the first time and kept in
-// the browser.
+// models (the tempo's, 191 or 10 MB; the chords', 12 MB) are downloaded the
+// first time and kept in the browser.
 //
-// On a phone, and in the browsers that cannot run it, nothing runs: the grid
-// is the one the song brings, or one made by hand.
+// In a browser that cannot run it (no workers, no WebAssembly), nothing
+// runs: the grid is the one the song brings, or one made by hand.
 
-import { BeatTracker, config, songAudio } from "../src/beats.js";
+import { BeatTracker, config, detectionPlan, songAudio } from "../src/beats.js";
 import { gridFromBeats } from "../src/tempo.js";
 import { segmentsFrom } from "../src/chords.js";
-import { detectBrowser, detectHandheld } from "../src/device.js";
+import { detectBrowser, detectHandheld, webgpuInfo } from "../src/device.js";
 import { tr, trn } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
@@ -26,12 +30,21 @@ const VERSION = () => self.EUTERIA_VERSION || "";
 // A grid whose beats stray further than this from one tempo is said to vary.
 const DRIFT_MS = 60;
 
-// Computer, Chrome or Edge, WebGPU: as the separation (app/separate.js).
-function detectionSupport(phoneLayout) {
-  if (phoneLayout || detectHandheld()) return false;
+// Any browser with workers and WebAssembly (and its private storage, where
+// the models are kept).
+function detectionSupport() {
+  return typeof Worker !== "undefined" && typeof WebAssembly === "object" && !!(navigator.storage && navigator.storage.getDirectory);
+}
+
+// The small model on the CPU: a phone or a tablet (little memory, and its
+// storage kept for photos), or a browser without WebGPU. The full model on
+// the graphics card: a computer with Chrome or Edge and WebGPU, if WebGPU
+// finds a graphics card there (TempoDetection._light()).
+function lightDetection(phoneLayout) {
+  if (phoneLayout || detectHandheld()) return true;
   const browser = detectBrowser();
-  if (!(browser.name === "Chrome" || browser.name === "Edge")) return false;
-  return "gpu" in navigator;
+  if (!(browser.name === "Chrome" || browser.name === "Edge")) return true;
+  return !navigator.gpu;
 }
 
 // What a detection found: the beats ({beats, downbeats…}) and the chords
@@ -60,16 +73,32 @@ export class TempoDetection {
   constructor(ctx) {
     this.ctx = ctx;
     this.supported = false;
+    this.light = true; // the small model on the CPU (else the full one on the graphics card)
+    this.gpu = null; // a promise: true if WebGPU finds no graphics card it can use
     this.job = null; // {song, tracker, done (a promise), text}
     this.shown = ""; // the last line said, not to cover another message
   }
 
   init() {
-    this.supported = detectionSupport(this.ctx.phone);
+    this.supported = detectionSupport();
+    this.light = lightDetection(this.ctx.phone);
   }
 
   get running() {
     return !!this.job;
+  }
+
+  // The small model (true) or the full one, for the detection starting. The
+  // graphics card is asked for then, the first time (asking wakes the
+  // discrete graphics card of a laptop that has two): without one WebGPU can
+  // use, or with only its software stand-in, the small model on the CPU
+  // (faster there than the full one). The full model runs where config.ep
+  // says (the tests: the CPU, with no graphics card asked for).
+  async _light() {
+    if (this.light || config.ep !== "webgpu") return this.light;
+    if (!this.gpu) this.gpu = webgpuInfo().then((gpu) => !gpu.available || gpu.fallback);
+    this.light = await this.gpu;
+    return this.light;
   }
 
   // Resolves when no detection is running.
@@ -114,7 +143,7 @@ export class TempoDetection {
     const status = await job.tracker.status(model);
     if (status.cached) return;
     this.say(
-      model === config.model
+      model !== config.chordModel
         ? tr("Downloading the tempo model (about {mb} MB, only the first time)…", { mb: model.approxMB })
         : tr("Downloading the chord model (about {mb} MB, only the first time)…", { mb: model.approxMB })
     );
@@ -133,17 +162,19 @@ export class TempoDetection {
       if (!current()) return;
       const tracker = job.tracker;
       tracker.onprogress = (m) => current() && this._progress(m, name, job);
+      const plan = detectionPlan(await this._light());
+      if (!current()) return;
       if (job.tempo) {
-        await this._model(job, config.model);
+        await this._model(job, plan.model);
         if (!current()) return;
-        const result = await tracker.detect(job.chords ? audio.slice() : audio);
+        const result = await tracker.detect(job.chords ? audio.slice() : audio, plan);
         if (!current()) return;
         fit = gridFromBeats(result.beats, result.downbeats, job.song.duration);
         // The chords found before stay: they do not depend on the beats.
         analysis = {
           ...(analysis.chords ? { chords: analysis.chords } : {}),
           version: 1,
-          model: config.model.key,
+          model: plan.model.key,
           detected_with: `EUTERIA Web ${VERSION()}`.trim(),
           detected_at: new Date().toISOString(),
           bpm: fit ? fit.bpm : null,
@@ -165,7 +196,7 @@ export class TempoDetection {
           this.say(tr("Finding the chords of {name}…", { name }));
           await this._model(job, config.chordModel);
           if (!current()) return;
-          const result = await tracker.chords(audio);
+          const result = await tracker.chords(audio, plan);
           if (!current()) return;
           analysis = {
             ...analysis,
