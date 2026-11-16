@@ -40,8 +40,9 @@ const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAt
 
 export class Editor {
   // ctx: {app, player, phone, timeline, changed() (the edits are to be kept),
-  // refreshPage(), locked() (the tempo detection is running)}. Saving is in
-  // the Project files card (app.js).
+  // refreshPage(), locked() (the tempo detection is running), notice(text,
+  // kind, ms) (the band of the messages, app.js)}. Saving is in the Project
+  // files card (app.js).
   constructor(ctx) {
     this.ctx = ctx;
     this.on = false;
@@ -53,7 +54,6 @@ export class Editor {
     this.dirty = false; // edits not saved in the file yet
     this.differs = false; // the grid is not the file's (kept in this browser)
     this.built = false; // its beats and bars were rebuilt here
-    this.message = null; // {text, kind, until}
     this._build();
   }
 
@@ -218,7 +218,6 @@ export class Editor {
     this.dirty = dirty && differs;
     this.sel = null;
     this.target = null;
-    this.message = null;
     this.anchor.setRange(0, this.duration);
     // The bars and the chords can be edited whenever they are shown.
     this.on = !!this.ctx.player.song && this.ctx.app.gridVisible && !this.locked;
@@ -278,10 +277,10 @@ export class Editor {
     this.ctx.refreshPage();
   }
 
+  // What an edit did, in the band of the messages, wherever the page is (the
+  // chord tools are over the tracks, the grid's in Song analysis).
   say(text, kind = "", ms = MESSAGE_MS) {
-    this.message = text ? { text, kind, until: ms ? performance.now() + ms : Infinity } : null;
-    this.refresh();
-    if (ms) setTimeout(() => this.refresh(), ms + 50);
+    if (text && this.ctx.notice) this.ctx.notice(text, kind, ms);
   }
 
   // ----- selection -------------------------------------------------------------------
@@ -651,18 +650,16 @@ export class Editor {
     $("chord-copy").disabled = !sel;
     $("chord-paste").disabled = !sel || !this.clip.length;
 
+    // Under the grid's tools: changes not saved yet, or no grid.
     const status = $("edit-status");
-    const m = this.message && performance.now() < this.message.until ? this.message : null;
-    const text = m
-      ? m.text
-      : this.dirty
-        ? tr("Changes not saved yet: Save is at the top right.")
-        : has
-          ? ""
-          : phone
-            ? tr("No grid: set the first beat at the first beat of a bar.")
-            : tr("No grid: put the playhead on the first beat of a bar and set the first beat.");
+    const text = this.dirty
+      ? tr("Changes not saved yet: Save is at the top right.")
+      : has
+        ? ""
+        : phone
+          ? tr("No grid: set the first beat at the first beat of a bar.")
+          : tr("No grid: put the playhead on the first beat of a bar and set the first beat.");
     setText(status, text);
-    setAttr(status, "class", `edit-status ${m ? m.kind : this.dirty ? "dirty" : ""}`.trim());
+    setAttr(status, "class", `edit-status ${this.dirty ? "dirty" : ""}`.trim());
   }
 }

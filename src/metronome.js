@@ -12,19 +12,20 @@
 // anchor of the grid or from the start of the song.
 //
 // Each beat of the bar is a beat, an accent or silent, as set for the meter.
-// The bars may alternate between some with the clicks and some silent (play,
-// mute), or be silent at random in the same proportion; a silent bar
-// silences the metronome, the tracks, or both. A count-in plays the bars
-// before the song starts, with the metronome on, with the beats as set,
-// outside that alternation (its bars are not counted in it). Two bars of
-// beats come before the song, for a count-in at its start; the clicks go on
-// past its end, for a take recorded beyond it.
+// With the silent bars on (muteOn), the bars alternate between some with the
+// clicks and some silent (play, mute), or are silent at random in the same
+// proportion; a silent bar silences the metronome, the tracks, or both. A
+// count-in plays the bars before the song starts, with the metronome on, with
+// the beats as set, outside that alternation (its bars are not counted in
+// it); it ends on a downbeat (src/player.js). Two bars of beats come before
+// the song, for a count-in at its start; the clicks go on past its end, for a
+// take recorded beyond it.
 //
 // Kept in this browser: the volume, the metronome's own tempo, the beats of
 // each meter and what a silent bar silences. Not kept: every song opens with
 // the metronome off, a count-in of one bar (heard only with the metronome
-// on), the count-in only, and no silent bars (clicks for 4 bars, then 0
-// silent, not at random): songDefaults().
+// on), the whole song, and the silent bars off (when on: clicks for 4 bars,
+// then 2 silent, not at random): songDefaults().
 
 import { METERS } from "./grid.js";
 
@@ -57,7 +58,7 @@ function defaultPattern(meter) {
 }
 
 // What every song opens with (songDefaults()), never kept.
-const PER_SONG = ["on", "countIn", "mode", "play", "mute", "random"];
+const PER_SONG = ["on", "countIn", "mode", "muteOn", "play", "mute", "random"];
 
 export function defaultMetronome() {
   return {
@@ -65,9 +66,10 @@ export function defaultMetronome() {
     volume: 100, // percent
     bpm: DEFAULT_BPM, // its own tempo
     patterns: Object.fromEntries(METERS.map((m) => [m, defaultPattern(m)])),
+    muteOn: false, // the silent bars, on or off
     play: 4, // bars with the clicks…
-    mute: 0, // …then silent bars (0: always on)
-    mode: "count", // what it plays: the count-in only, or the whole song
+    mute: 2, // …then silent bars
+    mode: "song", // what it plays: the count-in only, or the whole song
     silence: "all", // what they silence
     random: false, // silent bars at random, in the same proportion
     countIn: 1, // bars before the song starts (with the metronome on)
@@ -100,8 +102,8 @@ export function saveMetronome(s) {
   } catch (_) {}
 }
 
-// A song opens: the metronome off, a count-in of one bar, the count-in only,
-// no silent bars.
+// A song opens: the metronome off, a count-in of one bar, the whole song, the
+// silent bars off.
 export function songDefaults(s) {
   const d = defaultMetronome();
   for (const k of PER_SONG) s[k] = d[k];

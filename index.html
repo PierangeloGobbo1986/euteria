@@ -179,14 +179,28 @@
     </section>
 
     <section class="card timeline-card">
+      <!-- Over the tracks, in one row (more on the phone): the bars and chords shown or hidden
+           (the eye beside Bars and chords), the chord of the bars selected in the chord lane, the
+           bar (‹ ›, its number), copy and paste, Clear chords; then the zoom. -->
       <div class="tl-toolbar">
-        <button id="loop" type="button" class="small toggle-pill" aria-pressed="false">Loop</button>
-        <div id="loop-controls" class="loop-controls">
-          <div id="position-box" class="position-box"></div>
-          <div class="loop-sets">
-            <button id="set-a" type="button" class="small" title="Loop start at the playhead ([)">Set start</button>
-            <button id="set-b" type="button" class="small" title="Loop end at the playhead (])">Set end</button>
+        <div id="chord-edit" class="chord-edit" hidden>
+          <div id="grid-view" class="grid-view" hidden>
+            <span class="grid-view-label">Bars and chords</span>
+            <button id="grid-eye" type="button" class="small eye" aria-pressed="true" aria-label="Show the grid"></button>
           </div>
+          <button id="chord-notation-phone" type="button" class="small notation-btn phone-only" title="Chords in the Italian names or in letters"></button>
+          <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
+          <div class="bar-nav">
+            <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
+            <span class="mini-label">Bar</span>
+            <div id="bar-box"></div>
+            <button id="bar-next" type="button" class="small" aria-label="Next bar" title="Next bar">›</button>
+          </div>
+          <div class="clip">
+            <button id="chord-copy" type="button" class="small" title="Copy the chords of the selected bars">Copy</button>
+            <button id="chord-paste" type="button" class="small" title="Paste the chords copied">Paste</button>
+          </div>
+          <button id="clear-chords" type="button" class="small ghost danger" title="Remove all the chords: the grid stays">Clear chords</button>
         </div>
         <div class="spacer"></div>
         <div class="tool-group zoom-group">
@@ -198,14 +212,16 @@
           </div>
         </div>
       </div>
+      <!-- With the song transposed: the chords are shown in the new key -->
+      <p id="chord-key" class="hint chord-key" hidden></p>
       <div id="tl-wrap" class="tl-wrap">
         <div id="tl-heads" class="tl-heads computer-only">
-          <!-- Beside the lanes over the tracks: their names (the sections, the bars, the chords), then,
+          <!-- Beside the lanes over the tracks: their names (the sections, the chords, the bars), then,
                beside the time scale, the buttons of the tracks. -->
           <div id="tl-side" class="tl-side">
             <span class="lane-name lane-sections">Sections</span>
-            <span class="lane-name lane-bars">Bars</span>
             <span class="lane-name lane-chords"><button id="chord-notation" type="button" class="notation-btn" title="Chords in the Italian names or in letters"></button><span>Chords</span></span>
+            <span class="lane-name lane-bars">Bars</span>
             <div id="tl-side-tools" class="tl-side-tools"></div>
           </div>
           <div id="tl-rows"></div>
@@ -262,30 +278,6 @@
           </div>
         </div>
       </div>
-      <!-- The chords of the bars selected in the chord lane -->
-      <div id="chord-edit" class="edit-panel chord-edit" hidden>
-        <div class="edit-row">
-          <div id="grid-view" class="grid-view" hidden>
-            <span class="grid-view-label">Bars and chords</span>
-            <button id="grid-eye" type="button" class="small eye" aria-pressed="true" aria-label="Show the grid"></button>
-          </div>
-          <button id="chord-notation-phone" type="button" class="small notation-btn phone-only" title="Chords in the Italian names or in letters"></button>
-          <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
-          <div class="bar-nav">
-            <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
-            <span class="mini-label">Bar</span>
-            <div id="bar-box"></div>
-            <button id="bar-next" type="button" class="small" aria-label="Next bar" title="Next bar">›</button>
-          </div>
-          <div class="clip">
-            <button id="chord-copy" type="button" class="small" title="Copy the chords of the selected bars">Copy</button>
-            <button id="chord-paste" type="button" class="small" title="Paste the chords copied">Paste</button>
-          </div>
-          <button id="clear-chords" type="button" class="small ghost danger" title="Remove all the chords: the grid stays">Clear chords</button>
-        </div>
-        <!-- With the song transposed: the chords are shown in the new key -->
-        <p id="chord-key" class="hint chord-key" hidden></p>
-      </div>
       <p id="edit-status" class="edit-status" role="status" aria-live="polite"></p>
     </section>
 
@@ -325,6 +317,11 @@
           </div>
           <div class="metro-row metro-cycle-row">
             <div class="metro-cycle">
+              <!-- The silent bars: off with every song; on, the bars alternate as set here. -->
+              <div class="metro-stack metro-mute-item">
+                <span class="stack-label" aria-hidden="true">Silent bars</span>
+                <button id="metro-mute-on" type="button" class="metro-on" aria-pressed="false" aria-label="Silent bars on or off" title="Silent bars: the metronome clicks for some bars, then is silent for some, to check that you keep the time"><span class="dot" aria-hidden="true"></span><span id="metro-mute-state">Off</span></button>
+              </div>
               <span class="metro-group"><span class="mini-label">Clicks for</span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label">bars,</span></span></span>
               <span class="metro-group"><span class="mini-label">then mute for</span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
               <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">Random 💀</button>

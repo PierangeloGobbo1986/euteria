@@ -3,7 +3,8 @@
 // in the song's own key, the timeline and the chord field show them in the
 // key of now.
 //
-// A chord is a root (C to B, or Do to Si), # or b (♯ or ♭), what follows it
+// A chord is a root (C to B, or DO to SI, typed DO, Do or do), # or b (♯ or ♭;
+// after DO to SI, B too), what follows it
 // (m, maj7, 7(b9), sus4, ø, 6/9 and so on, left as it is) and a bass after
 // "/". A word that is not a chord (N.C., %, x2, Coda, Solo) stays as it is;
 // so does the chord's own text when the song is not transposed. The new names
@@ -17,7 +18,8 @@
 // writes its black keys (in Db: D, not Ebb).
 
 const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
-const ITALIAN = ["Do", "Re", "Mi", "Fa", "Sol", "La", "Si"];
+// The Italian names in capitals, so that the m of a minor chord stands out (REm7).
+const ITALIAN = ["DO", "RE", "MI", "FA", "SOL", "LA", "SI"];
 const NATURAL = [0, 2, 4, 5, 7, 9, 11];
 // How many letters a note is above the tonic, by semitones: 1 b2 2 b3 3 4 b5 5 b6 6 b7 7,
 // and raised: 1 #1 2 #2 3 4 #4 5 #5 6 #6 7.
@@ -32,18 +34,18 @@ const TONIC = FLATS;
 const FLAT_SIDE = new Set([0, 5, 10, 3, 8, 1, 6]);
 
 const ROOT_LETTER = /^([A-G])([#b♯♭]?)/;
-const ROOT_ITALIAN = /^(Do|Re|Mi|Fa|Sol|La|Si)([#b♯♭]?)/;
+const ROOT_ITALIAN = /^(do|re|mi|fa|sol|la|si)([#b♯♭]?)/i;
 // What may follow the root: qualities, extensions, alterations, brackets.
 const SUFFIX = /^(?:maj|Maj|MAJ|ma|Ma|M|min|mi|m|dim|aug|sus|add|alt|omit|no|o|°|ø|Ø|Δ|∆|\^|\+|-|−|–|[0-9]|#|b|♯|♭|\(|\)|,|\.|\/(?=[0-9#b♯♭(]))*$/;
 
 function readNote(m, italian) {
-  const letter = italian ? ITALIAN.indexOf(m[1]) : LETTERS.indexOf(m[1]);
+  const letter = italian ? ITALIAN.indexOf(m[1].toUpperCase()) : LETTERS.indexOf(m[1]);
   const a = m[2];
-  return note(letter, a === "#" || a === "♯" ? 1 : a === "b" || a === "♭" ? -1 : 0);
+  return note(letter, a === "#" || a === "♯" ? 1 : a === "b" || a === "B" || a === "♭" ? -1 : 0);
 }
 
 // A chord name: {root, suffix, bass, italian, glyphs} or null. Italian names
-// first, so that Do7 is C7 (and Faug, not a Fa chord, F augmented).
+// first, so that DO7 is C7 (and Faug, not a FA chord, F augmented).
 export function parseChord(text) {
   for (const italian of [true, false]) {
     const re = italian ? ROOT_ITALIAN : ROOT_LETTER;
@@ -216,7 +218,7 @@ function name(n, italian, glyphs) {
 }
 
 // Every chord of `text` moved by `semitones` and written in `key` (the key
-// they land in), and in the Italian names (Do Re Mi…) or in letters (C D E…)
+// they land in), and in the Italian names (DO RE MI…) or in letters (C D E…)
 // if `italian` says so (true, false; null: as they were written); the other
 // words as they are.
 function transposeText(text, semitones, key, italian = null) {
@@ -244,8 +246,8 @@ export function nameChord(pc, suffix, key) {
   return name(spellRoot(((pc % 12) + 12) % 12, quality(suffix), k), false, false) + suffix;
 }
 
-// How the chords are shown: in letters (C D E…) or in the Italian names (Do
-// Re Mi…), whatever way they were written. A choice of the page, kept by it.
+// How the chords are shown: in letters (C D E…) or in the Italian names (DO
+// RE MI…), whatever way they were written. A choice of the page, kept by it.
 let notation = "letters";
 export const getNotation = () => notation;
 export function setNotation(n) {

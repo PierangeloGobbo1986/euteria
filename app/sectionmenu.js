@@ -10,7 +10,7 @@ import { SECTION_KINDS, SECTION_LETTERS, sectionName, sectionColor } from "../sr
 import { tr } from "../src/i18n.js";
 
 const GHOST_CLICK_MS = 450; // after a tap, the click a phone makes too
-const BARS_IN_VIEW = 56; // pixels under the lane of the sections kept over the panel (the bar numbers, the chords)
+const BARS_IN_VIEW = 56; // pixels under the lane of the sections kept over the panel (the chords, the bar numbers)
 
 export class SectionMenu {
   // onPick(value): {kind}, {other: true} (a name to type) or null (remove).

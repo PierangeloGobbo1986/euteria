@@ -1,6 +1,6 @@
-// The timeline of the player, from the top: the sections of the song, the bar
-// numbers and, under them, the chords (when there is a grid and it is shown),
-// the time scale, then the
+// The timeline of the player, from the top: the sections of the song, the
+// chords and, under them, the bar numbers (when there is a grid and it is
+// shown), the time scale, then the
 // waveform of each track (one row on the phone, one per track on a computer)
 // with the bar grid over it. The loop and the playhead are drawn over the
 // tracks only, so that the bars and their chords stay free to be clicked.
@@ -20,11 +20,18 @@
 // brings the view there. While the song plays the view follows the playhead,
 // except for a few seconds after the user moved it.
 //
-// The bars (their numbers and their chords) are for the chords: while the
-// grid and the chords are edited, a tap or a click selects a bar, dragging
-// along them (or shift-click) selects several; otherwise a tap on a bar asks
-// for its chord to be edited (onBarTap) and dragging scrolls. The chords are
-// shown in the key the song is played in (setChordShift, src/chordnames.js).
+// The chords are for the chords: while the grid and the chords are edited, a
+// tap or a click on a chord selects its bar, dragging along them (or
+// shift-click) selects several; otherwise a tap on a bar asks for its chord
+// to be edited (onBarTap) and dragging scrolls. The chords are shown in the
+// key the song is played in (setChordShift, src/chordnames.js).
+//
+// The bar numbers choose a stretch of the song for the loop (onRange): a tap
+// takes the bar, dragging along them a stretch by the eighth note (half a
+// beat in 3/4 and 4/4, a beat in 6/8; by the beat, or the bar, when the song
+// is zoomed out so far that eighths are too close together), shift-click
+// takes in more bars. With the loop on, the loop is that stretch
+// (setLoop()), and a new one moves it.
 //
 // The lane of the sections (src/sections.js) selects in the same way, a
 // section at a time: a tap on a section selects all its bars, on a bar
@@ -33,9 +40,9 @@
 // the loop on, what is selected there is looped (onSelect says the lane): a
 // tap on a section among several selected takes that one alone, and the menu
 // opens once the loop is on the bars selected. With
-// the loop on, shift-click moves an edge of the loop: on the bar numbers by
-// whole bars, on the time scale to the nearest beat (before the loop or after
-// it, the loop grows; inside, the nearer edge comes in).
+// the loop on, shift-click on the time scale moves an edge of the loop to the
+// nearest beat (before the loop or after it, the loop grows; inside, the
+// nearer edge comes in).
 
 import { barNumber, barAt, nearestBar } from "../src/grid.js";
 import { chordView } from "../src/chordnames.js";
@@ -58,6 +65,7 @@ const C = {
   loop: "#6bb7aa",
   loopGlow: "rgba(107, 183, 170, 0.28)",
   loopFill: "rgba(107, 183, 170, 0.12)",
+  range: "rgba(107, 183, 170, 0.3)",
   select: "rgba(214, 168, 95, 0.26)",
   selectEdge: "#d6a85f",
   playhead: "#e7bd6d",
@@ -67,6 +75,7 @@ const C = {
 const FONT = '-apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const TAP_SLOP = 6; // pixels a press may move and still be a tap
 const SNAP_PX = 10; // loop edges snap to a bar or beat closer than this
+const RANGE_PX = { mouse: 6, touch: 12 }; // the narrowest step a stretch of the bar numbers takes
 const MIN_LOOP = 0.25; // seconds, as the engine
 const FOLLOW_PAUSE_MS = 4000;
 const TIME_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
@@ -106,14 +115,17 @@ export class Timeline {
   // not move, lane: "sections" from the lane of the sections), onBarTap(index,
   // {pointerType}) when a bar is tapped while not editing, onSectionMenu({lo,
   // hi, x, y, pointerType}) when the bars selected are tapped in the lane of
-  // the sections (x, y: where, in the window).
+  // the sections (x, y: where, in the window), onRange({start, end}) when a
+  // stretch has been chosen on the bar numbers.
   // varsOn: the element that gets --tl-over, --tl-ruler, --tl-head, --tl-row,
   // --tl-sections, --tl-nums and --tl-chords (the height of the overview, of
   // the time scale, of everything over the tracks, of a row, of the lanes of
   // the sections, of the bar numbers and of the chords), so that a column
   // beside can line up.
-  constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange, onSelect, onBarTap, onSectionMenu } = {}) {
+  constructor(host, { compact = false, varsOn = null, onSeek, onScrub, onLoop, onView, onChange, onSelect, onBarTap, onSectionMenu, onRange } = {}) {
     this.onSelect = onSelect || (() => {});
+    this.onRange = onRange || (() => {});
+    this.range = null; // {start, end}: the stretch chosen on the bar numbers (the loop's, with the loop on)
     this.onBarTap = onBarTap || (() => {});
     this.onSectionMenu = onSectionMenu || (() => {});
     this.editing = false;
@@ -126,9 +138,9 @@ export class Timeline {
     this.onLoop = onLoop || (() => {});
     this.onView = onView || (() => {});
     this.onChange = onChange || (() => {});
-    // sections: the lane of the sections; nums: the lane of the bar numbers;
-    // chords: the chord lane under it; ruler: the time scale over the tracks;
-    // tab: the handles of the loop at its ends.
+    // sections: the lane of the sections; chords: the chord lane under it;
+    // nums: the lane of the bar numbers under that; ruler: the time scale over
+    // the tracks; tab: the handles of the loop at its ends.
     this.dims = compact
       ? { sections: 24, nums: 18, chords: 22, ruler: 26, row: 64, overview: 24, tab: { w: 12, h: 20 } }
       : { sections: 22, nums: 20, chords: 24, ruler: 28, row: 60, overview: 26, tab: { w: 9, h: 16 } };
@@ -204,6 +216,7 @@ export class Timeline {
     this.loop = { on: false, start: 0, end: 0 };
     this.dragLoop = null;
     this.selection = null;
+    this.range = null;
     this.position = 0;
     this.overviewCache = null;
     this.layout();
@@ -320,10 +333,20 @@ export class Timeline {
     return Math.ceil(this.dims.tab.w / 2) + 1;
   }
 
-  // The sections, the bar numbers and the chords, at the top (none without a
+  // The sections, the chords and the bar numbers, at the top (none without a
   // grid shown).
   get barsHeight() {
-    return this.showChords ? this.dims.sections + this.dims.nums + this.dims.chords : 0;
+    return this.showChords ? this.dims.sections + this.dims.chords + this.dims.nums : 0;
+  }
+
+  // The top of the chord lane, under the sections, and of the bar numbers,
+  // under the chords.
+  get chordsTop() {
+    return this.dims.sections;
+  }
+
+  get numsTop() {
+    return this.dims.sections + this.dims.chords;
   }
 
   // The time scale, under them.
@@ -406,6 +429,8 @@ export class Timeline {
 
   setLoop(loop) {
     this.loop = { on: !!loop.on, start: +loop.start || 0, end: +loop.end || 0 };
+    // With the loop on, the stretch of the bar numbers is the loop's.
+    if (this.loop.on && this.loop.end > this.loop.start && !(this.gesture && this.gesture.kind === "range")) this.range = { start: this.loop.start, end: this.loop.end };
     if (!this.gesture && !this.overDrag) this.dragLoop = null;
     this.drawTop();
     this.drawOverview();
@@ -507,12 +532,11 @@ export class Timeline {
     return EVERY.find((k) => spacingPx * k >= minPx) || EVERY[EVERY.length - 1];
   }
 
-  // The bar numbers, at the top, in line with the chords under them, so that
-  // each bar's number and chord go together: a line where each bar starts
-  // (every 2, 4… bars when they are narrow) and the beats as short ticks
-  // along the bottom.
+  // The bar numbers, under the chords, in line with them, so that each bar's
+  // number and chord go together: a line where each bar starts (every 2, 4…
+  // bars when they are narrow) and the beats as short ticks along the bottom.
   _numbers(ctx) {
-    const y0 = this.dims.sections;
+    const y0 = this.numsTop;
     const h = this.dims.nums;
     const W = this.width;
     ctx.fillStyle = C.ruler;
@@ -538,7 +562,7 @@ export class Timeline {
     }
   }
 
-  // The sections, over the bar numbers: a block of its colour along the bars
+  // The sections, over the chords: a block of its colour along the bars
   // of each one, with its name (numbered when it comes back), cut to fit.
   _sections(ctx) {
     const h = this.dims.sections;
@@ -618,7 +642,7 @@ export class Timeline {
   }
 
   _chords(ctx) {
-    const y0 = this.dims.sections + this.dims.nums;
+    const y0 = this.chordsTop;
     const h = this.dims.chords;
     const W = this.width;
     ctx.fillStyle = C.ruler;
@@ -741,12 +765,29 @@ export class Timeline {
     const H = this.height;
     const T = this.headHeight;
     const sel = this.selection;
+    // The stretch chosen on the bar numbers, in their lane.
+    const rg = this.range;
+    if (rg && this.showChords && rg.end > rg.start) {
+      const x1 = Math.round(this.x(rg.start));
+      const x2 = Math.max(x1 + 2, Math.round(this.x(rg.end)));
+      if (x2 >= 0 && x1 <= this.width) {
+        const y = this.numsTop;
+        const h = this.dims.nums - 1;
+        ctx.fillStyle = C.range;
+        ctx.fillRect(x1, y, x2 - x1, h);
+        ctx.fillStyle = C.loop;
+        ctx.fillRect(x1, y + h - 2, x2 - x1, 2);
+        ctx.fillRect(x1, y, 2, h);
+        ctx.fillRect(x2 - 2, y, 2, h);
+      }
+    }
+    // The bars selected, on the sections and the chords.
     if (this.editing && sel && this.showChords) {
       const bars = this.grid.bars;
       const x1 = Math.round(this.x(bars[sel.lo]));
       const x2 = Math.round(sel.hi + 1 < bars.length ? this.x(bars[sel.hi + 1]) : this.x(this.duration));
       if (x2 >= 0 && x1 <= this.width) {
-        const h = this.barsHeight - 1;
+        const h = this.numsTop - 1;
         ctx.fillStyle = C.select;
         ctx.fillRect(x1, 0, x2 - x1, h);
         ctx.fillStyle = C.selectEdge;
@@ -971,12 +1012,13 @@ export class Timeline {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
-  // What a press at (x, y) grabs: the sections ("sections" while editing),
-  // the bars ("chords" while editing, else "bars"), a loop edge ("start",
-  // "end"), the loop itself ("body"), or nothing (on the time scale: a tap
-  // places the playhead, dragging scrolls; on the waveforms: the playhead).
+  // What a press at (x, y) grabs: the sections, the chords or the bar
+  // numbers ("sections", "chords", "nums" while editing, else "bars"), a loop
+  // edge ("start", "end"), the loop itself ("body"), or nothing (on the time
+  // scale: a tap places the playhead, dragging scrolls; on the waveforms: the
+  // playhead).
   _hit(x, y, type) {
-    if (y < this.barsHeight) return !this.editing ? "bars" : y < this.dims.sections ? "sections" : "chords";
+    if (y < this.barsHeight) return !this.editing ? "bars" : y < this.chordsTop ? "sections" : y < this.numsTop ? "chords" : "nums";
     const lp = this.loop;
     if (!lp.on || !(lp.end > lp.start)) return null;
     const mouse = type === "mouse";
@@ -1090,21 +1132,25 @@ export class Timeline {
     }
     const zone = this._hit(p.x, p.y, e.pointerType);
     const looping = this.loop.on && this.loop.end > this.loop.start;
-    // Shift-click with the loop on: an edge of the loop to a whole bar (the bar
-    // numbers) or to the nearest beat (the time scale).
-    if (e.shiftKey && looping && this.hasGrid) {
-      const nums = this.showChords && p.y >= this.dims.sections && p.y < this.dims.sections + this.dims.nums;
-      const ruler = p.y >= this.rulerTop && p.y < this.headHeight;
-      if (nums) {
-        const i = this.barIndexAt(p.x);
-        this._loopTo(this.grid.bars[i], this._barEnd(i));
-        return;
-      }
-      if (ruler) {
-        const t = this._nearestBeat(clamp(this.t(p.x), 0, this.duration));
-        this._loopTo(t, t);
-        return;
-      }
+    // Shift-click on the time scale with the loop on: an edge of the loop to
+    // the nearest beat.
+    if (e.shiftKey && looping && this.hasGrid && p.y >= this.rulerTop && p.y < this.headHeight) {
+      const t = this._nearestBeat(clamp(this.t(p.x), 0, this.duration));
+      this._loopTo(t, t);
+      return;
+    }
+    // The bar numbers: a stretch for the loop. A tap takes the bar (shift:
+    // the stretch grows to take it in), dragging a stretch by the step of
+    // _rangeStep() from where the press was.
+    if (zone === "nums") {
+      const i = this.barIndexAt(p.x);
+      const bar = { start: this.grid.bars[i], end: this._barEnd(i) };
+      const before = this.range;
+      const from = e.shiftKey && before ? { start: Math.min(before.start, bar.start), end: Math.max(before.end, bar.end) } : bar;
+      const step = this._rangeStep(e.pointerType);
+      this.gesture = { kind: "range", id: e.pointerId, x0: p.x, step, anchor: this._rangeSnap(clamp(this.t(p.x), 0, this.duration), step), moved: false };
+      this._setRange(from);
+      return;
     }
     if (zone === "sections") {
       const i = this.barIndexAt(p.x);
@@ -1139,7 +1185,7 @@ export class Timeline {
     if (!pt) {
       if (e.pointerType === "mouse") {
         const zone = this._hit(p.x, p.y, "mouse");
-        this.main.style.cursor = zone === "start" || zone === "end" ? "ew-resize" : zone === "body" ? "grab" : zone === "chords" || zone === "bars" || zone === "sections" ? "pointer" : "";
+        this.main.style.cursor = zone === "start" || zone === "end" ? "ew-resize" : zone === "body" ? "grab" : zone === "chords" || zone === "bars" || zone === "sections" || zone === "nums" ? "pointer" : "";
       }
       return;
     }
@@ -1159,6 +1205,21 @@ export class Timeline {
       if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
       g.moved = true;
       this._select(g.anchor, this.barIndexAt(p.x), false);
+      return;
+    }
+    if (g.kind === "range") {
+      if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
+      g.moved = true;
+      const t = clamp(this.t(p.x), 0, this.duration);
+      const at = this._rangeSnap(t, g.step);
+      let a = Math.min(g.anchor, at);
+      let b = Math.max(g.anchor, at);
+      // Back where it started: one step, on the side of the finger.
+      if (b - a < g.step.len / 2) {
+        if (t >= g.anchor) b = g.anchor + g.step.len;
+        else a = g.anchor - g.step.len;
+      }
+      this._setRange({ start: a, end: b });
       return;
     }
     if (g.kind === "section") {
@@ -1238,6 +1299,8 @@ export class Timeline {
     };
     if (g.kind === "select") {
       if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled });
+    } else if (g.kind === "range") {
+      if (this.range && !cancelled) this.onRange({ ...this.range });
     } else if (g.kind === "section") {
       const sel = this.selection;
       if (!sel || cancelled) {
@@ -1288,6 +1351,55 @@ export class Timeline {
     this.selection = { anchor: clamp(anchor, lo, hi), lo, hi };
     this.drawTop();
     this.onSelect({ ...this.selection }, { done: false, lane: "sections" });
+  }
+
+  // The step a stretch of the bar numbers takes: the eighth note (half a beat
+  // in 3/4 and 4/4, a beat in 6/8), else the beat, else the bar, the finest
+  // that is wide enough on screen for a mouse or a finger. {list (the grid's
+  // beats or bars), div (each part of it divided in div), pace (seconds
+  // between two of the list), len (seconds of a step)}.
+  _rangeStep(pointerType) {
+    const g = this.grid;
+    const min = pointerType === "mouse" ? RANGE_PX.mouse : RANGE_PX.touch;
+    const eighths = /\/8$/.test(g.meter || "") ? 1 : 2;
+    const beat = { list: g.beats, pace: this.beatSec };
+    if (g.beats.length && (this.beatSec / eighths) * this.pps >= min) return { ...beat, div: eighths, len: this.beatSec / eighths };
+    if (g.beats.length && this.beatSec * this.pps >= min) return { ...beat, div: 1, len: this.beatSec };
+    return { list: g.bars, pace: this.barSec, div: 1, len: this.barSec };
+  }
+
+  // The point of `step` nearest to t: the beats (or bars) of the grid, each
+  // divided in step.div; before the first and after the last, at their pace.
+  _rangeSnap(t, step) {
+    const list = step.list;
+    if (!list.length) return t;
+    const i = lowerBound(list, t);
+    let a;
+    let b;
+    if (i <= 0) {
+      b = list[0];
+      a = b - step.pace;
+    } else if (i >= list.length) {
+      a = list[list.length - 1];
+      b = a + step.pace;
+    } else {
+      a = list[i - 1];
+      b = list[i];
+    }
+    const part = (b - a) / step.div;
+    return clamp(a + Math.round((t - a) / part) * part, 0, this.duration);
+  }
+
+  // The stretch of the bar numbers, at least as long as a loop can be.
+  _setRange({ start, end }) {
+    let a = clamp(Math.min(start, end), 0, this.duration);
+    let b = clamp(Math.max(start, end), 0, this.duration);
+    if (b - a < MIN_LOOP) {
+      b = Math.min(this.duration, a + MIN_LOOP);
+      a = Math.max(0, b - MIN_LOOP);
+    }
+    this.range = { start: a, end: b };
+    this.drawTop();
   }
 
   _wheel(e) {

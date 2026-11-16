@@ -483,26 +483,30 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .zoom button:last-child { border-radius: 0 9px 9px 0; font-size: 18px; }
 .zoom #zoom-level { min-width: 64px; border-left: 0; border-right: 0; font-size: 13px; color: var(--muted); }
 .tl-hint { margin: 8px 0 0; }
-#loop.on { background: var(--accent-bg); border-color: var(--accent); color: #d8fff3; }
-.loop-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.loop-sets { display: flex; gap: 8px; }
-.loop-sets button { white-space: nowrap; }
-[data-layout=computer] .loop-controls .num { height: 36px; }
-[data-layout=computer] .loop-controls .num .step { width: 34px; font-size: 18px; }
-[data-layout=computer] .loop-controls .num input { font-size: 15px; }
 .num.time input { width: 4.6em; } /* before .num.anchor input, which overrides it */
-/* Phone: Loop beside the playhead's field, under the timeline; the loop's ends under them. */
-[data-layout=phone] .loop-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 12px; }
-[data-layout=phone] .loop-controls #loop { min-height: 44px; padding: 0 16px; }
-[data-layout=phone] .loop-controls .loop-sets { grid-column: 1 / -1; }
-/* Phone: the eye of the bars and chords over the timeline, where Loop was. */
-[data-layout=phone] .tl-toolbar .grid-view { display: flex; align-items: center; gap: 8px; }
-[data-layout=phone] .tl-toolbar .grid-view[hidden] { display: none; }
-[data-layout=phone] .tl-toolbar .grid-view-label { color: var(--text); font-size: 14px; font-weight: 650; white-space: nowrap; }
+/* Over the tracks: the bars and chords shown or hidden, the chord field, the
+   bar, copy and paste, Clear chords (#chord-edit), then the zoom; on a
+   computer in one row, on the phone in a few. */
+.chord-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.chord-edit .grid-view { gap: 8px; margin-right: 4px; }
+.chord-edit .grid-view-label { color: var(--text); font-size: 14px; font-weight: 650; white-space: nowrap; }
+.chord-edit .clip button, .chord-edit #clear-chords { white-space: nowrap; }
+[data-layout=computer] .chord-edit .num { height: 36px; }
+[data-layout=computer] .chord-edit .num .step { width: 34px; font-size: 18px; }
+[data-layout=computer] .chord-edit .num input { font-size: 15px; }
+/* Phone: the eye and the zoom, then the chord field, then the bar, copy,
+   paste and Clear chords. */
+[data-layout=phone] .chord-edit { display: contents; }
+[data-layout=phone] .chord-edit .grid-view { order: 1; }
+[data-layout=phone] .zoom-group { order: 2; margin-left: auto; }
+[data-layout=phone] .chord-edit .notation-btn { order: 3; }
+[data-layout=phone] .chord-edit .chord-input { order: 4; flex: 1 1 8em; }
+[data-layout=phone] .chord-edit .bar-nav { order: 5; }
+[data-layout=phone] .chord-edit .clip { order: 6; }
+[data-layout=phone] .chord-edit #clear-chords { order: 7; margin-left: auto; }
+[data-layout=phone] .chord-edit .clip button { padding-left: 10px; padding-right: 10px; }
 [data-layout=phone] .tl-toolbar .grid-view .eye { min-width: 44px; min-height: 44px; }
-[data-layout=phone] .position-box .num { display: flex; width: 100%; }
-[data-layout=phone] .position-box .num .value { flex: 1; }
-[data-layout=phone] .loop-sets button { flex: 1; min-height: 44px; }
+[data-layout=phone] .tl-toolbar .zoom-group .tool-label { display: none; }
 .tl-wrap { display: block; }
 [data-layout=computer] .tl-wrap { display: grid; grid-template-columns: var(--tl-col) minmax(0, 1fr); }
 .tl-host { min-width: 0; }
@@ -524,9 +528,9 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 button.eye { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 8px; }
 button.eye .icon { width: 18px; height: 18px; }
 [data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 72px)); }
-/* Beside everything over the tracks: the names of the lanes of the bar numbers
-   and of the chords, each in line with its lane, then, beside the time scale,
-   the buttons of the tracks. */
+/* Beside everything over the tracks: the names of the lanes of the sections,
+   of the chords and of the bar numbers, each in line with its lane, then,
+   beside the time scale, the buttons of the tracks. */
 .tl-side {
   position: absolute;
   top: calc(var(--tl-over, 26px) + var(--tl-gap));
@@ -600,9 +604,8 @@ button.eye .icon { width: 18px; height: 18px; }
 .edit-status.dirty { color: var(--gold); }
 .edit-status.ok { color: var(--ok); }
 .edit-status.error { color: var(--danger); }
-.chord-edit #clear-chords { margin-left: auto; }
 /* Song analysis: the buttons that find (separate, tempo, chords), then the grid
-   and the chords, in the card's own rows. */
+   (tempo, meter, first beat), in the card's own rows. */
 .analysis-find { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 12px; }
 .analysis-find:not(:has(> :not([hidden]))) { display: none; }
 [data-layout=computer] .analysis-find .find-btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
@@ -613,8 +616,6 @@ button.eye .icon { width: 18px; height: 18px; }
 .analysis-card .grid-row { gap: 10px 22px; }
 .analysis-card .sep-panel { margin-bottom: 12px; }
 .analysis-card .edit-status { margin: 0; }
-.chord-edit .grid-view { gap: 8px; margin-right: 6px; }
-.chord-edit .grid-view-label { color: var(--text); font-size: 14px; font-weight: 650; white-space: nowrap; }
 .find-btn { flex: none; white-space: nowrap; }
 .find-btn::before { content: "✦ "; color: var(--accent, #d6a85f); }
 /* ×2 and ÷2 beside the tempo of the grid. */
@@ -653,11 +654,10 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=computer] .edit-panel .num { height: 36px; }
 [data-layout=computer] .edit-panel .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .edit-panel .num input, [data-layout=computer] .edit-panel .num select { font-size: 15px; }
-[data-layout=computer] .chord-input { height: 36px; font-size: 15px; flex: 0 1 18em; }
+[data-layout=computer] .chord-input { height: 36px; font-size: 15px; flex: 0 1 12em; }
 [data-layout=computer] .bar-nav > button { min-width: 34px; font-size: 20px; }
 [data-layout=phone] .tl-toolbar { gap: 8px; }
 [data-layout=phone] .tl-toolbar .spacer { display: none; }
-[data-layout=phone] .zoom-group { order: 5; margin-left: auto; }
 [data-layout=phone] .input-row { flex-wrap: wrap; }
 [data-layout=phone] .input-row .select-wrap { flex: 1; }
 [data-layout=phone] .select-wrap select { width: 100%; max-width: none; height: 44px; font-size: 16px; /* 16px or more: iOS does not zoom into it */ }
@@ -666,12 +666,9 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .meter-bar { height: 8px; }
 [data-layout=phone] .zoom button { min-width: 36px; }
 [data-layout=phone] .zoom #zoom-level { min-width: 52px; }
-[data-layout=phone] .tl-toolbar .toggle-pill { padding-left: 10px; padding-right: 10px; }
 [data-layout=phone] .bar-nav { gap: 4px; }
 [data-layout=phone] .bar-nav > button { min-width: 36px; }
 [data-layout=phone] .num.bar input { width: 2.6em; }
-[data-layout=phone] .chord-input { flex: 1 1 100%; }
-[data-layout=phone] .chord-edit .edit-row { justify-content: space-between; }
 [data-layout=phone] .bar-nav > button, [data-layout=phone] .clip button, [data-layout=phone] .grid-edit button { min-height: 44px; }
 [data-layout=phone] .anchor-item { flex: 1 1 100%; }
 [data-layout=phone] .anchor-item .num { flex: 1; }
@@ -927,7 +924,7 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=phone] .track.take .toggle .dot { display: none; }
 }
 /* With the song transposed, under the chord field: the chords are in the new key. */
-.chord-edit .chord-key { margin: 8px 0 0; }
+.timeline-card .chord-key { margin: -2px 0 10px; }
 
 /* The metronome, a card of its own under Tempo and key: on and off, its tempo (and
    the way back to the song's), the volume and the beats of the bar; then the count-in,
@@ -949,6 +946,11 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 .metro-beats .beat.silent { background: transparent; border-style: dashed; color: var(--muted); opacity: .7; text-decoration: line-through; }
 .metro .num { min-width: 0; }
 .metro.off .metro-cycle > *, .metro.count-only .metro-cycle > * { opacity: .55; }
+/* The silent bars off: their switch alone stands out. */
+.metro.mute-off .metro-cycle > :not(.metro-mute-item) { opacity: .55; }
+.metro-mute-item { margin-right: 10px; }
+[data-layout=phone] .metro-mute-item { flex-basis: 100%; margin-right: 0; }
+[data-layout=phone] .metro-mute-item .metro-on { align-self: flex-start; }
 /* The count-in and what the silent bars silence: menus as wide as their longest
    choice ("2 bars"). */
 .metro .num.metro-count .value, .metro .num.metro-mode .value, .metro .num.metro-silence .value { min-width: 0; padding: 0 2px; }

@@ -117,9 +117,10 @@ export class Engine {
     return reply.tracks.map((t) => ({ ...t, channels: t.channels.map((b) => new Int16Array(b)) }));
   }
 
-  // countIn: bars of metronome clicks before the song starts.
-  play(at, countIn = 0) {
-    this.send({ type: "play", at, countIn });
+  // countIn: bars of metronome clicks before the song starts; countEnd: the
+  // downbeat they end on (song seconds; null: the start point).
+  play(at, countIn = 0, countEnd = null) {
+    this.send({ type: "play", at, countIn, countEnd });
   }
 
   pause() {
@@ -156,7 +157,7 @@ export class Engine {
   }
 
   // Recording (see src/engine-processor.js): params {id, play, countIn,
-  // latency, takes, minFirst, tail}.
+  // countEnd, latency, takes, minFirst, tail}.
   recStart(params) {
     this.send({ type: "rec-start", ...params });
   }

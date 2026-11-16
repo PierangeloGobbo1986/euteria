@@ -100,19 +100,21 @@ library. Each has a red ✕ that deletes it, and *Delete all* above the list del
 all (after a second tap). An audio file opens as a single track: tempo, key and loop
 work on the whole song, and *Export MP3* gives it at the tempo and in the key chosen.
 
-**The timeline** shows, from the top: the bar numbers, the chords under them (each
-chord in line with its number), the time scale, then the waveform with the bar grid over
-it, the loop and the playhead; on a computer the lanes of the bars and of the chords
-are named beside them. The loop and the playhead are drawn over the waveforms
-only, so that the bars and their chords stay free to be clicked. On a computer every
+**The timeline** shows, from the top: the sections, the chords, the bar numbers under
+them (each number in line with its chord), the time scale, then the waveform with the
+bar grid over it, the loop and the playhead; on a computer the lanes are named beside
+them. Over it, in one row on a computer (in a few on the phone), are the tools of the
+chords and then *Zoom* (see *Editing the grid and the chords*). The loop and the playhead
+are drawn over the waveforms only, so that the bars and their chords stay free to be
+clicked. On a computer every
 track has its own row, with its switch and volume beside it (a track that is off is
 drawn dimmed); on the phone the row is the Original Track. Mouse and finger work alike
 on the waveforms: a tap or a click places the playhead (the yellow line), dragging from
 inside the loop moves the loop and keeps its length, dragging from anywhere else drags
 the playhead, to place it exactly. A tap or a click on the time scale places the
-playhead too; a tap or a click on a bar (its number or its chord) opens *Bars and
-Chords* on that bar, to write its chord (with a mouse, the cursor goes in the chord
-field). Dragging the time scale or the bars scrolls (with momentum on a touch screen);
+playhead too; a tap or a click on a chord selects its bar, to write its chord (with a
+mouse, the cursor goes in the chord field). Dragging the time scale scrolls (with
+momentum on a touch screen);
 pinching, ctrl+wheel (a trackpad pinch) or the buttons of *Zoom* (at the right of the
 timeline's toolbar) go from the whole song (100%) to about 100 pixels per second, and a
 tap on the percentage goes back to the whole song.
@@ -120,30 +122,33 @@ The overview, the grey strip above the bars, shows the whole song, the part in
 view and the loop: dragging the frame of the view or of the loop moves it (the loop
 snaps to the bars), a tap elsewhere brings the view there.
 
-The edges of the loop are dragged and snap to the bars and beats (Alt or Option places
-them freely): with a finger by their handles at the foot of the time scale, with a
-mouse also anywhere along them. Next to
-*Loop* (in the timeline's toolbar on a computer; on the phone under the timeline, in the
-row of this field, on its left) one field shows the playhead to the hundredth of a second: it
-follows the yellow line, and typing a time or − and + (a hundredth at a time, held to
-repeat) move the line. *Set start* and *Set end* put the start or the end of the loop
-at the playhead; *Set end* also switches the loop on. A loop switched on with *Loop*
-starts at the bar being played (or in the middle of the view if the playhead is
-elsewhere) and lasts 16 seconds, at most half of what is in view, in whole bars; a loop
-already placed and in view stays where it is. While the song plays, the view follows
-the playhead, except for a few seconds after it was moved by hand.
-The eye beside *Bars and chords*, in the *Song analysis* card (on the phone over the
-timeline, on the left of *Zoom*), shows or hides the sections, the grid lines and the chords
+**The loop** (2.5): the bar numbers choose a stretch of the song for it. A tap or a click
+on a number takes that bar; dragging along the numbers takes a stretch by the eighth note
+(half a beat in 3/4 and 4/4, a beat in 6/8; with the song zoomed out so far that the
+eighths are too close together, by the beat or by the bar: zooming in brings the eighths
+back); shift-click takes in more bars. The stretch is marked in the lane of the numbers,
+and *Loop*, in the transport (the key L on a computer), loops it; with the loop on, a new
+stretch is the loop at once. *Loop* with no stretch chosen, or one out of view, starts the
+loop at the bar being played (or in the middle of the view if the playhead is elsewhere),
+16 seconds long, at most half of what is in view, in whole bars; a loop already placed and
+in view stays where it is. The edges of the loop are dragged and snap to the bars and beats
+(Alt or Option places them freely): with a finger by their handles at the foot of the time
+scale, with a mouse also anywhere along them; on a computer [ and ] put the start or the
+end of the loop at the playhead. While the song plays, the view follows the playhead,
+except for a few seconds after it was moved by hand.
+The eye beside *Bars and chords*, over the timeline at the left of the chord field, shows
+or hides the sections, the grid lines and the chords
 (open: shown and editable, closed: hidden; the choice is kept with the song, in this browser,
 and saved in the project). When nothing is over the waveforms, the line under the timeline
 says why first: the song has no bars yet (*Detect tempo* finds them; *Set first beat* makes
 them by hand), or they are hidden, and where the eye is. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
-**Editing the grid and the chords.** The *Song analysis* card (between the tracks and
-the metronome, the same on the computer and on the phone) holds the editor of EUTERIA
-(Python); it is always at hand, with the bars and the chords selectable in the timeline
-as long as the eye is open:
+**Editing the grid and the chords.** The editor of EUTERIA (Python) is in two places,
+the same on the computer and on the phone: the grid in the *Song analysis* card (between
+the tracks and the metronome), the chords over the timeline, in the row of their tools.
+Both are always at hand, with the chords selectable in the timeline as long as the eye is
+open:
 
 - **The grid** (the row under the buttons that find): *BPM* (20-400, by half beats per
   minute; *×2* and *÷2* double or halve it; at another speed, a grey line says the tempo
@@ -159,8 +164,8 @@ as long as the eye is open:
   that appears or vanishes at the start of the song shifts nothing. A song without a
   grid starts at 180 BPM as in EUTERIA (Python), once the first beat is set; *Detect
   tempo* makes the grid from the tempo found (below).
-- **The chords**: a tap or a click on a bar, on its number or its chord, selects it;
-  dragging along the bars (or shift-click) selects several. No bar is selected when a
+- **The chords**: a tap or a click on a chord, in its lane, selects its bar; dragging
+  along the chords (or shift-click) selects several (the bar numbers are for the loop). No bar is selected when a
   song opens, so the keys stay the transport's (← → five seconds) until a bar is chosen;
   ‹ and › start from the bar at the playhead, and Escape lets the selection go. The chord typed goes to every bar selected (an empty
   chord removes it); Return (*next* on the phone keyboard) goes on to the following
@@ -170,13 +175,17 @@ as long as the eye is open:
   bar they all go in from there. On a computer: a click puts the cursor in the chord
   field, a key from A to G starts a chord, ← → move the selection (Shift: extend it),
   Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
-- **The chords' row**: *Bars and chords* with its eye, the chord field, ‹ Bar n ›, *Copy*
-  and *Paste*, and, at the right end, *Clear chords* (two taps: it removes every chord and
-  keeps the grid; a grid not wanted is hidden with the eye). A button beside *Chords*, in the column of
-  the timeline (on the phone, beside the chord field), switches every chord between letters
-  and the Italian names: it says the notation it changes to (*Do Re Mi…* while the chords
-  are in letters, *C D E…* in Italian); the choice is kept in this browser, and the chord
-  field takes either.
+- **The tools of the chords** (2.5: over the timeline, where the loop's own buttons were):
+  *Bars and chords* with its eye, the chord field, ‹ Bar n ›, *Copy* and *Paste*, *Clear
+  chords* (two taps: it removes every chord and keeps the grid; a grid not wanted is hidden
+  with the eye), then *Zoom*; on the phone the eye and *Zoom*, then the chord field, then the
+  bar with *Copy* and *Paste*, then *Clear chords*. What they do (chords copied, pasted,
+  cleared, bars renumbered) is said in the band of the messages. A button beside *Chords*,
+  in the column of the timeline (on the phone, beside the chord field), switches every
+  chord between letters and the Italian names, written in capitals so that the m of a minor
+  chord stands out (*REm7*, *SOL7*): it says the notation it changes to (*DO RE MI…* while
+  the chords are in letters, *C D E…* in Italian); the choice is kept in this browser, and
+  the chord field takes either, the Italian names in any case (*DO7*, *Do7*, *do7*).
 - **Detect chords** (the third button of the card): the chords found (below) written in every
   bar, one chord a bar, or two when each half of the bar has its own; a bar without a
   clear chord stays empty. Pressed again (a second click when the bars have chords), it
@@ -189,7 +198,7 @@ as long as the eye is open:
   chord field show the chords in the new key, and a line under the chord field says so; a
   chord typed then is kept in the song's own key, so the project saved is the same in any
   key and the chords move again with the next change of key. Only chord names move: a
-  root (C to B, or Do to Si), its sharp or flat, what follows it as it is (m7, maj7,
+  root (C to B, or DO to SI), its sharp or flat, what follows it as it is (m7, maj7,
   7(b9), sus4, ø, 6/9…) and a bass after "/"; other words (N.C., %, x2, Coda, Solo) stay
   as they are. The new names are spelled from the key of the song, estimated from its
   chords: the notes of the key, then the others as b2, b3, b5, b6 and b7 (Bb7, not A#7,
@@ -198,8 +207,8 @@ as long as the eye is open:
 - **Bar numbers**: *Bar* shows the number of the bar selected; typing another number
   renumbers every bar from it (the bar number offset of EUTERIA (Python)), for a pickup
   bar or a song that starts in the middle.
-- **The sections** (2.2): the form of the song, in a lane of its own over the bar numbers
-  (*Sections*, beside it on a computer), each section a coloured block along its bars with
+- **The sections** (2.2): the form of the song, in a lane of its own at the top, over the
+  chords (*Sections*, beside it on a computer), each section a coloured block along its bars with
   its name. The names are *Intro*, *Verse*, *Pre-chorus*, *Chorus*, *Bridge*, *Solo*,
   *Interlude* and *Outro* (in Italian *Intro*, *Strofa*, *Pre-ritornello*, *Ritornello*,
   *Bridge*, *Assolo*, *Interludio*, *Finale*), the letters *A* to *D* of a jazz form, or one
@@ -209,15 +218,15 @@ as long as the eye is open:
   along the lane, or shift-click, takes in more. A click or a tap on the bars selected opens
   the menu of the names (under the click on a computer; a panel at the bottom of the screen on
   the phone, the page moving up so that the bars selected stay in view over it), with *Remove
-  section* when they hold one. Bars selected on their numbers or their chords are named the
-  same way, by a click on them in the lane of the sections: so a section can be given to part
+  section* when they hold one. Bars selected on their chords are named the same way, by a
+  click on them in the lane of the sections: so a section can be given to part
   of another one, which keeps the rest of its bars. With the loop on, a section clicked or
   tapped is looped, from the first beat of its first bar to the end of its last one;
   shift-click takes in more sections, and a click on a section among several selected loops
-  that one alone (the menu opens once the loop is on the bars selected). Shift-click on a bar
-  number moves the edge of the loop on its side to that bar, whole (inside the loop, the
-  nearer edge comes in); shift-click on the time scale moves it to the nearest beat. The loop's
-  handles are dragged as before. The sections stay with their bars when the grid is rebuilt
+  that one alone (the menu opens once the loop is on the bars selected). A stretch chosen on
+  the bar numbers is the loop at once too (shift-click there takes in more bars), and
+  shift-click on the time scale moves the edge of the loop on its side to the nearest beat
+  (inside the loop, the nearer edge comes in). The loop's handles are dragged as before. The sections stay with their bars when the grid is rebuilt
   (BPM, ×2, ÷2, meter, first beat, a new tempo found), as the chords do, and are saved in the
   project as `music.sections` (`first_bar`, `last_bar`, and `kind` or `label`), which EUTERIA
   (Python) leaves alone.
@@ -426,22 +435,27 @@ too). A song without bars clicks at the metronome's own tempo from its start, wi
 meter in *Song analysis*. The second row has the *Count-in* (*Off*, 1 or 2 bars; 1 by
 default) of clicks before the song starts, before playback and before a take, with the
 beats as set, heard only with the metronome *On* (the same for the key M and the round
-button), and *Plays*, *Count-in only* (the default: the metronome counts the bars in, then
-goes quiet) or *Whole song*. A third row, which applies to the whole song only (it is
-dimmed with the count-in only), has *Clicks for* N *bars, then mute for* M *bars* (0: none; *bar* for 1),
-*Random 💀*, and *What to mute* over its menu: *Metronome and tracks* (the default: the band
+button), and *Plays*, *Whole song* (the default) or *Count-in only* (the metronome counts
+the bars in, then goes quiet). A third row, which applies to the whole song only (it is
+dimmed with the count-in only), starts with *Silent bars*, a switch *On*/*Off* of its own
+(2.5; *Off* with every song, the rest of the row dimmed), then has *Clicks for* N *bars,
+then mute for* M *bars* (*bar* for 1), *Random 💀*, and *What to mute* over its menu: *Metronome and tracks* (the default: the band
 drops out, to keep the time alone), *Metronome only* or *Tracks only* (the click goes on).
 *Random* makes the muted bars come unannounced, as many on the whole, the first N bars
 always on; while it is on, a line under the row says so with the numbers set. The bars
-are counted from where the song starts (those of the count-in are not). A count-in that
-starts before the sound of the song (a song that opens with some seconds of silence)
-begins just before the sound, the silence skipped, so that it counts the music in whatever
-the length of that silence; from the sound on, or inside a loop, it starts where the playhead
-is. The volume, the metronome's own tempo, the beats (per meter) and *What to mute* are
+are counted from where the song starts (those of the count-in are not). The count-in is on
+the bars of the grid (2.5): it ends on a downbeat, and the song comes in where it is in
+that bar. From before the sound of the song, the silence before it is skipped and the
+count-in ends on the downbeat of the bar the sound begins in: a song that starts with a
+pickup (a note on beat 4, or an upbeat) has it sound with the last beats of the count-in,
+and bar 1 comes in on the next downbeat. From the playhead later in the song, or from the
+start of a loop, it ends on the downbeat of the bar that starts there, or else of the next
+one, going on over the song up to it (from beat 3, beats 1 and 2 alone, then the song with
+3 and 4). The volume, the metronome's own tempo, the beats (per meter) and *What to mute* are
 kept in this browser, the same for every song. The rest is not: every song opens with the
-metronome *Off*, a count-in of 1 bar, *Count-in only* and no muted bars (*Clicks for* 4
-*bars, then mute for* 0, *Random* off), whatever was set before (2.1.2: a *Random* left on
-from an earlier session no longer silences bars unannounced). (The settings kept before 2.0
+metronome *Off*, a count-in of 1 bar, *Whole song* and the silent bars *Off* (when switched
+on: *Clicks for* 4 *bars, then mute for* 2, *Random* off), whatever was set before (2.1.2: a
+*Random* left on from an earlier session no longer silences bars unannounced). (The settings kept before 2.0
 go back to *Metronome and tracks*, the new default.)
 
 **Speed training**, the last part of the metronome's card, under its own title: *On*/*Off*
@@ -564,12 +578,16 @@ takes, so it is in step with the audio at any tempo (checked offline, rendered w
 engine: within 0.1 ms at 100%, a few milliseconds at other tempos) and follows the loop
 and every jump. Without a grid, or at a tempo of its own, the clicks are steady, from
 the anchor of the grid or the start of the song, and go on past its end. A count-in is
-output time before the song starts: the clicks of the bars before the start point, with
-the beats as set, the song silent, then the song on the next beat; a take recorded with
-it begins where playback starts. The start point of a count-in that begins before the song's
-sound is moved to 50 ms before it (`Player.firstSound()`: the first three consecutive 5 ms
-envelope buckets above 4% of the 99th percentile of the tracks, takes left out), which the
-clicks of the grid, two bars of them before the song, lead into. A silent bar that takes the tracks fades them out over
+output time before the song starts: the clicks of the bars before the downbeat it ends on
+(`Player._countStart()`: the first downbeat of the clicks from half a beat before where the
+song comes in), with the beats as set, the song silent up to the start point, then the song
+on time with them, the clicks still to come going on over it up to that downbeat (with the
+metronome off too, checked offline: a pickup on beat 4 with the fourth click, within 4 ms);
+a take recorded with it begins where playback starts. The start point of a count-in that
+begins before the song's sound is moved to 50 ms before it (`Player.firstSound()`: the first
+three consecutive 5 ms envelope buckets above 4% of the 99th percentile of the tracks, takes
+left out), and the count-in ends on the downbeat of the bar the sound is in, which the clicks
+of the grid, two bars of them before the song, lead into. A silent bar that takes the tracks fades them out over
 6 ms, ending 10 ms before its bar line (the engine knows the bar coming), so that its
 first beat is silent too, and back in the same way, so that the first beat after it is
 whole. The engine counts the passes of the loop, for the speed trainer. While a take is

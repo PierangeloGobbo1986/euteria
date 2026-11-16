@@ -34,9 +34,12 @@
  * follows the tempo, the loop and every jump with the song; it is mixed after
  * the stretchers, at its own pitch. Its silent bars silence the clicks, the
  * tracks (faded out and in over a few milliseconds) or both. A count-in plays
- * the clicks of the bars before the start point, with the song silent, then
- * the song starts on time with them: "emission" runs through it as through
- * the stretcher's delay.
+ * the clicks of the bars before a downbeat (the start point, or the downbeat
+ * the song comes in before: its pickup, or a start from inside a bar): those
+ * before the start point with the song silent, then the song starts on time
+ * with them, and those still to come go on over the song up to that
+ * downbeat, the metronome off too. "emission" runs through the silent part
+ * as through the stretcher's delay.
  */
 (function () {
   "use strict";
@@ -303,8 +306,11 @@
       return this.length / this.sampleRate;
     }
 
-    // countIn: bars of clicks before the song starts.
-    play(at, countIn) {
+    // countIn: bars of clicks before the song starts; countEnd: the downbeat
+    // they end on (song seconds; null: the start point), at or after the
+    // start point (the song comes in during the count-in's last bar) or just
+    // before it.
+    play(at, countIn, countEnd = null) {
       if (at !== undefined && at !== null) this.out = this._sample(at);
       if (this.out >= this.length) this.out = 0;
       // As in EUTERIA (Python): playing with the loop on starts inside it.
@@ -314,9 +320,12 @@
       this._restart();
       const bars = Math.max(0, Math.min(4, Math.round(+countIn || 0)));
       if (bars && this.metro.bar > 0 && this.metro.times.length) {
-        // Whole audio blocks of 128 samples, so that it ends with a block.
-        const samples = Math.max(0, (bars * this.metro.bar) / this.rate - this.delay);
+        const end = countEnd !== null && countEnd !== undefined && Number.isFinite(+countEnd) ? Math.round(+countEnd * this.sampleRate) : this.out;
+        // The part before the start point, in whole audio blocks of 128
+        // samples, so that it ends with a block.
+        const samples = Math.max(0, (this.out - (end - bars * this.metro.bar)) / this.rate - this.delay);
         this.preroll = Math.ceil(samples / 128) * 128;
+        this.countEnd = end;
         this._findClick(this.emission());
       }
     }
@@ -401,6 +410,7 @@
       this.limitHold = 0;
       this.frac = 0;
       this.preroll = 0;
+      this.countEnd = -Infinity;
       this.barsHeard = 0;
       this.barSilent = false;
       this.nextSilent = false;
@@ -453,7 +463,9 @@
         }
         return;
       }
-      const e0 = this.metro.on && this.metro.times.length ? this.emission() : null;
+      // The clicks: the metronome's, or the rest of a count-in over the song.
+      const e = this.emission();
+      const e0 = (this.metro.on || e < this.countEnd) && this.metro.times.length ? e : null;
       this.frac += this.rate * n;
       const k = Math.floor(this.frac);
       this.frac -= k;
@@ -474,7 +486,7 @@
         this.preL.set(out0.subarray(0, n));
         this.preR.set(out1.subarray(0, n));
       }
-      if (e0 !== null) this._clicks(out0, out1, n, e0, false);
+      if (e0 !== null) this._clicks(out0, out1, n, e0, !this.metro.on);
       else {
         this.click.left = 0;
         this.barSilent = false;
@@ -585,6 +597,7 @@
         while (this.nextClick < t.length && t[this.nextClick] <= pos) {
           const k = this.nextClick++;
           if (pos - t[k] > r * 2) continue; // passed while jumping
+          if (countIn && t[k] >= this.countEnd) continue; // past the count-in's downbeat
           if (metro.firsts[k]) {
             this.barsHeard++;
             if (!countIn) {

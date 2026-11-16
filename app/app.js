@@ -20,7 +20,7 @@ import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSe
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
 import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
-import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, parseTime, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
+import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
 import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { getNotation, setNotation } from "../src/chordnames.js";
@@ -54,19 +54,19 @@ const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAt
 const HINTS = phone
   ? {
       view: () =>
-        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a bar or its chord to write the chord. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
+        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
       noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and tap Set first beat."),
-      hidden: () => tr("The sections, the bars and the chords are hidden: the eye beside Bars and chords, over the timeline, shows them."),
+      hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
-        tr("Tap a bar, on its number or its chord, to select it; drag along the bars to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped."),
+        tr("Tap a chord to select its bar; drag along the chords to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Bar numbers: a tap takes a bar, dragging along them a stretch by the eighth note; Loop loops it, and with the loop on the loop goes there at once. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     }
   : {
       view: () =>
-        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a bar or its chord to write the chord. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
+        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop (L) loops it. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
       noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and press Set first beat."),
-      hidden: () => tr("The sections, the bars and the chords are hidden: the eye beside Bars and chords, in Song analysis, shows them."),
+      hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
-        tr("Click a bar, on its number or its chord, and type its chord (Return: the next bar); shift-click or drag along the bars to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there. Sections, the top row: click a section or a bar to select it, click the bars selected to name them. With the loop on, a section clicked is looped, shift-click takes in more; shift-click on the bar numbers or on the time scale moves an edge of the loop by whole bars or to the nearest beat."),
+        tr("Click a chord and type it (Return: the next bar); shift-click or drag along the chords to select several. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Bar numbers: a click takes a bar, dragging along them a stretch by the eighth note, shift-click takes in more bars; Loop (L) loops it, and with the loop on the loop goes there at once. Sections, the top row: click a section or a bar to select it, click the bars selected to name them; with the loop on, a section clicked is looped, shift-click takes in more. Shift-click on the time scale moves an edge of the loop to the nearest beat. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     };
 
 const player = new Player();
@@ -441,7 +441,9 @@ function metronomeClicksNow() {
 function pushMetronome(clicks) {
   // The count-in is heard with the metronome on; the clicks of the song only in "Whole song".
   player.countIn = metro.on ? metro.countIn : 0;
-  const m = { on: metro.on && metro.mode === "song", volume: metro.volume / 100, play: metro.play, mute: metro.mute, random: metro.random, silence: SILENCE.indexOf(metro.silence) };
+  // The silent bars only while they are on.
+  const silent = metro.muteOn;
+  const m = { on: metro.on && metro.mode === "song", volume: metro.volume / 100, play: metro.play, mute: silent ? metro.mute : 0, random: silent && metro.random, silence: SILENCE.indexOf(metro.silence) };
   if (clicks) m.clicks = player.song ? metronomeClicksNow() : null;
   player.setMetronome(m);
 }
@@ -515,7 +517,11 @@ function wireMetronome() {
     metroChanged(true);
   });
   metroFields.play = numberField({ label: tr("Bars with the clicks"), min: 1, max: MAX_BARS, onChange: (v) => ((metro.play = v), metroChanged()) });
-  metroFields.mute = numberField({ label: tr("Silent bars (0: none)"), min: 0, max: MAX_BARS, onChange: (v) => ((metro.mute = v), metroChanged()) });
+  metroFields.mute = numberField({ label: tr("How many silent bars"), min: 1, max: MAX_BARS, onChange: (v) => ((metro.mute = v), metroChanged()) });
+  $("metro-mute-on").addEventListener("click", () => {
+    metro.muteOn = !metro.muteOn;
+    metroChanged();
+  });
   $("metro-play-box").append(metroFields.play.el);
   $("metro-mute-box").append(metroFields.mute.el);
   $("metro-silence").addEventListener("change", (e) => {
@@ -531,7 +537,7 @@ function wireMetronome() {
     metroChanged();
   });
   $("metro-mode").addEventListener("change", (e) => {
-    metro.mode = MODES.includes(e.target.value) ? e.target.value : "count";
+    metro.mode = MODES.includes(e.target.value) ? e.target.value : "song";
     metroChanged();
   });
   relabelMetronome();
@@ -557,7 +563,7 @@ function relabelMetronome() {
     metroFields.volume.relabel(tr("Metronome volume"));
     if (metroSlider) metroSlider.setAttribute("aria-label", tr("Metronome volume"));
     metroFields.play.relabel(tr("Bars with the clicks"));
-    metroFields.mute.relabel(tr("Silent bars (0: none)"));
+    metroFields.mute.relabel(tr("How many silent bars"));
   }
   $("metro-beats").textContent = "";
   renderMetronome();
@@ -617,8 +623,18 @@ function renderMetronome() {
   // With the count-in only, the bars with and without the clicks do not apply.
   const countOnly = metro.mode === "count";
   $("metro").classList.toggle("count-only", countOnly);
-  metroFields.play.disable(off || countOnly);
-  metroFields.mute.disable(off || countOnly);
+  // The silent bars: their switch, then what they are, while it is on.
+  const muteOn = metro.muteOn;
+  const muteBtn = $("metro-mute-on");
+  muteBtn.classList.toggle("on", muteOn && !!song);
+  setAttr(muteBtn, "aria-pressed", String(muteOn));
+  muteBtn.disabled = off || countOnly;
+  const muteState = muteOn ? tr("On") : tr("Off");
+  if ($("metro-mute-state").textContent !== muteState) $("metro-mute-state").textContent = muteState;
+  $("metro").classList.toggle("mute-off", !muteOn);
+  const cycleOff = off || countOnly || !muteOn;
+  metroFields.play.disable(cycleOff);
+  metroFields.mute.disable(cycleOff);
   // The words after the fields, as many bars as they say.
   const playUnit = trn(metro.play, "bar,", "bars,");
   if ($("metro-play-unit").textContent !== playUnit) $("metro-play-unit").textContent = playUnit;
@@ -626,14 +642,14 @@ function renderMetronome() {
   if ($("metro-mute-unit").textContent !== muteUnit) $("metro-mute-unit").textContent = muteUnit;
   const silence = $("metro-silence");
   if (document.activeElement !== silence) silence.value = metro.silence;
-  silence.disabled = off || countOnly;
+  silence.disabled = cycleOff;
   const random = $("metro-random");
   random.classList.toggle("on", metro.random);
   setAttr(random, "aria-pressed", String(metro.random));
-  random.disabled = off || countOnly;
+  random.disabled = cycleOff;
   // At random: what it does, while it is on.
   const randomHint = $("metro-random-hint");
-  randomHint.hidden = !song || !metro.random || countOnly;
+  randomHint.hidden = !song || !metro.random || cycleOff;
   if (!randomHint.hidden) {
     const total = metro.play + metro.mute;
     const text = metro.mute
@@ -812,7 +828,7 @@ function loopBars(lo, hi) {
 
 // ----- the notation of the chords ---------------------------------------------------
 //
-// Letters (C D E…) or the Italian names (Do Re Mi…), for every chord shown: the
+// Letters (C D E…) or the Italian names (DO RE MI…), for every chord shown: the
 // button beside the chord lane (a phone: beside the chord field) names the one
 // it changes to. A choice of this browser.
 
@@ -823,8 +839,8 @@ try {
 
 function renderNotation() {
   const italian = getNotation() === "italian";
-  const label = italian ? "C D E…" : "Do Re Mi…";
-  const title = italian ? tr("The chords are in the Italian names: click for letters (C D E…)") : tr("The chords are in letters: click for the Italian names (Do Re Mi…)");
+  const label = italian ? "C D E…" : "DO RE MI…";
+  const title = italian ? tr("The chords are in the Italian names: click for letters (C D E…)") : tr("The chords are in letters: click for the Italian names (DO RE MI…)");
   for (const b of document.querySelectorAll(".notation-btn")) {
     if (b.textContent !== label) b.textContent = label;
     if (b.title !== title) b.title = title;
@@ -1280,24 +1296,6 @@ function buildControls() {
   $("tempo-box").append(f.tempo.el);
   f.key = keyField({ label: tr("Key"), min: KEY_RANGE[0], max: KEY_RANGE[1], onChange: (v) => player.setSemitones(v) });
   $("key-box").append(f.key.el);
-  // The playhead, to the hundredth of a second: it follows the yellow line,
-  // and typing a time or − and + (a hundredth) move the line.
-  f.position = numberField({
-    label: tr("Playhead"),
-    min: 0,
-    max: 0,
-    step: 0.01,
-    decimals: 2,
-    inputMode: "decimal",
-    format: (v) => fmtTime(v, 2),
-    parse: parseTime,
-    className: "time",
-    onChange: (v) => {
-      player.seek(v);
-      revealPlayhead();
-    },
-  });
-  $("position-box").append(f.position.el);
   // The cards of the tracks, dragged by their grip to another place; the
   // bar at the top of the screen stays in view.
   sortable(phone ? $("tracks") : $("tl-rows"), {
@@ -1328,6 +1326,12 @@ function buildControls() {
       if (info && info.done && info.lane === "sections" && !info.cancelled && player.loop.on) loopBars(sel.lo, sel.hi);
     },
     onSectionMenu: openSectionMenu,
+    // A stretch chosen on the bar numbers: with the loop on, the loop goes
+    // there at once; else Loop loops it.
+    onRange: (r) => {
+      if (player.loop.on) player.setLoop({ on: true, start: r.start, end: r.end });
+      scheduleUi();
+    },
     // A bar tapped while Bars and Chords is closed: it opens on that bar.
     onBarTap: (i, info) => {
       if (editor.locked) notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
@@ -1374,6 +1378,7 @@ function buildControls() {
     changed: settingsChanged,
     refreshPage: scheduleUi,
     locked: () => detection.running,
+    notice,
   });
   recording = new RecordingFlow({
     app,
@@ -1390,12 +1395,6 @@ function buildControls() {
   if (phone) {
     // The transport joins the app bar: one banner at the top, always in view.
     document.querySelector(".appbar").append($("transport"));
-    // Under the timeline: Loop beside the playhead, then the loop's ends.
-    $("tl-wrap").after($("loop-controls"));
-    $("loop-controls").prepend($("loop"));
-    // Over the timeline, where Loop was: the bars, the chords and the
-    // sections shown or hidden (the eye of Song analysis).
-    document.querySelector(".timeline-card .tl-toolbar").prepend($("grid-view"));
   } else {
     // On a computer the tracks are the rows of the timeline; at the top of the
     // column of the tracks, beside the bars and the time scale, All stems and
@@ -1411,7 +1410,6 @@ function relabelControls() {
   f.tempo.relabel(tr("Tempo"));
   if (f.tempoSlider) f.tempoSlider.setAttribute("aria-label", tr("Tempo"));
   f.key.relabel(tr("Key"));
-  f.position.relabel(tr("Playhead"));
 }
 
 function updateZoom() {
@@ -1466,10 +1464,18 @@ function loopInView() {
   return { start, end: Math.min(d, start + width) };
 }
 
+// Loop: on the stretch chosen on the bar numbers (or the loop of before),
+// if it is in view; else as loopInView() says.
 function toggleLoop() {
   if (!player.song) return;
-  if (player.loop.on) player.setLoop({ ...player.loop, on: false });
-  else player.setLoop({ on: true, ...loopInView() });
+  if (player.loop.on) {
+    player.setLoop({ ...player.loop, on: false });
+    return;
+  }
+  const r = app.timeline.range;
+  const [v0, v1] = app.timeline.visibleRange();
+  const chosen = r && r.end - r.start >= MIN_LOOP && r.end > v0 && r.start < v1;
+  player.setLoop({ on: true, ...(chosen ? { start: r.start, end: r.end } : loopInView()) });
 }
 
 // Set start moves the start of the loop to the playhead; Set end moves its
@@ -1591,7 +1597,6 @@ function renderPlayer(view = null) {
   // when it is shorter again (not when it opens: its grid is its own).
   if (app.gridFit && app.gridFit.song === song && app.gridFit.duration !== song.duration) app.grid = extendGrid(app.grid, song.duration);
   app.gridFit = { song, duration: song.duration };
-  app.fields.position.setRange(0, song.duration);
   app.shownDuration = song.duration;
   app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
   app.timeline.setLoop(player.loop);
@@ -2707,18 +2712,10 @@ function updateUi() {
   editor.setShift(player.semitones);
 
   const lp = player.loop;
-  const loop = $("loop");
-  loop.classList.toggle("on", lp.on);
-  loop.setAttribute("aria-pressed", String(lp.on));
-  loop.disabled = !song || locked;
   const quick = $("loop-quick");
   quick.classList.toggle("on", lp.on);
   quick.setAttribute("aria-pressed", String(lp.on));
   quick.disabled = !song || locked;
-  f.position.set(app.scrub ?? player.position);
-  f.position.disable(!song || locked);
-  $("set-a").disabled = !song || locked;
-  $("set-b").disabled = !song || locked;
   recording.refresh();
 
   // Export MP3 works with any song: the Original Track alone too, with its tempo, key or
@@ -2860,7 +2857,6 @@ function wire() {
   // Tracks, loop, export
   $("all-stems").addEventListener("click", () => player.allStems());
   $("original-only").addEventListener("click", () => player.originalOnly());
-  $("loop").addEventListener("click", toggleLoop);
   $("loop-quick").addEventListener("click", toggleLoop);
   $("zoom-in").addEventListener("click", () => app.timeline.zoomBy(1.5));
   $("zoom-out").addEventListener("click", () => app.timeline.zoomBy(1 / 1.5));
@@ -2879,8 +2875,6 @@ function wire() {
     settingsChanged();
     scheduleUi();
   });
-  $("set-a").addEventListener("click", setLoopStartHere);
-  $("set-b").addEventListener("click", setLoopEndHere);
   $("export").addEventListener("click", exportMp3);
   $("download").addEventListener("click", downloadSelected);
   $("share").addEventListener("click", shareSelected);

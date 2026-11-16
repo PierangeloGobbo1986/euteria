@@ -145,7 +145,7 @@
           break;
         }
         case "play":
-          core.play(m.at, m.countIn);
+          core.play(m.at, m.countIn, m.countEnd);
           break;
         case "metro":
           core.setMetronome(m);
@@ -194,7 +194,8 @@
     // ----- recording ---------------------------------------------------------
 
     // m: {id, play (where playback starts, or null if it plays already),
-    // latency (samples the devices add, in and out), takes (with the loop on,
+    // countIn and countEnd (as play() in src/engine-core.js), latency
+    // (samples the devices add, in and out), takes (with the loop on,
     // passes to record), minFirst (song samples a first pass needs to count
     // as a take), tail}.
     recStart(m) {
@@ -203,7 +204,7 @@
       // it longer. The level of what plays is measured without the clicks.
       this.core.endless = true;
       this.core.measureTracks = true;
-      if (m.play !== null && m.play !== undefined) this.core.play(m.play, m.countIn);
+      if (m.play !== null && m.play !== undefined) this.core.play(m.play, m.countIn, m.countEnd);
       this.rec = {
         id: m.id,
         latency: Math.max(0, m.latency || 0),
