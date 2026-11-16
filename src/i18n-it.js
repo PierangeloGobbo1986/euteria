@@ -218,6 +218,8 @@ export const IT = {
   "Saved: the song is now an EUTERIA project, with its bars and chords.": "Salvato: il brano ora è un progetto EUTERIA, con le sue battute e i suoi accordi.",
   "Saved in {name}.": "Salvato in {name}.",
   "Saved: the file is now {name}.": "Salvato: ora il file si chiama {name}.",
+  "Saved in {name}: the file keeps its name.": "Salvato in {name}: il file mantiene il suo nome.",
+  "Saved in {name}. The old file, {old}, could not be deleted: delete it in its folder if you like.": "Salvato in {name}. Non è stato possibile eliminare il vecchio file, {old}: se vuoi, eliminalo nella sua cartella.",
   "Saved in {name}. This browser cannot rename files: rename it {wanted} in its folder if you like.": "Salvato in {name}. Questo browser non sa rinominare i file: se vuoi, rinominalo {wanted} nella sua cartella.",
   "Saved in {name}. It was not renamed {wanted}: a file with that name may already be in its folder.": "Salvato in {name}. Non è stato rinominato {wanted}: nella sua cartella potrebbe esserci già un file con quel nome.",
   "Saved in {name}. It could not be renamed {wanted}: {error}": "Salvato in {name}. Non è stato possibile rinominarlo {wanted}: {error}",

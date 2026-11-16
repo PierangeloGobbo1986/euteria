@@ -82,6 +82,7 @@ const app = {
   current: null,
   adding: false,
   exports: [], // {id, owner, file, url, name, seconds, tempo, key, selected}: in memory only, until the page closes
+  renameDeclined: new Set(), // "old name|new name": the save dialog of a rename cancelled (saveSong())
   exportShown: null, // the export the status under Export MP3 is about
   exportStatus: null, // that status: {text (or a function giving it), kind}
   rows: [],
@@ -1861,12 +1862,13 @@ function savedInPlace(file, manifest) {
 }
 
 // The file of a project takes the project's name in its folder (Chrome and
-// Edge move files), before anything is written: Chrome renames a file the
-// page holds alone (not its folder) only in response to a click, and writing
-// a project takes longer than a click counts. Resolves with {moved, id (its
-// entry in the songs opened), from (the old name)} or {why: "browser",
-// "taken", "failed", error}. Not onto a file the app may write: Chrome lets a
-// file moved onto such a file replace it.
+// Edge move files), before anything is written. Chrome, as it is now,
+// renames a file only for a page that may write its folder (earlier, right
+// after a click): EUTERIA holds the file alone, so it is mostly refused, and
+// Save then asks where to write the project under its new name (saveSong()).
+// Resolves with {moved, id (its entry in the songs opened), from (the old
+// name)} or {why: "browser", "taken", "failed", error}. Not onto a file the
+// app may write: Chrome lets a file moved onto such a file replace it.
 async function renameFile(handle, wanted) {
   const from = handle.name;
   if (typeof handle.move !== "function") return { why: "browser" };
@@ -1905,6 +1907,7 @@ async function savedInFile(manifest, rename) {
   const kept = (text) => ({ text, kind: "", ms: 12000 });
   if (!rename) return { text: tr("Saved in {name}.", { name }), kind: "ok", ms: 6000 };
   if (rename.moved) return { text: tr("Saved: the file is now {name}.", { name }), kind: "ok", ms: 6000 };
+  if (rename.why === "declined") return kept(tr("Saved in {name}: the file keeps its name.", { name }));
   if (rename.why === "browser") return kept(tr("Saved in {name}. This browser cannot rename files: rename it {wanted} in its folder if you like.", { name, wanted }));
   if (rename.why === "taken") return kept(tr("Saved in {name}. It was not renamed {wanted}: a file with that name may already be in its folder.", { name, wanted }));
   return kept(tr("Saved in {name}. It could not be renamed {wanted}: {error}", { name, wanted, error: rename.error }));
@@ -1935,8 +1938,38 @@ async function saveSong({ quiet = false, made = null } = {}) {
     mode = "copy";
     reportSave(tr("EUTERIA may not write the file: a copy is downloaded instead."));
   }
-  const rename = mode === "file" && cur.handle.name !== wanted ? await renameFile(cur.handle, wanted) : null;
-  if (mode === "new-file") {
+  let rename = mode === "file" && cur.handle.name !== wanted ? await renameFile(cur.handle, wanted) : null;
+  // The rename refused: the save dialog, in the file's folder with the new
+  // name. Confirmed, the project is written there and the old file removed
+  // (a rename in two steps); not, it is saved where it is, and not asked
+  // again for that name until the page is opened again.
+  let replaces = null; // the file the one chosen replaces
+  const askKey = rename && `${cur.handle.name}|${wanted}`;
+  if (rename && !rename.moved && "showSaveFilePicker" in window && app.renameDeclined.has(askKey)) rename = { why: "declined" };
+  else if (rename && !rename.moved && "showSaveFilePicker" in window) {
+    try {
+      const picked = await window.showSaveFilePicker({
+        suggestedName: wanted,
+        startIn: cur.handle,
+        types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
+      });
+      // The same file chosen: saved where it is, under its name.
+      if (await picked.isSameEntry(cur.handle)) {
+        app.renameDeclined.add(askKey);
+        rename = { why: "declined" };
+      } else {
+        target = picked;
+        replaces = cur.handle;
+        mode = "new-file";
+      }
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        app.renameDeclined.add(askKey);
+        rename = { why: "declined" };
+      }
+    }
+  }
+  if (mode === "new-file" && !target) {
     try {
       target = await window.showSaveFilePicker({
         id: "euteria-songs",
@@ -2022,9 +2055,23 @@ async function saveSong({ quiet = false, made = null } = {}) {
       cur.handle = target;
       cur.source = "file";
       savedInPlace(saved, manifest);
-      await addRecent(target, { title: song.title, size: saved.size });
+      // A rename in two steps: the old file goes once the new one is read
+      // back whole, and the new one takes its place in the songs opened.
+      let kept = null;
+      let id = null;
+      if (replaces) {
+        id = await recentId(replaces);
+        try {
+          await replaces.remove();
+        } catch (_) {
+          kept = replaces.name;
+        }
+      }
+      await addRecent(target, { title: song.title, size: saved.size, id });
       renderRecent();
-      say(tr("Saved in {name}.", { name: saved.name }), "ok");
+      if (!replaces) say(tr("Saved in {name}.", { name: saved.name }), "ok");
+      else if (!kept) say(tr("Saved: the file is now {name}.", { name: saved.name }), "ok");
+      else reportSave(tr("Saved in {name}. The old file, {old}, could not be deleted: delete it in its folder if you like.", { name: saved.name, old: kept }), "", 12000);
       return mode;
     }
     if (recording.rewrite) {

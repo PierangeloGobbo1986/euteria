@@ -244,12 +244,19 @@ Escape the old one). A new name is a change to save, as the bars and chords are,
 on *Save* the file takes it too (2.5.2): in its folder in Chrome and Edge (the browser
 moves the file to the new name; not onto a file EUTERIA may write there, and if the
 browser cannot move it or refuses, the file keeps its name and the message says so), in
-the library on the phone, and in a copy downloaded or shared. Since 2.6.1 the file is
-renamed first, right after the click on *Save*, then written: Chrome renames a file the
-page holds alone (without its folder) only in response to a click, and writing a project
-of some size takes longer than a click counts, so in 2.5.2 and 2.6.0 the rename, made
-after the writing, was refused. A file whose name is not the project's (renamed before
-2.5.2, or by hand) takes it at any *Save*, even with nothing else changed.
+the library on the phone, and in a copy downloaded or shared. Chrome, as it is now,
+renames a file only for a page that may write the file's folder (the feature
+`FileSystemAccessRenameRequiresParentWritePermission`, on by default; earlier Chrome
+asked only for a click just before), and EUTERIA holds the file alone: the rename is
+mostly refused (`NotAllowedError`). *Save* then opens the save dialog in the file's
+folder, with the new name filled in (2.6.2): confirmed, the project is written there
+whole and read back, then the old file is removed (a rename in two steps; the same
+project, its settings and its place in the songs opened kept); cancelled, or the same file
+chosen, the project is saved in its file as before, the message says the file keeps its
+name, and the dialog is not opened again for that name until the page is. Where Chrome
+allows it, the file is simply renamed first, right after the click, then written
+(2.6.1). A file whose name is not the project's (renamed before 2.5.2, or by hand) takes
+it at any *Save*, even with nothing else changed.
 **Save** (top right, Ctrl+S or ⌘S) writes the name, the grid, the chords and the
 practice settings (tempo, key, loop, volumes, tracks
 on, the order of the tracks) in the song's `manifest.json`, in the fields EUTERIA
