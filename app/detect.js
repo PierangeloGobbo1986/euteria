@@ -12,9 +12,9 @@
 // the separation) and, until then, in this browser; pressed again, the
 // buttons use it, with no new analysis (app/app.js). The song plays
 // meanwhile; Bars and Chords waits for it (app/editor.js), and so does a
-// separation. The progress is told in the line under the bar at the top. The
-// models (the tempo's, 191 or 10 MB; the chords', 12 MB) are downloaded the
-// first time and kept in the browser.
+// separation. The progress is told in the band of the messages, under the
+// transport (app/app.js notice()). The models (the tempo's, 191 or 10 MB; the
+// chords', 12 MB) are downloaded the first time and kept in the browser.
 //
 // In a browser that cannot run it (no workers, no WebAssembly), nothing
 // runs: the grid is the one the song brings, or one made by hand.
@@ -106,12 +106,13 @@ export class TempoDetection {
     while (this.job) await this.job.done.catch(() => {});
   }
 
-  // The line under the bar at the top, unless it says something else now.
-  say(text, kind = "", ms = 0) {
+  // The band of the messages, unless it says something else now; progress:
+  // the part done (0 to 1), its bar.
+  say(text, kind = "", ms = 0, progress = null) {
     const el = $("notice");
     if (!el.hidden && el.textContent && el.textContent !== this.shown) return;
     this.shown = text;
-    this.ctx.notice(text, kind, ms);
+    this.ctx.notice(text, kind, ms, progress);
   }
 
   // Runs on `song` (open from `file`, named `name`): the tempo (a new grid),
@@ -145,7 +146,10 @@ export class TempoDetection {
     this.say(
       model !== config.chordModel
         ? tr("Downloading the tempo model (about {mb} MB, only the first time)…", { mb: model.approxMB })
-        : tr("Downloading the chord model (about {mb} MB, only the first time)…", { mb: model.approxMB })
+        : tr("Downloading the chord model (about {mb} MB, only the first time)…", { mb: model.approxMB }),
+      "",
+      0,
+      0
     );
     await job.tracker.download(model);
   }
@@ -157,7 +161,7 @@ export class TempoDetection {
     let analysis = app.analysis ? { ...app.analysis } : {};
     let fit = null;
     try {
-      this.say(job.tempo ? tr("Finding the tempo of {name}…", { name }) : tr("Finding the chords of {name}…", { name }));
+      this.say(job.tempo ? tr("Finding the tempo of {name}…", { name }) : tr("Finding the chords of {name}…", { name }), "", 0, 0);
       const audio = await songAudio(job.song, file);
       if (!current()) return;
       const tracker = job.tracker;
@@ -193,7 +197,7 @@ export class TempoDetection {
       if (job.chords && (!job.tempo || fit)) {
         stage = "chords";
         try {
-          this.say(tr("Finding the chords of {name}…", { name }));
+          this.say(tr("Finding the chords of {name}…", { name }), "", 0, 0);
           await this._model(job, config.chordModel);
           if (!current()) return;
           const result = await tracker.chords(audio, plan);
@@ -263,23 +267,24 @@ export class TempoDetection {
     if (m.phase === "download") {
       const mb = (b) => Math.round(b / 1e6);
       const v = m.total ? { done: mb(m.done), total: mb(m.total) } : { done: mb(m.done), total: job.model.approxMB };
+      const part = Math.min(1, m.total ? m.done / m.total : m.done / (job.model.approxMB * 1e6));
       if (chords) {
-        this.say(m.total ? tr("Downloading the chord model (only the first time): {done} of {total} MB", v) : tr("Downloading the chord model (only the first time): {done} of about {total} MB", v));
+        this.say(m.total ? tr("Downloading the chord model (only the first time): {done} of {total} MB", v) : tr("Downloading the chord model (only the first time): {done} of about {total} MB", v), "", 0, part);
       } else {
-        this.say(m.total ? tr("Downloading the tempo model (only the first time): {done} of {total} MB", v) : tr("Downloading the tempo model (only the first time): {done} of about {total} MB", v));
+        this.say(m.total ? tr("Downloading the tempo model (only the first time): {done} of {total} MB", v) : tr("Downloading the tempo model (only the first time): {done} of about {total} MB", v), "", 0, part);
       }
     } else if (m.phase === "verify") {
-      this.say(chords ? tr("Checking the chord model downloaded…") : tr("Checking the tempo model downloaded…"));
+      this.say(chords ? tr("Checking the chord model downloaded…") : tr("Checking the tempo model downloaded…"), "", 0, 1);
     } else if (m.phase === "spectrogram" || m.phase === "analyse") {
       // The spectrogram is the first tenth of the work, the model the rest.
       const part = m.total ? m.done / m.total : 0;
       const pct = Math.round((m.phase === "spectrogram" ? part * 0.1 : 0.1 + part * 0.9) * 100);
-      this.say(tr("Finding the tempo of {name}: {pct}%", { name, pct }));
+      this.say(tr("Finding the tempo of {name}: {pct}%", { name, pct }), "", 0, pct / 100);
     } else if (m.phase === "chords-spectrogram" || m.phase === "chords-analyse") {
       // The spectrogram is about half of the work on a graphics card.
       const part = m.total ? m.done / m.total : 0;
       const pct = Math.round((m.phase === "chords-spectrogram" ? part * 0.5 : 0.5 + part * 0.5) * 100);
-      this.say(tr("Finding the chords of {name}: {pct}%", { name, pct }));
+      this.say(tr("Finding the chords of {name}: {pct}%", { name, pct }), "", 0, pct / 100);
     }
   }
 }

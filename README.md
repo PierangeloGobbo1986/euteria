@@ -69,6 +69,13 @@ open, the keys of the player do nothing and the page under it stays still.
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save.
 
+**Messages** (a song opening, the progress of a detection, of a separation or of a
+download, a save, an error) open in a band under the bar at the top: with a song open,
+under the transport, on the phone as on a computer, so they stay in view wherever the page
+is scrolled. The band lies over the page, which does not move, and has a bar for the
+progress of the work it tells; it closes by itself when the work ends or after a few
+seconds, an error when its ✕ is tapped.
+
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB, − and + by 5%, as the tempo), tempo 50-200%, key ±12 semitones (drums
 excluded), a loop with its start and end. Every track card has a grip (⠿) at its left:
@@ -346,7 +353,8 @@ grey, and says the instruments are separated already. It first asks where to
 save the EUTERIA project (`.euteria`) it is going to make, so that a separation left to
 run on its own is saved when it ends. The first time, it downloads the separation model
 (336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
-browser. A bar in the *Song analysis* card shows the progress, the speed and the time left;
+browser. A bar in the *Song analysis* card shows the progress, the speed and the time left
+(the band of the messages, under the transport, shows them too);
 *Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps, with the
 Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3 too), the
 grid, the chords, the practice settings and the takes recorded over the song, and the
@@ -390,7 +398,7 @@ the first beat, the first downbeat. Under the buttons come the tempo of the grid
 meter; a meter found wrong is changed there, and a first beat found wrong is put right with
 *Set first beat*. **Detect chords** finds the chords with BTC (see *How the chord recognition works*) and writes
 them in the bars, finding the tempo first for a song without a grid. The song plays
-meanwhile; the line under the top bar tells the progress, the grid and the chords wait for the end, and a separation started meanwhile waits too. The new grid replaces
+meanwhile; the band of the messages, under the transport, tells the progress with a bar, the grid and the chords wait for the end, and a separation started meanwhile waits too. The new grid replaces
 the one the song had (bars numbered from 1, chords kept with their bars) and is shown.
 The tempo found is said, with a warning when it varies in the song, and how many bars
 got a chord. The song is analysed as it was recorded, whatever the tempo set to play

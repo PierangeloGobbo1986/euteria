@@ -70,10 +70,22 @@
       <button id="update" class="update-btn" type="button">Update</button>
     </div>
   </div>
+  <!-- The messages: a band that opens under this bar (on a computer with a song open, under the
+       transport; app.js moves it there) over the page, while there is something to say. -->
+  <div id="notice-band" class="notice-band">
+    <div class="notice-inner">
+      <div class="notice-body">
+        <div class="notice-row">
+          <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+          <button id="notice-close" type="button" class="small ghost notice-close" aria-label="Close this message" hidden>✕</button>
+        </div>
+        <div id="notice-bar" class="notice-bar" hidden><span id="notice-fill" class="notice-fill"></span></div>
+      </div>
+    </div>
+  </div>
 </header>
 
 <main>
-  <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   <p id="unsupported" class="notice error" hidden>This browser cannot run EUTERIA: it needs a recent version of Safari, Chrome, Edge or Firefox.</p>
 
   <!-- The song open, from the library -->

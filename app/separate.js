@@ -130,6 +130,7 @@ export class SeparationFlow {
     $("sep-close").addEventListener("click", () => {
       this.status = null;
       this.refresh();
+      if (this.shown && $("notice").textContent === this.shown) this.ctx.notice("");
     });
   }
 
@@ -157,6 +158,20 @@ export class SeparationFlow {
     this.status = { text, kind };
     if (fraction !== null) this.fraction = fraction;
     this.refresh();
+    this.tell();
+  }
+
+  // The band of the messages, under the transport, says it too: while the
+  // separation runs, its progress (unless the band says something else
+  // then); at the end, how it ended, for a while (an error until closed).
+  tell() {
+    const s = this.status;
+    if (!s) return;
+    const text = typeof s.text === "function" ? s.text() : s.text;
+    const el = $("notice");
+    if (this.running && !el.hidden && el.textContent && el.textContent !== this.shown) return;
+    this.shown = text;
+    this.ctx.notice(text, s.kind, this.running ? 0 : 8000, this.running ? this.fraction : null);
   }
 
   // ----- the run ---------------------------------------------------------------------

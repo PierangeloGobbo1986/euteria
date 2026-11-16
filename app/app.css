@@ -169,6 +169,52 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .notice.error { color: #ffd0d0; border-color: #6b3a3a; background: #241718; }
 .notice.ok { color: var(--ok); }
 
+/* ----- the band of the messages ----- */
+/* It hangs under the bar at the top (app.js placeNotice(): the app bar, the
+   transport in it on the phone, or a computer's transport), over the page,
+   which does not move: it grows down when there is something to say (the
+   text, a bar for the progress, ✕ for an error) and goes back up after. */
+.notice-band {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  background: var(--bg);
+  border-bottom: 1px solid #1e2529;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, .45);
+  transition: grid-template-rows .2s ease, visibility 0s linear .2s;
+}
+.notice-band.open { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows .2s ease; }
+.notice-band[data-kind=error] { background: #241718; border-bottom-color: #6b3a3a; }
+.notice-inner { min-height: 0; overflow: hidden; }
+.notice-body { max-width: 1160px; margin: 0 auto; padding: 8px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); }
+[data-layout=phone] .notice-body { max-width: 680px; }
+.notice-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.notice-band .notice { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; font-size: 14px; line-height: 1.4; }
+.notice-close { flex: none; min-width: 36px; padding: 6px 8px; color: #ffd0d0; }
+.notice-bar { height: 4px; margin-top: 8px; border-radius: 2px; background: #262e32; overflow: hidden; }
+.notice-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+/* A computer's transport: the band is its lower part, the card grows. */
+[data-layout=computer] .transport > .notice-band {
+  left: -1px;
+  right: -1px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+}
+[data-layout=computer] .transport > .notice-band[data-kind=error] { background: #241718; border-color: #6b3a3a; }
+[data-layout=computer] .transport > .notice-band .notice-body { padding: 0 16px 10px; }
+[data-layout=computer] .transport > .notice-band .notice-body::before { content: ""; display: block; height: 1px; margin-bottom: 8px; background: #262e32; }
+[data-layout=computer] .transport:has(> .notice-band.open) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .notice-band, .notice-band.open { transition: none; }
+}
+
 /* ----- cards ----- */
 .card {
   background: var(--panel);

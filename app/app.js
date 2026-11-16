@@ -118,15 +118,60 @@ const songDirty = () => !!player.song && (editor.dirty || retitled() || (!!recor
 const ownAudio = () => player.tracks.some((t) => !t.take);
 
 // ----- messages -------------------------------------------------------------------
+//
+// One message at a time, in a band that opens under the bar at the top (with
+// a song open, under the transport) over the page: always in view, and the
+// page under it does not move. progress: the part done (0 to 1) of the work
+// it tells, drawn as a bar under it. An error stays until closed (✕) or
+// replaced; another message closes after ms, or else when replaced or
+// cleared (notice("")).
 
+const NOTICE_CLOSE_MS = 220; // the band closing (app.css), with what it said
 let noticeTimer = null;
-function notice(text, kind = "", ms = 0) {
+let noticeGone = null;
+function notice(text, kind = "", ms = 0, progress = null) {
   const el = $("notice");
+  const band = $("notice-band");
   clearTimeout(noticeTimer);
-  el.textContent = text || "";
+  clearTimeout(noticeGone);
+  if (!text) {
+    band.classList.remove("open");
+    noticeGone = setTimeout(() => {
+      el.textContent = "";
+      el.hidden = true;
+    }, NOTICE_CLOSE_MS);
+    return;
+  }
+  const opening = !band.classList.contains("open");
+  el.textContent = text;
   el.className = `notice ${kind}`.trim();
-  el.hidden = !text;
-  if (text && ms) noticeTimer = setTimeout(() => (el.hidden = true), ms);
+  el.hidden = false;
+  band.dataset.kind = kind;
+  const bar = typeof progress === "number" && Number.isFinite(progress);
+  $("notice-bar").hidden = !bar;
+  if (bar) {
+    const fill = $("notice-fill");
+    // A band opening shows the part done as it is, without growing to it.
+    if (opening) fill.style.transition = "none";
+    fill.style.width = `${Math.round(Math.max(0, Math.min(1, progress)) * 1000) / 10}%`;
+    if (opening) {
+      void fill.offsetWidth;
+      fill.style.transition = "";
+    }
+  }
+  const error = kind === "error";
+  $("notice-close").hidden = !error;
+  band.classList.add("open");
+  if (ms && !error) noticeTimer = setTimeout(() => notice(""), ms);
+}
+
+// The band of the messages hangs under the bar at the top: the app bar (on
+// the phone, with a song open, the transport is part of it), or on a
+// computer with a song open the transport, which stays in view under it.
+function placeNotice() {
+  const home = !phone && app.view === "player" ? $("transport") : document.querySelector(".appbar");
+  const band = $("notice-band");
+  if (band.parentElement !== home) home.append(band);
 }
 
 // The line under Export MP3. text: a text, or a function giving it in the
@@ -153,6 +198,7 @@ const homeView = () => (phone ? "library" : "welcome");
 function showView(view) {
   app.view = view;
   document.body.dataset.view = view;
+  placeNotice();
   for (const v of ["library", "welcome", "player"]) $(`${v}-view`).hidden = v !== view;
   $("song-nav").hidden = view !== "player";
   if (view === "library") renderLibrary();
@@ -298,7 +344,10 @@ async function openSong(file, origin) {
       notice(
         key
           ? tr("Opening {name}: {what} ({n} of {total})…", { name: file.name, what: TRACK_TITLES[key] ? tr(TRACK_TITLES[key]) : isTake(key) ? tr("takes") : key, n: done + 1, total })
-          : tr("Opening {name}: lining up the tracks…", { name: file.name })
+          : tr("Opening {name}: lining up the tracks…", { name: file.name }),
+        "",
+        0,
+        key && total ? done / total : 1
       )
     );
     const key = settingsKey(song, file);
@@ -918,7 +967,7 @@ async function addSong(file) {
           tr("There is not enough space for {name} ({size}). Delete songs you no longer need, or free some space on the device.", { name: file.name, size: fmtSize(file.size) })
         );
       }
-      entry = await library.add(file, kind, (done, total) => notice(tr("Adding {name} to the library… {pct}%", { name: file.name, pct: Math.floor((done / total) * 100) })));
+      entry = await library.add(file, kind, (done, total) => notice(tr("Adding {name} to the library… {pct}%", { name: file.name, pct: Math.floor((done / total) * 100) }), "", 0, done / total));
       fresh = true;
       app.persisted = await requestPersistence();
     }
@@ -2758,6 +2807,9 @@ function wire() {
     player.unlock();
     player.toggle();
   });
+
+  // The band of the messages: ✕ closes an error.
+  $("notice-close").addEventListener("click", () => notice(""));
 
   // Version
   $("update").addEventListener("click", updateApp);
