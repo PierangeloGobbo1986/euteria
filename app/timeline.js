@@ -11,8 +11,9 @@
 // places the playhead, dragging from inside the loop moves the loop (keeping
 // its length), dragging from anywhere else drags the playhead. The loop's
 // edges are dragged by its handles at the bottom of the time scale (with a
-// mouse, anywhere along them), snapping to the bars and beats (Alt or Option
-// turns snapping off). A tap on the time scale places the playhead, dragging
+// mouse, anywhere along them). Edges and loop move by the step of the bar
+// numbers, the eighth note when zoomed in enough (_rangeStep(); Alt or Option
+// moves them freely). A tap on the time scale places the playhead, dragging
 // it scrolls; pinching, ctrl+wheel (a trackpad pinch) or the zoom buttons
 // zoom from the whole song (100%) to about 100 pixels per second. The
 // overview over the timeline shows the whole song, the part in view and the
@@ -44,7 +45,7 @@
 // nearest beat (before the loop or after it, the loop grows; inside, the
 // nearer edge comes in).
 
-import { barNumber, barAt, nearestBar } from "../src/grid.js";
+import { barNumber, barAt } from "../src/grid.js";
 import { chordView } from "../src/chordnames.js";
 import { sectionTitles, sectionColor, sectionIndexAt } from "../src/sections.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
@@ -74,7 +75,6 @@ const C = {
 };
 const FONT = '-apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const TAP_SLOP = 6; // pixels a press may move and still be a tap
-const SNAP_PX = 10; // loop edges snap to a bar or beat closer than this
 const RANGE_PX = { mouse: 6, touch: 12 }; // the narrowest step a stretch of the bar numbers takes
 const MIN_LOOP = 0.25; // seconds, as the engine
 const FOLLOW_PAUSE_MS = 4000;
@@ -979,9 +979,9 @@ export class Timeline {
       const w = d.loop0.end - d.loop0.start;
       let s = clamp(d.loop0.start + t - d.t0, 0, Math.max(0, this.duration - w));
       if (!e.altKey && this.hasGrid) {
-        const bars = this.grid.bars;
-        const i = nearestBar(bars, s);
-        if (i >= 0 && bars[i] + w <= this.duration + 1e-9) s = bars[i];
+        // By the step the overview's scale allows (the bar, mostly).
+        const snapped = this._rangeSnap(s, this._rangeStep(e.pointerType, ov.clientWidth / this.duration));
+        if (snapped + w <= this.duration + 1e-9) s = snapped;
       }
       this.dragLoop = { on: true, start: s, end: s + w };
       this.drawTop();
@@ -1034,29 +1034,6 @@ export class Timeline {
     // inside it.
     if (mouse ? d <= 6 : d <= 16 && y < T + this.dims.tab.h / 2) return edge;
     return x > x1 && x < x2 ? "body" : null;
-  }
-
-  // The nearest bar (or beat, when beats are far enough apart) within SNAP_PX.
-  _snap(t) {
-    const g = this.grid;
-    if (!this.hasGrid) return t;
-    const near = (list) => {
-      const i = lowerBound(list, t);
-      let best = null;
-      for (const j of [i - 1, i]) {
-        if (j < 0 || j >= list.length) continue;
-        const d = Math.abs(list[j] - t) * this.pps;
-        if (d <= SNAP_PX && (!best || d < best.d)) best = { t: list[j], d };
-      }
-      return best;
-    };
-    const bar = near(g.bars);
-    if (bar) return bar.t;
-    if (this.beatSec * this.pps >= 12) {
-      const beat = near(g.beats);
-      if (beat) return beat.t;
-    }
-    return t;
   }
 
   // What a press in the lane of the sections takes: the section under bar
@@ -1170,8 +1147,11 @@ export class Timeline {
       this._select(anchor, i, false);
       return;
     }
-    if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId };
-    else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, moved: false };
+    // The edges and the body of the loop move by the step of the bar numbers
+    // (the eighth note, zoomed in enough).
+    const step = this.hasGrid ? this._rangeStep(e.pointerType) : null;
+    if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId, step };
+    else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, step, moved: false };
     else if (p.y >= this.headHeight) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
     // The time scale, or the bars while not editing: a tap places the
     // playhead (the bars: asks for the chord), dragging scrolls.
@@ -1231,7 +1211,7 @@ export class Timeline {
     }
     if (g.kind === "start" || g.kind === "end") {
       let t = clamp(this.t(p.x), 0, this.duration);
-      if (!e.altKey) t = this._snap(t);
+      if (!e.altKey && g.step) t = this._rangeSnap(t, g.step);
       let { start, end } = this.loop;
       if (g.kind === "start") start = clamp(t, 0, end - MIN_LOOP);
       else end = clamp(t, start + MIN_LOOP, this.duration);
@@ -1255,9 +1235,9 @@ export class Timeline {
       g.moved = true;
       const w = g.loop0.end - g.loop0.start;
       let s = clamp(g.loop0.start + dx / this.pps, 0, Math.max(0, this.duration - w));
-      if (!e.altKey) {
-        const snapped = this._snap(s);
-        if (snapped + w <= this.duration) s = snapped;
+      if (!e.altKey && g.step) {
+        const snapped = this._rangeSnap(s, g.step);
+        if (snapped + w <= this.duration + 1e-9) s = snapped;
       }
       this.dragLoop = { on: true, start: s, end: s + w };
       this.drawTop();
@@ -1353,18 +1333,19 @@ export class Timeline {
     this.onSelect({ ...this.selection }, { done: false, lane: "sections" });
   }
 
-  // The step a stretch of the bar numbers takes: the eighth note (half a beat
-  // in 3/4 and 4/4, a beat in 6/8), else the beat, else the bar, the finest
-  // that is wide enough on screen for a mouse or a finger. {list (the grid's
-  // beats or bars), div (each part of it divided in div), pace (seconds
-  // between two of the list), len (seconds of a step)}.
-  _rangeStep(pointerType) {
+  // The step a stretch of the bar numbers takes, and the edges and the body
+  // of the loop dragged: the eighth note (half a beat in 3/4 and 4/4, a beat
+  // in 6/8), else the beat, else the bar, the finest that is wide enough on
+  // screen (pps: pixels per second, the view's by default) for a mouse or a
+  // finger. {list (the grid's beats or bars), div (each part of it divided in
+  // div), pace (seconds between two of the list), len (seconds of a step)}.
+  _rangeStep(pointerType, pps = this.pps) {
     const g = this.grid;
     const min = pointerType === "mouse" ? RANGE_PX.mouse : RANGE_PX.touch;
     const eighths = /\/8$/.test(g.meter || "") ? 1 : 2;
     const beat = { list: g.beats, pace: this.beatSec };
-    if (g.beats.length && (this.beatSec / eighths) * this.pps >= min) return { ...beat, div: eighths, len: this.beatSec / eighths };
-    if (g.beats.length && this.beatSec * this.pps >= min) return { ...beat, div: 1, len: this.beatSec };
+    if (g.beats.length && (this.beatSec / eighths) * pps >= min) return { ...beat, div: eighths, len: this.beatSec / eighths };
+    if (g.beats.length && this.beatSec * pps >= min) return { ...beat, div: 1, len: this.beatSec };
     return { list: g.bars, pace: this.barSec, div: 1, len: this.barSec };
   }
 

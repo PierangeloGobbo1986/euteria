@@ -119,8 +119,9 @@ pinching, ctrl+wheel (a trackpad pinch) or the buttons of *Zoom* (at the right o
 timeline's toolbar) go from the whole song (100%) to about 100 pixels per second, and a
 tap on the percentage goes back to the whole song.
 The overview, the grey strip above the bars, shows the whole song, the part in
-view and the loop: dragging the frame of the view or of the loop moves it (the loop
-snaps to the bars), a tap elsewhere brings the view there.
+view and the loop: dragging the frame of the view or of the loop moves it (the loop by
+the finest step the overview's scale allows: the bar, mostly), a tap elsewhere brings the
+view there.
 
 **The loop** (2.5): the bar numbers choose a stretch of the song for it. A tap or a click
 on a number takes that bar; dragging along the numbers takes a stretch by the eighth note
@@ -131,10 +132,12 @@ and *Loop*, in the transport (the key L on a computer), loops it; with the loop 
 stretch is the loop at once. *Loop* with no stretch chosen, or one out of view, starts the
 loop at the bar being played (or in the middle of the view if the playhead is elsewhere),
 16 seconds long, at most half of what is in view, in whole bars; a loop already placed and
-in view stays where it is. The edges of the loop are dragged and snap to the bars and beats
-(Alt or Option places them freely): with a finger by their handles at the foot of the time
-scale, with a mouse also anywhere along them; on a computer [ and ] put the start or the
-end of the loop at the playhead. While the song plays, the view follows the playhead,
+in view stays where it is. The edges of the loop are dragged, and the loop moved from
+inside it, by the same step as the stretch along the numbers (2.6.1: the eighth note when
+zoomed in enough, else the beat or the bar; before, they snapped to the nearest bar or
+beat; Alt or Option moves them freely): with a finger by their handles at the foot of the
+time scale, with a mouse also anywhere along them; on a computer [ and ] put the start or
+the end of the loop at the playhead. While the song plays, the view follows the playhead,
 except for a few seconds after it was moved by hand.
 The eye beside *Bars and chords*, over the timeline at the left of the chord field, shows
 or hides the sections, the grid lines and the chords
@@ -241,7 +244,12 @@ Escape the old one). A new name is a change to save, as the bars and chords are,
 on *Save* the file takes it too (2.5.2): in its folder in Chrome and Edge (the browser
 moves the file to the new name; not onto a file EUTERIA may write there, and if the
 browser cannot move it or refuses, the file keeps its name and the message says so), in
-the library on the phone, and in a copy downloaded or shared.
+the library on the phone, and in a copy downloaded or shared. Since 2.6.1 the file is
+renamed first, right after the click on *Save*, then written: Chrome renames a file the
+page holds alone (without its folder) only in response to a click, and writing a project
+of some size takes longer than a click counts, so in 2.5.2 and 2.6.0 the rename, made
+after the writing, was refused. A file whose name is not the project's (renamed before
+2.5.2, or by hand) takes it at any *Save*, even with nothing else changed.
 **Save** (top right, Ctrl+S or ⌘S) writes the name, the grid, the chords and the
 practice settings (tempo, key, loop, volumes, tracks
 on, the order of the tracks) in the song's `manifest.json`, in the fields EUTERIA

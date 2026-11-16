@@ -54,7 +54,7 @@ const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAt
 const HINTS = phone
   ? {
       view: () =>
-        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
+        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (both by the eighth note, as along the bar numbers). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
       noGrid: () => tr("No bars in this song yet: Detect tempo finds them on a computer (Song analysis), and the project saved there brings them here; or put the playhead on the first beat of a bar and tap Set first beat."),
       hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
@@ -62,7 +62,7 @@ const HINTS = phone
     }
   : {
       view: () =>
-        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (they snap to the bars; Alt: freely). Click a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop (L) loops it. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
+        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (both by the eighth note, as along the bar numbers; Alt: freely). Click a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop (L) loops it. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
       noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and press Set first beat."),
       hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
@@ -1860,42 +1860,54 @@ function savedInPlace(file, manifest) {
   showSongMeta();
 }
 
-// A project written in its file: read back, then, if the project's name
-// changed, the file takes the new name in its folder (Chrome and Edge move
-// files). Resolves with the message: {text, kind, ms}.
-async function savedInFile(manifest, renamed) {
+// The file of a project takes the project's name in its folder (Chrome and
+// Edge move files), before anything is written: Chrome renames a file the
+// page holds alone (not its folder) only in response to a click, and writing
+// a project takes longer than a click counts. Resolves with {moved, id (its
+// entry in the songs opened), from (the old name)} or {why: "browser",
+// "taken", "failed", error}. Not onto a file the app may write: Chrome lets a
+// file moved onto such a file replace it.
+async function renameFile(handle, wanted) {
+  const from = handle.name;
+  if (typeof handle.move !== "function") return { why: "browser" };
+  if (await recentWritable(wanted, handle)) return { why: "taken" };
+  const id = await recentId(handle);
+  try {
+    await handle.move(wanted);
+  } catch (error) {
+    return { why: "failed", error: (error && error.message) || String(error) };
+  }
+  // Read from its new place from now on (the old one is gone), and listed so.
+  try {
+    const file = await handle.getFile();
+    app.current.file = file;
+    app.current.name = file.name;
+    await addRecent(handle, { title: player.song.fileTitle, size: file.size, id });
+    renderRecent();
+  } catch (_) {}
+  return { moved: true, id, from };
+}
+
+// A project written in its file: read back, listed in the songs opened.
+// rename: what renameFile() said, if it was asked. Resolves with the message:
+// {text, kind, ms}.
+async function savedInFile(manifest, rename) {
   const cur = app.current;
   const song = player.song;
   const handle = cur.handle;
-  let saved = await handle.getFile();
+  const saved = await handle.getFile();
   await checkSaved(saved, manifest.project_id);
+  savedInPlace(saved, manifest);
+  await addRecent(handle, { title: song.title, size: saved.size });
+  renderRecent();
   const name = saved.name;
   const wanted = `${safeName(song.title)}.euteria`;
-  let message = { text: tr("Saved in {name}.", { name }), kind: "ok", ms: 6000 };
-  let id = null;
-  if (renamed && name !== wanted) {
-    const kept = (text) => ({ text, kind: "", ms: 12000 });
-    if (typeof handle.move !== "function") {
-      message = kept(tr("Saved in {name}. This browser cannot rename files: rename it {wanted} in its folder if you like.", { name, wanted }));
-    } else if (await recentWritable(wanted, handle)) {
-      // Moved onto a file the app may write, the file would replace it.
-      message = kept(tr("Saved in {name}. It was not renamed {wanted}: a file with that name may already be in its folder.", { name, wanted }));
-    } else {
-      id = await recentId(handle);
-      try {
-        await handle.move(wanted);
-        saved = await handle.getFile();
-        message = { text: tr("Saved: the file is now {name}.", { name: saved.name }), kind: "ok", ms: 6000 };
-      } catch (error) {
-        id = null;
-        message = kept(tr("Saved in {name}. It could not be renamed {wanted}: {error}", { name, wanted, error: (error && error.message) || error }));
-      }
-    }
-  }
-  savedInPlace(saved, manifest);
-  await addRecent(handle, { title: song.title, size: saved.size, id });
-  renderRecent();
-  return message;
+  const kept = (text) => ({ text, kind: "", ms: 12000 });
+  if (!rename) return { text: tr("Saved in {name}.", { name }), kind: "ok", ms: 6000 };
+  if (rename.moved) return { text: tr("Saved: the file is now {name}.", { name }), kind: "ok", ms: 6000 };
+  if (rename.why === "browser") return kept(tr("Saved in {name}. This browser cannot rename files: rename it {wanted} in its folder if you like.", { name, wanted }));
+  if (rename.why === "taken") return kept(tr("Saved in {name}. It was not renamed {wanted}: a file with that name may already be in its folder.", { name, wanted }));
+  return kept(tr("Saved in {name}. It could not be renamed {wanted}: {error}", { name, wanted, error: rename.error }));
 }
 
 // Resolves with how it was saved ("library", "file", "new-file", "copy"),
@@ -1911,17 +1923,19 @@ async function saveSong({ quiet = false, made = null } = {}) {
   }
   editor.commitInput();
   const say = (text, kind) => quiet || reportSave(text, kind);
-  // A new name: the file takes it too (in the library, its entry).
-  const renamed = retitled();
+  // The project's name is its file's too (in the library, its entry's; a
+  // copy's).
   const wanted = `${safeName(song.title)}.euteria`;
   const told = (m) => (quiet && m.kind === "ok") || reportSave(m.text, m.kind, m.ms);
   let mode = saveMode();
   let target = null;
-  // What needs the click comes first: the permission to write, the place.
+  // What needs the click comes first: the permission to write, the place,
+  // the file's new name.
   if (mode === "file" && !(await writePermission(cur.handle))) {
     mode = "copy";
     reportSave(tr("EUTERIA may not write the file: a copy is downloaded instead."));
   }
+  const rename = mode === "file" && cur.handle.name !== wanted ? await renameFile(cur.handle, wanted) : null;
   if (mode === "new-file") {
     try {
       target = await window.showSaveFilePicker({
@@ -2017,7 +2031,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
       const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), { manifestBytes: bytes, drop: recording.dropMembers, add: recording.membersToAdd() });
       if (mode === "library") {
         const entry = library.get(cur.entryId);
-        await library.replace(entry, blob, renamed ? wanted : entry.name, "project");
+        await library.replace(entry, blob, wanted, "project");
         const saved = await library.file(library.get(cur.entryId));
         await checkSaved(saved, manifest.project_id);
         savedInPlace(saved, manifest);
@@ -2031,9 +2045,9 @@ async function saveSong({ quiet = false, made = null } = {}) {
           await w.abort().catch(() => {});
           throw error;
         }
-        told(await savedInFile(manifest, renamed));
+        told(await savedInFile(manifest, rename));
       } else {
-        const name = renamed ? wanted : cur.name;
+        const name = wanted;
         downloadBlob(blob, name);
         editor.saved(false);
         recording.saved(false);
@@ -2046,7 +2060,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
       const entry = library.get(cur.entryId);
       const { at, bytes: tail } = await manifestPatch(zip, bytes);
       await library.patch(entry, at, tail);
-      if (renamed) library.update(cur.entryId, { name: wanted });
+      if (entry.name !== wanted) library.update(cur.entryId, { name: wanted });
       const saved = await library.file(library.get(cur.entryId));
       await checkSaved(saved, manifest.project_id);
       savedInPlace(saved, manifest);
@@ -2062,9 +2076,9 @@ async function saveSong({ quiet = false, made = null } = {}) {
         await w.abort().catch(() => {});
         throw error;
       }
-      told(await savedInFile(manifest, renamed));
+      told(await savedInFile(manifest, rename));
     } else {
-      const name = renamed ? wanted : cur.name;
+      const name = wanted;
       downloadBlob(composeEdited(file, await zipLayout(zip), { manifestBytes: bytes }), name);
       editor.saved(false);
       recording.saved(false);
@@ -2165,7 +2179,7 @@ function projectNow(as = null) {
   const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, title);
   if (as) manifest.project_id = as.id;
   const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: recording.dropMembers, add });
-  return { manifest, blob, file: new File([blob], as || retitled() ? `${safeName(title)}.euteria` : cur.name, { type: "application/zip" }) };
+  return { manifest, blob, file: new File([blob], `${safeName(title)}.euteria`, { type: "application/zip" }) };
 }
 
 // ----- new projects: an empty one, or the song saved as a new project ------------------
@@ -3083,8 +3097,9 @@ function wireHelp() {
 // into a field to rename it. Return or leaving the field keeps the new name,
 // Escape the old one. A new name is a change to save, as the bars and chords
 // are: Save writes it in the project and the file takes it as its name (in
-// its folder with Chrome and Edge, in the library, in a copy downloaded or
-// shared), Don't save brings back the file's.
+// its folder with Chrome and Edge, renamed first: renameFile(); in the
+// library; in a copy downloaded or shared), Don't save brings back the
+// file's. A file whose name is not the project's takes it at any Save.
 
 function showTitle() {
   const song = player.song;
