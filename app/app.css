@@ -196,6 +196,8 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .notice-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .notice-band .notice { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; font-size: 14px; line-height: 1.4; }
 .notice-close { flex: none; min-width: 36px; padding: 6px 8px; color: #ffd0d0; }
+.notice-band:not([data-kind=error]) .notice-close { color: var(--muted); }
+.notice-action { flex: none; }
 .notice-bar { height: 4px; margin-top: 8px; border-radius: 2px; background: #262e32; overflow: hidden; }
 .notice-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
 /* A computer's transport: the band is its lower part, the card grows. */

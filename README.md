@@ -140,8 +140,8 @@ The eye beside *Bars and chords*, over the timeline at the left of the chord fie
 or hides the sections, the grid lines and the chords
 (open: shown and editable, closed: hidden; the choice is kept with the song, in this browser,
 and saved in the project). When nothing is over the waveforms, the line under the timeline
-says why first: the song has no bars yet (*Detect tempo* finds them; *Set first beat* makes
-them by hand), or they are hidden, and where the eye is. Bar numbers start from the number saved by
+says why first: the song has no bars yet (*Detect tempo* finds them, on a computer; *Set first
+beat* makes them by hand), or they are hidden, and where the eye is. Bar numbers start from the number saved by
 EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
 
 **Editing the grid and the chords.** The editor of EUTERIA (Python) is in two places,
@@ -336,10 +336,29 @@ name) and **Sync**. The take is lined up with the
 song from what the engine was playing while each sample came in, minus the delay of the
 devices that the browser reports (the sound on its way to the ears, the input on its way
 to the page). What it does not report, as the delay of Bluetooth headphones or speakers
-(a few hundred milliseconds), is corrected with *Sync*: it moves the take earlier (−) or
+(a few hundred milliseconds), or the buffers of a guitar processor on USB (about 100 ms
+with a Tone Master Pro), is corrected with *Sync*: it moves the take earlier (−) or
 later (+), in milliseconds, and the next takes from the same input get the same *Sync*,
 so it is set once per setup. Wired headphones, or the outputs of an audio interface,
 keep the delay small and known.
+
+**Align** (2.6.0) finds that *Sync* by itself. A take holds only what was played, not the
+song, so it cannot be lined up as the stems are, by comparing it with the mix; it is
+lined up with the bars instead. Once a take is recorded in a song with bars, the attacks
+of its notes are found (the energy of the signal's slope rising by about 7 dB within
+8 ms) and set against the beats of the grid: a part played in time puts most of them at
+the same distance from a beat, or from an eighth note between two beats, straight or
+swung, and that distance is the delay. It is looked for between 100 ms early and 300 ms
+late, within one beat, so that a whole beat cannot be mistaken for it. When the take is
+20 ms or more out, the message after it says by how much, with **Align**: one tap puts the
+take (with the loop on, all its passes) in time and keeps that *Sync* for the next takes
+from the same input, which then come in on time. The answer is given only when one
+distance clearly wins: a solo full of syncopations, or eighth notes as strong on the beat
+as off it, may give none, and the take is then lined up by hand as before; a take is lined
+up with the grid, so a grid off the music puts the take off it too (`src/take-sync.js`).
+Tested on synthetic takes (quarter notes, straight and swung eighths, comping, from 96 to
+240 BPM, from 40 ms early to 220 ms late, a distorted sound) and on the test songs moved
+by known amounts: found within 2 ms, or no answer.
 
 With the loop on, each pass is a take: after the third one the song stops, back at the
 start of the loop (a first pass shorter than a second, when *Record* is pressed near the
@@ -394,15 +413,21 @@ Two modes, chosen from what the device can do:
 - **Listening mode** (phones, tablets, Safari, Firefox): open a project, choose the
   stems, set volumes, change tempo and key, loop, bar grid, chords, record takes, MP3
   export and sharing. A note under the tracks of a song without stems says how to
-  separate it.
+  separate it. Since 2.6.0 a phone or a tablet plays the projects a computer prepared:
+  the bars, chords and sections are seen and edited there, but not detected (see
+  below).
 
-**Tempo and chord detection** (every device, 2.3: only the separation stays with
-computers), on request. A computer with Chrome or Edge and a graphics card WebGPU can use
-finds the beats with the full model of Beat This! on it; a phone or a tablet, another
-browser, or a computer whose graphics card WebGPU cannot use (asked when a detection
-starts), with its small model on the CPU (about 10 MB to download the first time instead of 191, the same
-steps, a few seconds more; a first downbeat found wrong is more likely there, and is put right
-with *Set first beat*). The chords are found by the same model everywhere.
+**Tempo and chord detection** (computers, on request, as the separation). A computer with
+Chrome or Edge and a graphics card WebGPU can use finds the beats with the full model of
+Beat This! on it; another browser, or a computer whose graphics card WebGPU cannot use
+(asked when a detection starts), with its small model on the CPU (about 10 MB to download
+the first time instead of 191, the same steps, a few seconds more; a first downbeat found
+wrong is more likely there, and is put right with *Set first beat*). The chords are found
+by the same model everywhere. A phone or a tablet has no *Detect tempo* nor *Detect
+chords* (2.6.0; from 2.3.0 to 2.5.2 it ran the small model): Safari on iPhone cannot
+give ONNX Runtime the WebAssembly memory it asks for (`RangeError: Out of memory`, then
+`no available backend found`), so the project is prepared on a computer and played
+there with its grid, chords and sections, which can still be edited by hand.
 **Detect tempo**, in the *Song analysis* card (the buttons are *Separate instruments*, on a
 computer, *Detect tempo* and *Detect chords*, in the order they are pressed), finds the beats and the
 downbeats of the song with Beat This! (see *How the tempo detection works*) and makes
@@ -707,7 +732,7 @@ converted to ONNX with a fixed window of 1500 frames (`musetric/beat-this-onnx`,
 storage, as the separation model; it is not part of this repository), on the graphics card.
 The graphics card is asked for when a detection first starts, as for the separation; where
 WebGPU finds none it can use, or only its software stand-in, the computer runs the small
-model, as phones, tablets and the other browsers do: its `small0` model (2.1 million parameters,
+model, as the other browsers do: its `small0` model (2.1 million parameters,
 about 10 MB, in `models/beat-this`, with where it comes from and the fix it needed) on the
 CPU with the WebAssembly build of ONNX Runtime Web (`ort.wasm.min.mjs`, half the download of
 the WebGPU one), in the same windows of 1500 frames; its beats count from a logit of −1.
@@ -744,7 +769,7 @@ that could follow them.
 The chain was tested in the browser with a stand-in model of the same inputs and
 outputs (an onset detector) on songs of known tempo, meter and first downbeat; the full
 model itself was not reachable from the test machine. The small model was run for real, on
-the CPU as a phone runs it: a band at 96 BPM, clicks at 120 and 100 BPM and a waltz of clicks
+the CPU as a computer without WebGPU runs it: a band at 96 BPM, clicks at 120 and 100 BPM and a waltz of clicks
 at 93.5 BPM each got the right tempo, meter and first downbeat (the figures are in
 `models/beat-this/README.md`); a synthetic swing at 140 and 200 BPM the right tempo with the
 first downbeat two beats off; a synthetic slow swing ballad (70 BPM) a wrong tempo, 228 BPM.

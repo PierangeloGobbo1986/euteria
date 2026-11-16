@@ -55,7 +55,7 @@ const HINTS = phone
   ? {
       view: () =>
         tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (they snap to the bars). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
-      noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and tap Set first beat."),
+      noGrid: () => tr("No bars in this song yet: Detect tempo finds them on a computer (Song analysis), and the project saved there brings them here; or put the playhead on the first beat of a bar and tap Set first beat."),
       hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       edit: () =>
         tr("Tap a chord to select its bar; drag along the chords to select several. Type the chord: next goes on to the following bar, an empty chord removes it. Bar renumbers the bars from the one selected. Bar numbers: a tap takes a bar, dragging along them a stretch by the eighth note; Loop loops it, and with the loop on the loop goes there at once. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
@@ -122,18 +122,23 @@ const ownAudio = () => player.tracks.some((t) => !t.take);
 // One message at a time, in a band that opens under the bar at the top (with
 // a song open, under the transport) over the page: always in view, and the
 // page under it does not move. progress: the part done (0 to 1) of the work
-// it tells, drawn as a bar under it. An error stays until closed (✕) or
-// replaced; another message closes after ms, or else when replaced or
-// cleared (notice("")).
+// it tells, drawn as a bar under it. action: {label, run}, a button beside it
+// (Align, for a take out of time), which closes it and runs. An error, or a
+// message with an action, stays until closed (✕) or replaced; another
+// message closes after ms, or else when replaced or cleared (notice("")).
 
 const NOTICE_CLOSE_MS = 220; // the band closing (app.css), with what it said
 let noticeTimer = null;
 let noticeGone = null;
-function notice(text, kind = "", ms = 0, progress = null) {
+let noticeAction = null;
+function notice(text, kind = "", ms = 0, progress = null, action = null) {
   const el = $("notice");
   const band = $("notice-band");
   clearTimeout(noticeTimer);
   clearTimeout(noticeGone);
+  noticeAction = text && action ? action : null;
+  $("notice-action").hidden = !noticeAction;
+  if (noticeAction) $("notice-action").textContent = noticeAction.label;
   if (!text) {
     band.classList.remove("open");
     noticeGone = setTimeout(() => {
@@ -160,9 +165,9 @@ function notice(text, kind = "", ms = 0, progress = null) {
     }
   }
   const error = kind === "error";
-  $("notice-close").hidden = !error;
+  $("notice-close").hidden = !error && !noticeAction;
   band.classList.add("open");
-  if (ms && !error) noticeTimer = setTimeout(() => notice(""), ms);
+  if (ms && !error && !noticeAction) noticeTimer = setTimeout(() => notice(""), ms);
 }
 
 // The band of the messages hangs under the bar at the top: the app bar (on
@@ -2734,13 +2739,14 @@ function updateUi() {
   }
   renderMetronome();
   renderTrainer();
-  // Detect tempo and Detect chords: on any device that can find them (the
-  // phone too), or with what the song kept from an earlier detection.
+  // Detect tempo and Detect chords: on a computer that can find them, or with
+  // what the song kept from an earlier detection. Not on the phone, which
+  // plays the projects a computer prepared (app/detect.js).
   const findBpm = $("find-bpm");
-  findBpm.hidden = !song || !ownAudio() || !(detection.supported || hasBeats(app.analysis));
+  findBpm.hidden = phone || !song || !ownAudio() || !(detection.supported || hasBeats(app.analysis));
   findBpm.disabled = !song || locked || detection.running;
   const findChordsBtn = $("find-chords");
-  findChordsBtn.hidden = !song || !ownAudio() || !(detection.supported || (hasChords(app.analysis) && (app.grid.bars.length > 0 || hasBeats(app.analysis))));
+  findChordsBtn.hidden = phone || !song || !ownAudio() || !(detection.supported || (hasChords(app.analysis) && (app.grid.bars.length > 0 || hasBeats(app.analysis))));
   findChordsBtn.disabled = !song || locked || detection.running;
   // The chords follow the key: shown, and typed, in the key of now.
   app.timeline.setChordShift(player.semitones);
@@ -2840,8 +2846,13 @@ function wire() {
     player.toggle();
   });
 
-  // The band of the messages: ✕ closes an error.
+  // The band of the messages: ✕ closes an error; its button does what it offers.
   $("notice-close").addEventListener("click", () => notice(""));
+  $("notice-action").addEventListener("click", () => {
+    const action = noticeAction;
+    notice("");
+    if (action) action.run();
+  });
 
   // Version
   $("update").addEventListener("click", updateApp);

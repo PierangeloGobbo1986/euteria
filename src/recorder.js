@@ -11,7 +11,9 @@
 //   engine sent out at the same time. The devices add a delay of their own
 //   (the sound on its way to the ears, the input on its way to the page),
 //   which the browser reports in part; what it misses is corrected with the
-//   take's Sync, remembered for the next takes from the same input.
+//   take's Sync, remembered for the next takes from the same input. The
+//   attacks of each take are found here (src/take-sync.js), for the page to
+//   tell how far they are from the bars and offer to put the take in time.
 // - Tempo and key: a take recorded while the song played slower, faster or
 //   transposed is brought back to the song's own tempo and key
 //   (src/render-worker.js), so that it then follows them as the stems do.
@@ -32,6 +34,7 @@ import { takeKey, takeMember } from "./project.js";
 import { resamplePoly } from "./resample.js";
 import { integratedLoudness, takeGain, levelChannels } from "./level.js";
 import { PEAK_BUCKET } from "./peaks.js";
+import { onsets } from "./take-sync.js";
 import { tr } from "./i18n.js";
 
 const INPUT_KEY = "euteria.input";
@@ -579,7 +582,7 @@ export class Recorder {
   }
 
   // The recording as takes of the song: [{key, title, channels, length,
-  // take}], each lined up, at the song's own tempo and key.
+  // take, onsets}], each lined up, at the song's own tempo and key.
   async takesFrom(cur) {
     const player = this.player;
     const begin = cur.begin;
@@ -626,6 +629,8 @@ export class Recorder {
         length = reply.length;
       }
       if (cur.gain >= 0.1) await levelChannels(parts, length, sr, cur.gain);
+      // Its attacks, before its audio goes to the audio thread.
+      const hits = onsets(parts, length, sr);
       const id = newId();
       const take = {
         id,
@@ -644,7 +649,7 @@ export class Recorder {
         crc: null,
       };
       this.encode(take, parts.map((c) => c.slice()), sr);
-      out.push({ key: takeKey(id), title: take.title, channels: parts, length, take });
+      out.push({ key: takeKey(id), title: take.title, channels: parts, length, take, onsets: hits });
     }
     return out;
   }

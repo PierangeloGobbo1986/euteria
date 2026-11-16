@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v33";
+const CACHE = "euteria-app-v34";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -71,6 +71,7 @@ const SHELL = [
   "src/separation.js",
   "src/settings.js",
   "src/stft.js",
+  "src/take-sync.js",
   "src/tempo.js",
   "src/zip.js",
   "src/zipwrite.js",

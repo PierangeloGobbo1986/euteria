@@ -3,12 +3,14 @@
 // the Recording input card (↻ looks for the inputs again, the menu chooses
 // one, the meter beside it shows its level in dB); the take drawn in the
 // timeline while it is recorded; the takes at the bottom of the tracks (✕
-// deletes one, Sync moves it in time); and what Save, Share project and the
-// separation need to write the takes in the song's file. Takes recorded,
+// deletes one, Sync moves it in time); a take recorded late or early against
+// the bars, Align offered to put it in time; and what Save, Share project and
+// the separation need to write the takes in the song's file. Takes recorded,
 // deleted or moved make the song "not saved", as edits to the bars and
 // chords do.
 
 import { Recorder } from "../src/recorder.js";
+import { takesDelayMs } from "../src/take-sync.js";
 import { openZip } from "../src/zip.js";
 import { decodeTake } from "../src/project.js";
 import { h } from "./controls.js";
@@ -17,6 +19,10 @@ import { tr } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const TOLD_KEY = "euteria.syncTold";
+// A take further than this from the bars (ms) is offered Align.
+const ALIGN_MIN_MS = 20;
+const SYNC_STEP_MS = 5; // as the Sync field
+const signed = (ms) => (ms > 0 ? `+${ms}` : ms < 0 ? `−${-ms}` : "0");
 
 // An input's name in the menu: its own, or the one EUTERIA gives it.
 const inputName = (d) => (d.id === "" ? (d.name ? tr("Default ({name})", { name: d.name }) : tr("Default input")) : d.n ? tr("Input {n}", { n: d.n }) : d.label);
@@ -35,9 +41,11 @@ const HOLD_MS = 1500;
 const meterAt = (db) => (Math.max(FLOOR, Math.min(0, db)) - FLOOR) / -FLOOR; // 0 to 1 along the bar
 
 export class RecordingFlow {
-  // ctx: {app, player, phone, notice(text, kind, ms), refreshPage(),
-  // takesChanged() (the takes listed changed: the tracks are drawn again),
-  // liveRow: {color, height} (the take being recorded, in the timeline)}.
+  // ctx: {app, player, phone, notice(text, kind, ms, progress, action)
+  // (action: {label, run}, a button in the band of the messages),
+  // refreshPage(), takesChanged() (the takes listed changed: the tracks are
+  // drawn again), liveRow: {color, height} (the take being recorded, in the
+  // timeline)}.
   constructor(ctx) {
     this.ctx = ctx;
     this.recorder = new Recorder(ctx.player, { phone: ctx.phone });
@@ -159,6 +167,25 @@ export class RecordingFlow {
           ? tr("{first} to {last} added, raised {db} dB to sit with the song.", { first, last, db })
           : tr("{first} to {last} added.", { first, last });
     if (reason === "full") text += ` ${tr("There is no more room for takes in this song.")}`;
+    // Late or early against the bars: Align puts the takes in time.
+    const late = this.delay(tracks);
+    if (late !== null && reason !== "full") {
+      const ms = Math.abs(late);
+      const one = tracks.length === 1;
+      text +=
+        " " +
+        (late > 0
+          ? one
+            ? tr("It seems {ms} ms late against the bars: Align puts it in time.", { ms })
+            : tr("They seem {ms} ms late against the bars: Align puts them in time.", { ms })
+          : one
+            ? tr("It seems {ms} ms early against the bars: Align puts it in time.", { ms })
+            : tr("They seem {ms} ms early against the bars: Align puts them in time.", { ms }));
+      // Where each take goes: its Sync now, less the delay found.
+      const targets = tracks.map((t) => ({ key: t.key, sync: Math.round((t.take.syncMs - late) / SYNC_STEP_MS) * SYNC_STEP_MS }));
+      notice(text, "", 0, null, { label: tr("Align"), run: () => this.align(targets, first, last) });
+      return;
+    }
     let told = false;
     try {
       told = localStorage.getItem(TOLD_KEY) === "1";
@@ -166,6 +193,40 @@ export class RecordingFlow {
     } catch (_) {}
     if (!told) text += ` ${tr("If a take is not in time with the song, move it with its Sync: EUTERIA then applies the same Sync to the next takes from that input.")}`;
     notice(text, reason === "full" ? "error" : "ok", told ? 5000 : 12000);
+  }
+
+  // How many ms the takes of a recording are late (negative: early) against
+  // the bars, from their attacks; null if they are in time (within
+  // ALIGN_MIN_MS), the song has no bars, or the takes give no clear answer.
+  delay(tracks) {
+    const beats = this.ctx.app.grid && this.ctx.app.grid.beats;
+    if (!beats || beats.length < 8) return null;
+    const late = takesDelayMs(tracks, beats);
+    return late !== null && Math.abs(late) >= ALIGN_MIN_MS ? late : null;
+  }
+
+  // Align: each take to the Sync found (targets [{key, sync}]), which the
+  // next takes from the same input start with.
+  align(targets, first, last) {
+    const { player, notice } = this.ctx;
+    if (this.busy) {
+      notice(tr("Wait a moment: the take is being prepared."), "", 4000);
+      return;
+    }
+    let sync = null;
+    for (const { key, sync: ms } of targets) {
+      if (!player.track(key)) continue;
+      this.setSync(key, ms);
+      sync = ms;
+    }
+    if (sync === null) return;
+    notice(
+      targets.length === 1
+        ? tr("{first} aligned: Sync {sync} ms, which the next takes from this input start with.", { first, sync: signed(sync) })
+        : tr("{first} to {last} aligned: Sync {sync} ms, which the next takes from this input start with.", { first, last, sync: signed(sync) }),
+      "ok",
+      6000
+    );
   }
 
   deleteTake(key) {

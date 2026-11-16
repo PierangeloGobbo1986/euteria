@@ -1,9 +1,11 @@
-// Finding the tempo and the chords of a song, when asked, on every device
-// whose browser can run it (the separation alone stays with computers): a
-// computer with Chrome or Edge and a graphics card WebGPU can use runs the
-// full model of Beat This! (about 191 MB) on it; a phone or a tablet, another
-// browser, or a computer whose graphics card WebGPU cannot use, its small
-// model (about 10 MB) on the CPU. Detect tempo (the Song analysis card) finds the beats and the
+// Finding the tempo and the chords of a song, when asked, on a computer (as
+// the separation): with Chrome or Edge and a graphics card WebGPU can use, the
+// full model of Beat This! (about 191 MB) runs on it; in another browser, or
+// on a computer whose graphics card WebGPU cannot use, its small model (about
+// 10 MB) on the CPU. A phone or a tablet plays the projects a computer
+// prepared: Safari on iPhone cannot give ONNX Runtime the memory it
+// asks for ("RangeError: Out of memory"), and the full model is better.
+// Detect tempo (the Song analysis card) finds the beats and the
 // downbeats (Beat This!, src/beats.js) and makes a new grid from them
 // (src/tempo.js); Detect chords (Song analysis) finds the chords (BTC, kept
 // as segments: src/chords.js) and writes them in the bars, finding the tempo
@@ -16,8 +18,9 @@
 // transport (app/app.js notice()). The models (the tempo's, 191 or 10 MB; the
 // chords', 12 MB) are downloaded the first time and kept in the browser.
 //
-// In a browser that cannot run it (no workers, no WebAssembly), nothing
-// runs: the grid is the one the song brings, or one made by hand.
+// On a phone or a tablet, or in a browser that cannot run it (no workers, no
+// WebAssembly), nothing runs: the grid is the one the song brings, or one
+// made by hand.
 
 import { BeatTracker, config, detectionPlan, songAudio } from "../src/beats.js";
 import { gridFromBeats } from "../src/tempo.js";
@@ -80,7 +83,7 @@ export class TempoDetection {
   }
 
   init() {
-    this.supported = detectionSupport();
+    this.supported = !this.ctx.phone && detectionSupport();
     this.light = lightDetection(this.ctx.phone);
   }
 
