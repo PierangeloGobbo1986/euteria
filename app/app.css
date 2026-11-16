@@ -946,11 +946,12 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 .metro-beats .beat.silent { background: transparent; border-style: dashed; color: var(--muted); opacity: .7; text-decoration: line-through; }
 .metro .num { min-width: 0; }
 .metro.off .metro-cycle > *, .metro.count-only .metro-cycle > * { opacity: .55; }
-/* The silent bars off: their switch alone stands out. */
-.metro.mute-off .metro-cycle > :not(.metro-mute-item) { opacity: .55; }
-.metro-mute-item { margin-right: 10px; }
-[data-layout=phone] .metro-mute-item { flex-basis: 100%; margin-right: 0; }
-[data-layout=phone] .metro-mute-item .metro-on { align-self: flex-start; }
+/* Silent bars, a part of the card as Speed training is (under the count-in, a
+   line over it): its switch first; off, the rest of its row dimmed. */
+.metro > .metro-mute-sub { margin-top: 4px; }
+.metro.mute-off .metro-cycle > :not(#metro-mute-on) { opacity: .55; }
+#metro-mute-on { margin-right: 16px; }
+[data-layout=phone] #metro-mute-on { margin-right: 8px; }
 /* The count-in and what the silent bars silence: menus as wide as their longest
    choice ("2 bars"). */
 .metro .num.metro-count .value, .metro .num.metro-mode .value, .metro .num.metro-silence .value { min-width: 0; padding: 0 2px; }

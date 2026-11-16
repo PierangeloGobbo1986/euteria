@@ -38,8 +38,11 @@
  * the song comes in before: its pickup, or a start from inside a bar): those
  * before the start point with the song silent, then the song starts on time
  * with them, and those still to come go on over the song up to that
- * downbeat, the metronome off too. "emission" runs through the silent part
- * as through the stretcher's delay.
+ * downbeat, the metronome off too. A moment of silence comes before its
+ * first click, so that the click is heard: the way out to the ears
+ * (Bluetooth earphones, a phone's audio) may wake up a little late, and
+ * would swallow it. "emission" runs through the silent part as through the
+ * stretcher's delay.
  */
 (function () {
   "use strict";
@@ -92,6 +95,11 @@
   const CLICK_ATTACK = 0.001;
   const CLICK_DECAY = 0.024;
   const CLICK_SECONDS = 0.12;
+  // Silence before the first click of a count-in (output seconds).
+  const COUNT_WAKE_SECONDS = 0.4;
+  // A click of the count-in's first beat may come this early (song seconds:
+  // clicks moved onto the beats found); one before that is not the count-in's.
+  const COUNT_EARLY_SECONDS = 0.1;
   const MAX_CLICK_VOLUME = 2;
   // The tracks of a silent bar fade out and back in over FADE_SECONDS, ending
   // LEAD_SECONDS before the bar line: the first beat of a silent bar is
@@ -230,6 +238,8 @@
       this.lead = (FADE_SECONDS + LEAD_SECONDS) * sampleRate; // output samples
       this.seed = (Math.random() * 4294967296) >>> 0; // for the bars silent at random
       this.preroll = 0; // output samples of count-in left
+      this.countFrom = Infinity; // song samples: the count-in's clicks from here…
+      this.countEnd = -Infinity; // …up to here (none without a count-in)
       this.passes = 0; // times the loop went round (for the speed trainer)
     }
 
@@ -321,10 +331,13 @@
       const bars = Math.max(0, Math.min(4, Math.round(+countIn || 0)));
       if (bars && this.metro.bar > 0 && this.metro.times.length) {
         const end = countEnd !== null && countEnd !== undefined && Number.isFinite(+countEnd) ? Math.round(+countEnd * this.sampleRate) : this.out;
-        // The part before the start point, in whole audio blocks of 128
-        // samples, so that it ends with a block.
-        const samples = Math.max(0, (this.out - (end - bars * this.metro.bar)) / this.rate - this.delay);
+        // The part before the start point, from the count-in's first beat
+        // (and the silence before it), in whole audio blocks of 128 samples,
+        // so that it ends with a block.
+        const from = end - bars * this.metro.bar;
+        const samples = Math.max(0, (this.out - from) / this.rate - this.delay) + COUNT_WAKE_SECONDS * this.sampleRate;
         this.preroll = Math.ceil(samples / 128) * 128;
+        this.countFrom = from - COUNT_EARLY_SECONDS * this.sampleRate;
         this.countEnd = end;
         this._findClick(this.emission());
       }
@@ -410,6 +423,7 @@
       this.limitHold = 0;
       this.frac = 0;
       this.preroll = 0;
+      this.countFrom = Infinity;
       this.countEnd = -Infinity;
       this.barsHeard = 0;
       this.barSilent = false;
@@ -597,7 +611,7 @@
         while (this.nextClick < t.length && t[this.nextClick] <= pos) {
           const k = this.nextClick++;
           if (pos - t[k] > r * 2) continue; // passed while jumping
-          if (countIn && t[k] >= this.countEnd) continue; // past the count-in's downbeat
+          if (countIn && (t[k] < this.countFrom || t[k] >= this.countEnd)) continue; // before the count-in (its silence), or past its downbeat
           if (metro.firsts[k]) {
             this.barsHeard++;
             if (!countIn) {

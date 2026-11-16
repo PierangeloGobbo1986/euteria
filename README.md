@@ -436,10 +436,11 @@ meter in *Song analysis*. The second row has the *Count-in* (*Off*, 1 or 2 bars;
 default) of clicks before the song starts, before playback and before a take, with the
 beats as set, heard only with the metronome *On* (the same for the key M and the round
 button), and *Plays*, *Whole song* (the default) or *Count-in only* (the metronome counts
-the bars in, then goes quiet). A third row, which applies to the whole song only (it is
-dimmed with the count-in only), starts with *Silent bars*, a switch *On*/*Off* of its own
-(2.5; *Off* with every song, the rest of the row dimmed), then has *Clicks for* N *bars,
-then mute for* M *bars* (*bar* for 1), *Random 💀*, and *What to mute* over its menu: *Metronome and tracks* (the default: the band
+the bars in, then goes quiet). Under a line, *Silent bars* is a part of the card of its own,
+a mode of the metronome as *Speed training* under it is (2.5.1), for the whole song only
+(dimmed with the count-in only): its switch *On*/*Off* (2.5; *Off* with every song, the rest
+of its row dimmed), then *Clicks for* N *bars, then mute for* M *bars* (*bar* for 1),
+*Random 💀*, and *What to mute* over its menu: *Metronome and tracks* (the default: the band
 drops out, to keep the time alone), *Metronome only* or *Tracks only* (the click goes on).
 *Random* makes the muted bars come unannounced, as many on the whole, the first N bars
 always on; while it is on, a line under the row says so with the numbers set. The bars
@@ -451,7 +452,10 @@ pickup (a note on beat 4, or an upbeat) has it sound with the last beats of the 
 and bar 1 comes in on the next downbeat. From the playhead later in the song, or from the
 start of a loop, it ends on the downbeat of the bar that starts there, or else of the next
 one, going on over the song up to it (from beat 3, beats 1 and 2 alone, then the song with
-3 and 4). The volume, the metronome's own tempo, the beats (per meter) and *What to mute* are
+3 and 4). A moment of silence (0.4 s) comes before its first click (2.5.1), so that the
+click is heard even when the way out to the ears wakes up a little late (Bluetooth
+earphones, a phone): otherwise the first click could be lost, and the count-in would seem to
+end on the song's first downbeat. The volume, the metronome's own tempo, the beats (per meter) and *What to mute* are
 kept in this browser, the same for every song. The rest is not: every song opens with the
 metronome *Off*, a count-in of 1 bar, *Whole song* and the silent bars *Off* (when switched
 on: *Clicks for* 4 *bars, then mute for* 2, *Random* off), whatever was set before (2.1.2: a
@@ -582,7 +586,8 @@ output time before the song starts: the clicks of the bars before the downbeat i
 (`Player._countStart()`: the first downbeat of the clicks from half a beat before where the
 song comes in), with the beats as set, the song silent up to the start point, then the song
 on time with them, the clicks still to come going on over it up to that downbeat (with the
-metronome off too, checked offline: a pickup on beat 4 with the fourth click, within 4 ms);
+metronome off too, checked offline: a pickup on beat 4 with the fourth click, within 4 ms),
+after 0.4 s of silence (the clicks of the grid before the count-in's first beat left out);
 a take recorded with it begins where playback starts. The start point of a count-in that
 begins before the song's sound is moved to 50 ms before it (`Player.firstSound()`: the first
 three consecutive 5 ms envelope buckets above 4% of the 99th percentile of the tracks, takes

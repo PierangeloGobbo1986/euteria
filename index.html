@@ -315,25 +315,27 @@
               <div class="num metro-mode"><div class="value"><select id="metro-mode"></select></div></div>
             </div>
           </div>
-          <div class="metro-row metro-cycle-row">
-            <div class="metro-cycle">
-              <!-- The silent bars: off with every song; on, the bars alternate as set here. -->
-              <div class="metro-stack metro-mute-item">
-                <span class="stack-label" aria-hidden="true">Silent bars</span>
+          <p id="metro-mode-hint" class="hint" hidden></p>
+          <p id="metro-hint" class="hint" hidden></p>
+          <!-- Silent bars, a mode of the metronome as Speed training is: off with every song;
+               on, the bars with the clicks and the silent ones alternate as set here (or come
+               at random), silencing the metronome, the tracks or both. -->
+          <div class="metro-sub metro-mute-sub">
+            <h3 class="card-sub">Silent bars</h3>
+            <div class="metro-row metro-cycle-row">
+              <div class="metro-cycle">
                 <button id="metro-mute-on" type="button" class="metro-on" aria-pressed="false" aria-label="Silent bars on or off" title="Silent bars: the metronome clicks for some bars, then is silent for some, to check that you keep the time"><span class="dot" aria-hidden="true"></span><span id="metro-mute-state">Off</span></button>
-              </div>
-              <span class="metro-group"><span class="mini-label">Clicks for</span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label">bars,</span></span></span>
-              <span class="metro-group"><span class="mini-label">then mute for</span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
-              <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">Random 💀</button>
-              <div class="metro-stack">
-                <label class="stack-label" for="metro-silence">What to mute</label>
-                <div class="num metro-silence"><div class="value"><select id="metro-silence"></select></div></div>
+                <span class="metro-group"><span class="mini-label">Clicks for</span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label">bars,</span></span></span>
+                <span class="metro-group"><span class="mini-label">then mute for</span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
+                <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">Random 💀</button>
+                <div class="metro-stack">
+                  <label class="stack-label" for="metro-silence">What to mute</label>
+                  <div class="num metro-silence"><div class="value"><select id="metro-silence"></select></div></div>
+                </div>
               </div>
             </div>
+            <p id="metro-random-hint" class="hint" hidden></p>
           </div>
-          <p id="metro-mode-hint" class="hint" hidden></p>
-          <p id="metro-random-hint" class="hint" hidden></p>
-          <p id="metro-hint" class="hint" hidden></p>
         </div>
         <!-- Speed training: with the loop on, the speed goes up by a step every few passes
              of the loop, up to a target. -->
