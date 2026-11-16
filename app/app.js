@@ -1803,8 +1803,8 @@ function saveTitle() {
 }
 
 // Messages of Save and Share project: at the top, and in the card.
-function reportSave(text, kind = "", ms = 6000) {
-  notice(text, kind, ms);
+function reportSave(text, kind = "", ms = 6000, action = null) {
+  notice(text, kind, ms, null, action);
   app.projectMessage = { text, kind, until: ms ? performance.now() + ms : Infinity };
   scheduleUi();
   if (ms) setTimeout(scheduleUi, ms + 50);
@@ -1908,15 +1908,44 @@ async function savedInFile(manifest, rename) {
   if (!rename) return { text: tr("Saved in {name}.", { name }), kind: "ok", ms: 6000 };
   if (rename.moved) return { text: tr("Saved: the file is now {name}.", { name }), kind: "ok", ms: 6000 };
   if (rename.why === "declined") return kept(tr("Saved in {name}: the file keeps its name.", { name }));
+  // Refused, and the save dialog could not open in that click (a permission
+  // asked first may have used it up): Rename… opens it with a click of its own.
+  if ("showSaveFilePicker" in window) {
+    return { text: tr("Saved in {name}. Rename gives the file the project's name, {wanted}.", { name, wanted }), kind: "", ms: 0, action: { label: tr("Rename…"), run: renameWithDialog } };
+  }
   if (rename.why === "browser") return kept(tr("Saved in {name}. This browser cannot rename files: rename it {wanted} in its folder if you like.", { name, wanted }));
   if (rename.why === "taken") return kept(tr("Saved in {name}. It was not renamed {wanted}: a file with that name may already be in its folder.", { name, wanted }));
   return kept(tr("Saved in {name}. It could not be renamed {wanted}: {error}", { name, wanted, error: rename.error }));
 }
 
+// Rename…: the save dialog in the file's folder, the project's name filled
+// in, opened by a click of its own; the project written in the file chosen,
+// then the old file removed (saveSong()).
+async function renameWithDialog() {
+  const cur = app.current;
+  const song = player.song;
+  if (!song || !cur || !cur.handle || player.busy || app.saving) return;
+  let picked;
+  try {
+    picked = await window.showSaveFilePicker({
+      suggestedName: `${safeName(song.title)}.euteria`,
+      startIn: cur.handle,
+      types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") return;
+    reportSave(tr("The save dialog could not open: {error}", { error: (error && error.message) || error }), "error", 0);
+    return;
+  }
+  if (await picked.isSameEntry(cur.handle)) return;
+  await saveSong({ renameTo: picked });
+}
+
 // Resolves with how it was saved ("library", "file", "new-file", "copy"),
 // or false. quiet: no message when it worked. made: the project just shared
-// (projectNow()), saved as it is.
-async function saveSong({ quiet = false, made = null } = {}) {
+// (projectNow()), saved as it is. renameTo: the file chosen in the save
+// dialog of Rename… (renameWithDialog()), which takes the project's place.
+async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
   const song = player.song;
   const cur = app.current;
   if (!song || !cur || player.busy || app.saving) return false;
@@ -1929,7 +1958,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
   // The project's name is its file's too (in the library, its entry's; a
   // copy's).
   const wanted = `${safeName(song.title)}.euteria`;
-  const told = (m) => (quiet && m.kind === "ok") || reportSave(m.text, m.kind, m.ms);
+  const told = (m) => (quiet && m.kind === "ok") || reportSave(m.text, m.kind, m.ms, m.action || null);
   let mode = saveMode();
   let target = null;
   // What needs the click comes first: the permission to write, the place,
@@ -1938,7 +1967,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
     mode = "copy";
     reportSave(tr("EUTERIA may not write the file: a copy is downloaded instead."));
   }
-  let rename = mode === "file" && cur.handle.name !== wanted ? await renameFile(cur.handle, wanted) : null;
+  let rename = mode === "file" && !renameTo && cur.handle.name !== wanted ? await renameFile(cur.handle, wanted) : null;
   // The rename refused: the save dialog, in the file's folder with the new
   // name. Confirmed, the project is written there and the old file removed
   // (a rename in two steps); not, it is saved where it is, and not asked
@@ -1968,6 +1997,11 @@ async function saveSong({ quiet = false, made = null } = {}) {
         rename = { why: "declined" };
       }
     }
+  }
+  if (renameTo && mode === "file") {
+    target = renameTo;
+    replaces = cur.handle;
+    mode = "new-file";
   }
   if (mode === "new-file" && !target) {
     try {

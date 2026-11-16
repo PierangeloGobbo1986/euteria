@@ -253,7 +253,11 @@ folder, with the new name filled in (2.6.2): confirmed, the project is written t
 whole and read back, then the old file is removed (a rename in two steps; the same
 project, its settings and its place in the songs opened kept); cancelled, or the same file
 chosen, the project is saved in its file as before, the message says the file keeps its
-name, and the dialog is not opened again for that name until the page is. Where Chrome
+name, and the dialog is not opened again for that name until the page is. Should the
+dialog not open in the click of *Save* (Chrome opens it only right after a click, and a
+permission asked for first may use that up), the project is saved in its file and the
+message offers *Rename…* (2.6.3), whose own click opens the dialog and does the same;
+were the dialog refused again, the message says why. Where Chrome
 allows it, the file is simply renamed first, right after the click, then written
 (2.6.1). A file whose name is not the project's (renamed before 2.5.2, or by hand) takes
 it at any *Save*, even with nothing else changed.
