@@ -237,7 +237,11 @@ Library or another song then asks, as EUTERIA (Python) does: *Save*, *Don't save
 song goes back to what its file has) or *Cancel*. A song opens with the name its file
 gives it (an audio file, its file name); a click or a tap on the name at the top turns it
 into a field to rename the project (Return or leaving the field keeps the new name,
-Escape the old one). A new name is a change to save, as the bars and chords are.
+Escape the old one). A new name is a change to save, as the bars and chords are, and
+on *Save* the file takes it too (2.5.2): in its folder in Chrome and Edge (the browser
+moves the file to the new name; not onto a file EUTERIA may write there, and if the
+browser cannot move it or refuses, the file keeps its name and the message says so), in
+the library on the phone, and in a copy downloaded or shared.
 **Save** (top right, Ctrl+S or ⌘S) writes the name, the grid, the chords and the
 practice settings (tempo, key, loop, volumes, tracks
 on, the order of the tracks) in the song's `manifest.json`, in the fields EUTERIA

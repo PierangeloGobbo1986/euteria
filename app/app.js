@@ -15,7 +15,7 @@ import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted,
 import { openZip } from "../src/zip.js";
 import { manifestPatch, buildProject, zipLayout, composeEdited, composeProject, crc32Blob } from "../src/zipwrite.js";
 import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes } from "../src/manifest.js";
-import { recentSupported, listRecent, addRecent, removeRecent, recentFile } from "../src/recent.js";
+import { recentSupported, listRecent, addRecent, removeRecent, recentFile, recentId, recentWritable } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
 import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid } from "../src/grid.js";
@@ -1855,6 +1855,44 @@ function savedInPlace(file, manifest) {
   showSongMeta();
 }
 
+// A project written in its file: read back, then, if the project's name
+// changed, the file takes the new name in its folder (Chrome and Edge move
+// files). Resolves with the message: {text, kind, ms}.
+async function savedInFile(manifest, renamed) {
+  const cur = app.current;
+  const song = player.song;
+  const handle = cur.handle;
+  let saved = await handle.getFile();
+  await checkSaved(saved, manifest.project_id);
+  const name = saved.name;
+  const wanted = `${safeName(song.title)}.euteria`;
+  let message = { text: tr("Saved in {name}.", { name }), kind: "ok", ms: 6000 };
+  let id = null;
+  if (renamed && name !== wanted) {
+    const kept = (text) => ({ text, kind: "", ms: 12000 });
+    if (typeof handle.move !== "function") {
+      message = kept(tr("Saved in {name}. This browser cannot rename files: rename it {wanted} in its folder if you like.", { name, wanted }));
+    } else if (await recentWritable(wanted, handle)) {
+      // Moved onto a file the app may write, the file would replace it.
+      message = kept(tr("Saved in {name}. It was not renamed {wanted}: a file with that name may already be in its folder.", { name, wanted }));
+    } else {
+      id = await recentId(handle);
+      try {
+        await handle.move(wanted);
+        saved = await handle.getFile();
+        message = { text: tr("Saved: the file is now {name}.", { name: saved.name }), kind: "ok", ms: 6000 };
+      } catch (error) {
+        id = null;
+        message = kept(tr("Saved in {name}. It could not be renamed {wanted}: {error}", { name, wanted, error: (error && error.message) || error }));
+      }
+    }
+  }
+  savedInPlace(saved, manifest);
+  await addRecent(handle, { title: song.title, size: saved.size, id });
+  renderRecent();
+  return message;
+}
+
 // Resolves with how it was saved ("library", "file", "new-file", "copy"),
 // or false. quiet: no message when it worked. made: the project just shared
 // (projectNow()), saved as it is.
@@ -1868,6 +1906,10 @@ async function saveSong({ quiet = false, made = null } = {}) {
   }
   editor.commitInput();
   const say = (text, kind) => quiet || reportSave(text, kind);
+  // A new name: the file takes it too (in the library, its entry).
+  const renamed = retitled();
+  const wanted = `${safeName(song.title)}.euteria`;
+  const told = (m) => (quiet && m.kind === "ok") || reportSave(m.text, m.kind, m.ms);
   let mode = saveMode();
   let target = null;
   // What needs the click comes first: the permission to write, the place.
@@ -1970,7 +2012,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
       const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), { manifestBytes: bytes, drop: recording.dropMembers, add: recording.membersToAdd() });
       if (mode === "library") {
         const entry = library.get(cur.entryId);
-        await library.replace(entry, blob, entry.name, "project");
+        await library.replace(entry, blob, renamed ? wanted : entry.name, "project");
         const saved = await library.file(library.get(cur.entryId));
         await checkSaved(saved, manifest.project_id);
         savedInPlace(saved, manifest);
@@ -1984,18 +2026,14 @@ async function saveSong({ quiet = false, made = null } = {}) {
           await w.abort().catch(() => {});
           throw error;
         }
-        const saved = await cur.handle.getFile();
-        await checkSaved(saved, manifest.project_id);
-        savedInPlace(saved, manifest);
-        await addRecent(cur.handle, { title: song.title, size: saved.size });
-        renderRecent();
-        say(tr("Saved in {name}.", { name: saved.name }), "ok");
+        told(await savedInFile(manifest, renamed));
       } else {
-        downloadBlob(blob, cur.name);
+        const name = renamed ? wanted : cur.name;
+        downloadBlob(blob, name);
         editor.saved(false);
         recording.saved(false);
         rememberSettings();
-        say(tr("Downloaded a copy with the changes: {name}.", { name: cur.name }), "ok");
+        say(tr("Downloaded a copy with the changes: {name}.", { name }), "ok");
       }
       return mode;
     }
@@ -2003,6 +2041,7 @@ async function saveSong({ quiet = false, made = null } = {}) {
       const entry = library.get(cur.entryId);
       const { at, bytes: tail } = await manifestPatch(zip, bytes);
       await library.patch(entry, at, tail);
+      if (renamed) library.update(cur.entryId, { name: wanted });
       const saved = await library.file(library.get(cur.entryId));
       await checkSaved(saved, manifest.project_id);
       savedInPlace(saved, manifest);
@@ -2018,18 +2057,14 @@ async function saveSong({ quiet = false, made = null } = {}) {
         await w.abort().catch(() => {});
         throw error;
       }
-      const saved = await cur.handle.getFile();
-      await checkSaved(saved, manifest.project_id);
-      savedInPlace(saved, manifest);
-      await addRecent(cur.handle, { title: song.title, size: saved.size });
-      renderRecent();
-      say(tr("Saved in {name}.", { name: saved.name }), "ok");
+      told(await savedInFile(manifest, renamed));
     } else {
-      downloadBlob(composeEdited(file, await zipLayout(zip), { manifestBytes: bytes }), cur.name);
+      const name = renamed ? wanted : cur.name;
+      downloadBlob(composeEdited(file, await zipLayout(zip), { manifestBytes: bytes }), name);
       editor.saved(false);
       recording.saved(false);
       rememberSettings();
-      say(tr("Downloaded a copy with the changes: {name}.", { name: cur.name }), "ok");
+      say(tr("Downloaded a copy with the changes: {name}.", { name }), "ok");
     }
     return mode;
   } catch (error) {
@@ -2125,7 +2160,7 @@ function projectNow(as = null) {
   const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, title);
   if (as) manifest.project_id = as.id;
   const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: recording.dropMembers, add });
-  return { manifest, blob, file: new File([blob], as ? `${safeName(title)}.euteria` : cur.name, { type: "application/zip" }) };
+  return { manifest, blob, file: new File([blob], as || retitled() ? `${safeName(title)}.euteria` : cur.name, { type: "application/zip" }) };
 }
 
 // ----- new projects: an empty one, or the song saved as a new project ------------------
@@ -3036,8 +3071,9 @@ function wireHelp() {
 // The song's name at the top is the project's: a click (a tap) on it turns it
 // into a field to rename it. Return or leaving the field keeps the new name,
 // Escape the old one. A new name is a change to save, as the bars and chords
-// are: Save writes it in the project (a song saved as a project for the first
-// time also takes it as its file's name), Don't save brings back the file's.
+// are: Save writes it in the project and the file takes it as its name (in
+// its folder with Chrome and Edge, in the library, in a copy downloaded or
+// shared), Don't save brings back the file's.
 
 function showTitle() {
   const song = player.song;

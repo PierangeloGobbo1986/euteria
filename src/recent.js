@@ -54,12 +54,14 @@ export async function listRecent() {
   }
 }
 
-export async function addRecent(handle, { title, size }) {
+// id: the entry to put it in (a file renamed: its old handle no longer
+// matches it), else the entry of the same file, or a new one.
+export async function addRecent(handle, { title, size, id = null }) {
   if (!recentSupported() || !handle) return;
   try {
     const all = await listRecent();
-    let id = null;
     for (const item of all) {
+      if (id) break;
       try {
         if (await item.handle.isSameEntry(handle)) id = item.id;
       } catch (_) {}
@@ -71,6 +73,30 @@ export async function addRecent(handle, { title, size }) {
       for (const old of drop) store.delete(old);
     });
   } catch (_) {}
+}
+
+// The id of the entry of `handle`, or null.
+export async function recentId(handle) {
+  for (const item of await listRecent()) {
+    try {
+      if (await item.handle.isSameEntry(handle)) return item.id;
+    } catch (_) {}
+  }
+  return null;
+}
+
+// Whether a file of the list other than `handle` is named `name` (letter
+// case aside) and may be written by the app: Chrome lets a file moved onto
+// such a file replace it, and the list cannot tell their folders apart.
+export async function recentWritable(name, handle) {
+  const key = (n) => String(n).normalize("NFC").toLowerCase();
+  for (const item of await listRecent()) {
+    try {
+      if (key(item.handle.name) !== key(name) || (await item.handle.isSameEntry(handle))) continue;
+      if ((await item.handle.queryPermission({ mode: "readwrite" })) === "granted") return true;
+    } catch (_) {}
+  }
+  return false;
 }
 
 export async function removeRecent(id) {
