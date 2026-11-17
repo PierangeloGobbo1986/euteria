@@ -7,6 +7,7 @@
 
 import { openZip } from "./zip.js";
 import { alignOriginal } from "./align.js";
+import { clipsFromManifest, clipsEnd } from "./clips.js";
 import { tr } from "./i18n.js";
 
 export const STEM_NAMES = ["vocals", "drums", "bass", "guitar", "piano", "other"];
@@ -253,10 +254,14 @@ export async function openProject(file, context, onProgress = () => {}) {
     t.on = t.key in enabled ? !!enabled[t.key] : true;
     t.gain = Math.min(BOOST_CEILING, Math.max(0, volumes[t.key] ?? 1));
   }
+  // The clips of the tracks cut in EUTERIA Web (src/clips.js): seconds in
+  // audio.clips, by track.
+  const cuts = audio.clips && typeof audio.clips === "object" ? audio.clips : {};
+  for (const t of [...tracks, ...takes]) t.clips = clipsFromManifest(cuts[t.key], context.sampleRate, t.length);
   // Its length: its own audio's (or the empty project's), or longer where a
-  // take recorded past the end goes on.
+  // take recorded past the end goes on (or a clip moved past it).
   const own = Math.max(Math.round(ownSeconds * context.sampleRate), ...tracks.map((t) => t.length));
-  const length = Math.max(own, ...takes.map((t) => t.start + t.length));
+  const length = Math.max(own, ...[...tracks, ...takes].map((t) => (t.start || 0) + clipsEnd(t.clips, t.length)));
   return {
     manifest,
     title: manifest.title || songName(manifest),

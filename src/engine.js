@@ -97,7 +97,7 @@ export class Engine {
   addTrack(track) {
     const channels = track.channels.map((a) => a.buffer);
     this.send(
-      { type: "track", key: track.key, bus: track.bus, channels, length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start: track.start || 0 },
+      { type: "track", key: track.key, bus: track.bus, channels, length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start: track.start || 0, clips: track.clips || null },
       channels
     );
   }

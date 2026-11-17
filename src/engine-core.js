@@ -29,6 +29,12 @@
  * with no audio of its own); while a take is recorded (`endless`) playback
  * goes on past its end, and the take makes the song longer.
  *
+ * A track may be cut in clips (src/clips.js): only the parts of its audio
+ * they keep play, each where it is placed, faded in and out as it says. An
+ * edge that cuts the sound (a part of the track left out, or moved) fades
+ * over EDGE_FADE_SECONDS, so that it does not click; two clips that go on
+ * from one another, as a cut leaves them, play on without a break.
+ *
  * The metronome clicks at the song times it is given (the beats of the grid,
  * or the beats found in the song: src/metronome.js), as they come out, so it
  * follows the tempo, the loop and every jump with the song; it is mixed after
@@ -46,6 +52,11 @@
  */
 (function () {
   "use strict";
+
+  // The fade of an edge that cuts the sound (see above), and the shape of
+  // every fade: a raised cosine, smooth at both ends.
+  const EDGE_FADE_SECONDS = 0.004;
+  const fadeShape = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u);
 
   // Soft limiter, as _soft_limit() in EUTERIA (Python): untouched up to 0.9,
   // then a tanh knee that never reaches 1.0. It keeps a track raised over 100%
@@ -245,8 +256,10 @@
 
     // ----- tracks -----------------------------------------------------------
 
-    addTrack(key, bus, channels, length, gain, on, start) {
-      this.tracks.set(key, {
+    // clips: [{from, to, at, fadeIn, fadeOut}] in samples (src/clips.js), or
+    // null: the track whole.
+    addTrack(key, bus, channels, length, gain, on, start, clips = null) {
+      const t = {
         key,
         bus: bus === "drums" ? "drums" : "pitched",
         ch: channels,
@@ -254,8 +267,43 @@
         gain: gain === undefined ? 1 : gain,
         on: on === undefined ? true : !!on,
         start: Math.round(+start || 0),
-      });
+        clips: Array.isArray(clips) ? clips : null,
+        parts: null,
+      };
+      this._parts(t);
+      this.tracks.set(key, t);
       this._lengthChanged();
+    }
+
+    // What a track plays: its clips (or itself whole) as parts {from, to (its
+    // own samples), s (the song sample of `from`), fi, fo (the samples faded
+    // in and out)}, an edge that cuts the sound faded over EDGE_FADE_SECONDS.
+    _parts(t) {
+      const edge = Math.max(1, Math.round(EDGE_FADE_SECONDS * this.sampleRate));
+      const clips = t.clips || [{ from: 0, to: t.length, at: 0, fadeIn: 0, fadeOut: 0 }];
+      const parts = [];
+      for (let i = 0; i < clips.length; i++) {
+        const c = clips[i];
+        const from = Math.max(0, Math.round(c.from));
+        const to = Math.min(t.length, Math.round(c.to));
+        const n = to - from;
+        if (n <= 0) continue;
+        const at = Math.round(c.at);
+        const prev = clips[i - 1];
+        const next = clips[i + 1];
+        // Going on from the clip before, or into the next, as the audio does.
+        const joinedIn = !!prev && Math.round(prev.to) === from && Math.round(prev.at + prev.to - prev.from) === at;
+        const joinedOut = !!next && Math.round(next.from) === to && Math.round(c.at + c.to - c.from) === Math.round(next.at);
+        let fi = Math.max(Math.round(c.fadeIn || 0), from > 0 && !joinedIn ? edge : 0);
+        let fo = Math.max(Math.round(c.fadeOut || 0), to < t.length && !joinedOut ? edge : 0);
+        if (fi + fo > n) {
+          const k = n / (fi + fo);
+          fi = Math.floor(fi * k);
+          fo = Math.floor(fo * k);
+        }
+        parts.push({ from, to, s: t.start + at, fi, fo });
+      }
+      t.parts = parts;
     }
 
     removeTrack(key) {
@@ -289,8 +337,10 @@
       if (!t) return;
       if (params.gain !== undefined) t.gain = Math.max(0, +params.gain);
       if (params.on !== undefined) t.on = !!params.on;
-      if (params.start !== undefined) {
-        t.start = Math.round(+params.start || 0);
+      if (params.start !== undefined || params.clips !== undefined) {
+        if (params.start !== undefined) t.start = Math.round(+params.start || 0);
+        if (params.clips !== undefined) t.clips = Array.isArray(params.clips) ? params.clips : null;
+        this._parts(t);
         this._lengthChanged();
         return;
       }
@@ -305,7 +355,7 @@
 
     _lengthChanged() {
       let n = this.minLength;
-      for (const t of this.tracks.values()) n = Math.max(n, t.start + t.length);
+      for (const t of this.tracks.values()) for (const p of t.parts) n = Math.max(n, p.s + p.to - p.from);
       this.length = n;
       this._tracksChanged();
     }
@@ -701,26 +751,59 @@
       for (let j = 0; j < list.length; j++) {
         const t = list[j];
         if (t.bus !== bus.name || !t.on || t.gain <= 0) continue;
-        // Song samples a..b, the track's own samples a - start..b - start.
-        const s = t.start;
-        const a = Math.max(x, s);
-        const b = Math.min(x + len, s + t.length);
-        if (b <= a) continue;
-        const L = t.ch[0];
-        const R = t.ch[1] || t.ch[0];
-        const g = t.gain / 32768;
-        let o = offset + (a - x);
-        const e = b - s;
-        if (t.gain <= 1) {
-          for (let i = a - s; i < e; i++, o++) {
-            dst0[o] += L[i] * g;
-            dst1[o] += R[i] * g;
+        const parts = t.parts;
+        for (let k = 0; k < parts.length; k++) this._mixPart(t, parts[k], x, len, dst0, dst1, offset);
+      }
+    }
+
+    // Part p of track t where it meets song samples x..x + len, into dst0 and
+    // dst1 from `offset`: its own samples from p.from, the first at song
+    // sample p.s, faded in over p.fi and out over p.fo.
+    _mixPart(t, p, x, len, dst0, dst1, offset) {
+      const n = p.to - p.from;
+      const a = Math.max(x, p.s);
+      const b = Math.min(x + len, p.s + n);
+      if (b <= a) return;
+      const L = t.ch[0];
+      const R = t.ch[1] || t.ch[0];
+      const g = t.gain / 32768;
+      const boost = t.gain > 1;
+      // Song samples a..b: the part's own i = song - p.s, its audio from + i.
+      let o = offset + (a - x);
+      let i = a - p.s;
+      const e = b - p.s;
+      const steady0 = Math.max(i, p.fi);
+      const steady1 = Math.min(e, n - p.fo);
+      for (; i < e; i++, o++) {
+        if (i >= steady0 && i < steady1) {
+          // The part between the fades, at once.
+          const end = steady1;
+          let q = p.from + i;
+          if (boost) {
+            for (; i < end; i++, o++, q++) {
+              dst0[o] += softLimit(L[q] * g);
+              dst1[o] += softLimit(R[q] * g);
+            }
+          } else {
+            for (; i < end; i++, o++, q++) {
+              dst0[o] += L[q] * g;
+              dst1[o] += R[q] * g;
+            }
           }
+          i--;
+          o--;
+          continue;
+        }
+        let w = g;
+        if (i < p.fi) w *= fadeShape((i + 0.5) / p.fi);
+        if (i >= n - p.fo) w *= fadeShape((n - i - 0.5) / p.fo);
+        const q = p.from + i;
+        if (boost) {
+          dst0[o] += softLimit(L[q] * w);
+          dst1[o] += softLimit(R[q] * w);
         } else {
-          for (let i = a - s; i < e; i++, o++) {
-            dst0[o] += softLimit(L[i] * g);
-            dst1[o] += softLimit(R[i] * g);
-          }
+          dst0[o] += L[q] * w;
+          dst1[o] += R[q] * w;
         }
       }
     }

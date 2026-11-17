@@ -126,7 +126,7 @@
       const core = this.core;
       switch (m.type) {
         case "track":
-          core.addTrack(m.key, m.bus, m.channels.map((b) => new Int16Array(b)), m.length, m.gain, m.on, m.start);
+          core.addTrack(m.key, m.bus, m.channels.map((b) => new Int16Array(b)), m.length, m.gain, m.on, m.start, m.clips || null);
           break;
         case "set":
           core.setTrack(m.key, m);
@@ -139,7 +139,7 @@
           const tracks = core.takeTracks(m.keys).map((t) => {
             const channels = t.ch.map((a) => a.buffer);
             transfer.push(...channels);
-            return { key: t.key, bus: t.bus, channels, length: t.length, gain: t.gain, on: t.on, start: t.start };
+            return { key: t.key, bus: t.bus, channels, length: t.length, gain: t.gain, on: t.on, start: t.start, clips: t.clips };
           });
           this.port.postMessage({ type: "reply", id: m.id, tracks }, transfer);
           break;

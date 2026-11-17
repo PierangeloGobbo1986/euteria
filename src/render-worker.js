@@ -44,7 +44,7 @@ self.onmessage = async (event) => {
 async function buildCore(msg) {
   const core = await self.EuteriaEngineCore.create(msg.sampleRate);
   for (const t of msg.tracks) {
-    core.addTrack(t.key, t.bus, t.channels.map((b) => new Int16Array(b)), t.length, t.gain, t.on, t.start);
+    core.addTrack(t.key, t.bus, t.channels.map((b) => new Int16Array(b)), t.length, t.gain, t.on, t.start, t.clips || null);
   }
   core.setRate(msg.rate || 1);
   core.setSemitones(msg.semitones || 0);
@@ -58,7 +58,7 @@ function returnTracks(core) {
   const tracks = core.takeTracks().map((t) => {
     const channels = t.ch.map((a) => a.buffer);
     transfer.push(...channels);
-    return { key: t.key, bus: t.bus, channels, length: t.length, gain: t.gain, on: t.on, start: t.start };
+    return { key: t.key, bus: t.bus, channels, length: t.length, gain: t.gain, on: t.on, start: t.start, clips: t.clips };
   });
   return { tracks, transfer };
 }

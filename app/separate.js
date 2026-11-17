@@ -284,11 +284,14 @@ export class SeparationFlow {
       if (keepOriginal && info) tracks[originalMember] = info;
       const state = this.ctx.practiceState();
       // Every stem is on, the Original Track off, as after a separation in
-      // EUTERIA (Python).
+      // EUTERIA (Python). The stems are cut as the Original Track was (they
+      // are its parts, on its time), the takes keep their clips.
+      const cuts = new Map(state.tracks.map((t) => [t.key, t.clips || null]));
+      const cutAsOriginal = cuts.get("original") || null;
       state.tracks = [
-        { key: "original", on: false, gain: 1 },
-        ...STEM_NAMES.map((k) => ({ key: k, on: true, gain: 1 })),
-        ...player.takes.map((t) => ({ key: t.key, on: t.on, gain: t.gain })),
+        { key: "original", on: false, gain: 1, clips: cutAsOriginal },
+        ...STEM_NAMES.map((k) => ({ key: k, on: true, gain: 1, clips: cutAsOriginal })),
+        ...player.takes.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: cuts.get(t.key) || null })),
       ];
       const grid = app.grid;
       let manifest;

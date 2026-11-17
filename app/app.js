@@ -34,6 +34,7 @@ import { gridFromBeats } from "../src/tempo.js";
 import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { History } from "./history.js";
+import { clipsToManifest, scaleClips, sameClips, clipsOf, clipAt, cut as cutClip, remove as removeClips } from "../src/clips.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
 
@@ -59,6 +60,7 @@ const HINTS = phone
         tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (both by the eighth note, as along the bar numbers). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
       noGrid: () => tr("No bars in this song yet: Detect tempo finds them on a computer (Song analysis), and the project saved there brings them here; or put the playhead on the first beat of a bar and tap Set first beat."),
       hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
+      clips: () => "",
       edit: () =>
         tr("Tap a chord, or a beat, to select its bar; drag along the chords to select several. The boxes are the beats of the bar: type each chord in the box of its beat; next goes on to the following bar, an empty box removes its chord. Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. Bar renumbers the bars from the one selected. Bar numbers: a tap takes a bar, dragging along them a stretch by the eighth note; Loop loops it, and with the loop on the loop goes there at once. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     }
@@ -67,6 +69,8 @@ const HINTS = phone
         tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (both by the eighth note, as along the bar numbers; Alt: freely). Click a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop (L) loops it. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
       noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and press Set first beat."),
       hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
+      clips: () =>
+        tr("The strip at the top of each track holds its clips: click one to select it (shift-click: more), drag it to move it by the eighth note (Alt: freely), its edges to shorten or lengthen it, the knobs at its corners to fade it in and out. C cuts the clips selected at the playhead, X deletes them, Escape lets them go."),
       edit: () =>
         tr("Click a chord, or a beat, and type its chord: the boxes over the timeline are the beats of the bar (Tab: the next beat; Return: the next bar). Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. Shift-click or drag along the chords to select several bars. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Bar numbers: a click takes a bar, dragging along them a stretch by the eighth note, shift-click takes in more bars; Loop (L) loops it, and with the loop on the loop goes there at once. Sections, the top row: click a section or a bar to select it, click the bars selected to name them; with the loop on, a section clicked is looped, shift-click takes in more. Shift-click on the time scale moves an edge of the loop to the nearest beat. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     };
@@ -98,6 +102,7 @@ const app = {
   analysis: null, // the tempo detection of the open song (manifest.music.beat_tracking)
   analysisInFile: false, // it is in the song's file already
   saving: false,
+  clipsSaved: new Map(), // key -> the clips of the track as last saved (null: whole)
   sharing: false, // the share sheet is open
   projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
@@ -116,7 +121,12 @@ const retitled = () => {
 // the takes.
 // A project made here and never saved (a computer: the library keeps it on the phone).
 const unsavedNew = () => !!app.current && !!app.current.created && !app.current.handle && app.current.source !== "library";
-const songDirty = () => !!player.song && (editor.dirty || retitled() || (!!recording && recording.dirty) || unsavedNew());
+// The clips of the tracks (src/clips.js) as the song's file has them
+// (app.clipsSaved), or not.
+const clipsDirty = () => !!player.song && player.tracks.some((t) => !sameClips(t.clips, app.clipsSaved.get(t.key) || null));
+// The tracks: takes recorded, deleted or moved, clips cut, moved or faded.
+const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty();
+const songDirty = () => !!player.song && (editor.dirty || retitled() || tracksDirty() || unsavedNew());
 // The song has audio of its own (an empty project has only its takes, if any).
 const ownAudio = () => player.tracks.some((t) => !t.take);
 
@@ -226,19 +236,19 @@ let leaving = false; // the page is going away on purpose: no question from the 
 
 // What changed since the song was last saved, for the question before
 // leaving it.
-function leaveHint(name, grid, takes) {
-  if (name && grid && takes) return tr("The name of the project, the grid, the bar numbers or the chords, and the takes, changed since the song was last saved.");
+function leaveHint(name, grid, tracks) {
+  if (name && grid && tracks) return tr("The name of the project, the grid, the bar numbers or the chords, and the tracks, changed since the song was last saved.");
   if (name && grid) return tr("The name of the project, the grid, the bar numbers or the chords changed since the song was last saved.");
-  if (name && takes) return tr("The name of the project and the takes changed since the song was last saved.");
+  if (name && tracks) return tr("The name of the project and the tracks changed since the song was last saved.");
   if (name) return tr("The name of the project changed since the song was last saved.");
-  if (grid && takes) return tr("The grid, the bar numbers or the chords, and the takes, changed since the song was last saved.");
-  if (takes) return tr("The takes changed since the song was last saved.");
+  if (grid && tracks) return tr("The grid, the bar numbers or the chords, and the tracks, changed since the song was last saved.");
+  if (tracks) return tr("The tracks changed since the song was last saved.");
   return tr("The grid, the bar numbers or the chords changed since the song was last saved.");
 }
 
 function askToSave() {
   const dialog = $("leave-dialog");
-  $("leave-hint").textContent = unsavedNew() ? tr("This project has not been saved yet.") : leaveHint(retitled(), editor.dirty, !!recording && recording.dirty);
+  $("leave-hint").textContent = unsavedNew() ? tr("This project has not been saved yet.") : leaveHint(retitled(), editor.dirty, tracksDirty());
   return new Promise((resolve) => {
     const done = () => {
       dialog.removeEventListener("close", done);
@@ -267,6 +277,7 @@ async function confirmLeave() {
 async function discardEdits() {
   const song = player.song;
   const takes = recording.dirty;
+  const cuts = clipsDirty();
   const named = retitled();
   if (editor.dirty) {
     editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
@@ -282,10 +293,13 @@ async function discardEdits() {
     showTitle();
   }
   if (takes) await recording.revert();
+  // The clips as the file has them (the takes brought back too).
+  for (const t of player.tracks) player.setClips(t.key, app.clipsSaved.get(t.key) || null);
+  if (takes || cuts) renderPlayer(app.timeline.getView());
   rememberSettings();
   steps.reset(); // the song as its file has it: nothing to undo
   notice(
-    takes || named ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
+    takes || cuts || named ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
     "",
     5000
   );
@@ -374,7 +388,7 @@ function songState() {
     analysis: app.analysis,
     analysisInFile: app.analysisInFile,
     title: song.title,
-    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null })),
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null, clips: t.clips })),
     takesDirty: recording.dirty,
     rate: player.rate,
     semitones: player.semitones,
@@ -439,6 +453,7 @@ function stateChanges(a, b) {
     if (t.on !== u.on) on = true;
     if (t.gain !== u.gain) out.push(`gain:${t.key}`);
     if (t.sync !== u.sync) out.push(`sync:${t.key}`);
+    if (!sameClips(t.clips, u.clips)) out.push(`clips:${t.key}`);
   }
   if (on) out.push("on");
   if (a.rate !== b.rate) out.push("rate");
@@ -486,6 +501,7 @@ async function restoreState(s, fields) {
       player.setTakeSync(t.key, v.sync);
       if (!returned) recording.recorder.rememberSync(t.take.input, v.sync); // the next takes from its input
     }
+    if (returned || has(`clips:${t.key}`)) player.setClips(t.key, v.clips);
   }
   if (has("takes") || fields.some((f) => f.startsWith("sync:"))) recording.dirty = s.takesDirty;
   if (has("rate")) player.setRate(s.rate, true);
@@ -508,6 +524,11 @@ async function restoreState(s, fields) {
   rememberSettings();
 }
 
+// The clips of every track as the song's file has them now (opened, saved).
+function clipsAreSaved() {
+  app.clipsSaved = new Map(player.tracks.map((t) => [t.key, t.clips || null]));
+}
+
 // The takes kept for undo that no step can bring back any more leave memory.
 function keepTakes(states) {
   const keep = new Set();
@@ -521,6 +542,7 @@ function keepTakes(states) {
 // from the file).
 function stepsSaved(inPlace) {
   steps.flush();
+  clipsAreSaved();
   const saved = songState();
   if (!saved) return;
   const takes = (s) =>
@@ -551,6 +573,10 @@ function stepLabel(fields, a, b) {
     const moved = [...a.tracks.filter((t) => !inB.has(t.key)), ...b.tracks.filter((t) => !inA.has(t.key))];
     return moved.length === 1 && title(moved[0].key) ? title(moved[0].key) : tr("the takes");
   }
+  // Clips moved past the end make the song (and its grid) longer: the clips.
+  const clips = fields.filter((f) => f.startsWith("clips:"));
+  if (clips.length === 1) return tr("the clips of {track}", { track: title(clips[0].slice(6)) });
+  if (clips.length) return tr("the clips");
   if (has("grid")) return tr("the grid"); // its chords may move with it
   if (has("chords")) return tr("the chords");
   if (has("sections")) return tr("the sections");
@@ -638,6 +664,7 @@ async function openSong(file, origin) {
     const key = settingsKey(song, file);
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
+    clipsAreSaved();
     // The name the file gives, and a new one not saved in it yet.
     song.fileTitle = song.title;
     if (saved && typeof saved.title === "string" && saved.title.trim()) song.title = saved.title.trim();
@@ -1627,6 +1654,8 @@ function buildControls() {
       if (editor.locked) notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
       else editor.openAt(i, info);
     },
+    onClipSelect: clipsSelected,
+    onClips: (key, clips) => setTrackClips(key, scaleClips(clips, player.context.sampleRate, true)),
   });
   detection = new TempoDetection({
     app,
@@ -1670,6 +1699,7 @@ function buildControls() {
     locked: () => detection.running,
     notice,
     step: stepBack,
+    barsSelected: () => app.timeline.clipSel.length && app.timeline.setClipSelection([]),
   });
   recording = new RecordingFlow({
     app,
@@ -1719,12 +1749,14 @@ function updateZoom() {
 }
 
 function waveRows() {
+  const sr = player.context ? player.context.sampleRate : 48000;
+  // Its length and its clips in seconds (src/clips.js).
+  const cuts = (t) => ({ length: t.length / sr, clips: scaleClips(t.clips, 1 / sr) });
   if (phone) {
     const t = player.tracks.find((x) => x.peaks) || player.tracks[0];
-    return t ? [{ key: t.key, color: WAVE_COLORS.original, peaks: t.peaks, on: true }] : [];
+    return t ? [{ key: t.key, color: WAVE_COLORS.original, peaks: t.peaks, on: true, offset: t.start / sr, ...cuts(t) }] : [];
   }
   let stem = 0;
-  const sr = player.context ? player.context.sampleRate : 48000;
   return player.tracks.map((t) => ({
     key: t.key,
     color: t.take ? WAVE_COLORS.take : STEM_NAMES.includes(t.key) ? WAVE_COLORS.stems[stem++ % 2] : WAVE_COLORS.original,
@@ -1732,7 +1764,90 @@ function waveRows() {
     on: t.on,
     offset: t.take ? t.start / sr : 0,
     height: t.take ? TAKE_ROW : null,
+    ...cuts(t),
   }));
+}
+
+// ----- the clips of the tracks (a computer) -----------------------------------------
+//
+// Selected in the strip at the top of their tracks (app/timeline.js), which
+// moves, trims and fades them. C, or the scissors of Clips (beside the
+// overview, at the top of the column of the tracks), cuts
+// the clips selected at the playhead (the part after it selected, to cut it
+// again further on); X, Delete or Backspace, or ✕, takes them out of their
+// tracks (silent there); Escape lets them go. Clips selected and bars
+// selected (for their chords) never go together.
+
+// The clips of track `key` changed (the timeline, a cut): the track takes
+// them, and its row shows them as the track has them.
+function setTrackClips(key, clips) {
+  const t = player.track(key);
+  if (!t) return;
+  player.setClips(key, clips);
+  app.timeline.setRowClips(key, scaleClips(t.clips, 1 / player.context.sampleRate));
+  scheduleUi();
+}
+
+// The clips selected: the bars no longer.
+function clipsSelected(list) {
+  if (list.length && editor.sel) editor.select(null);
+  scheduleUi();
+}
+
+function cutClips() {
+  const sel = app.timeline.clipSelection;
+  if (!player.song || !sel.length) {
+    notice(tr("Select a clip first: click its block in the strip at the top of its track."), "", 4000);
+    return;
+  }
+  const sr = player.context.sampleRate;
+  const now = [];
+  let done = 0;
+  for (const key of new Set(sel.map((s) => s.key))) {
+    const t = player.track(key);
+    if (!t) continue;
+    let clips = clipsOf(t.clips, t.length);
+    const pos = Math.round(player.position * sr) - t.start;
+    // The highest first: a cut puts a clip after the one it cuts.
+    const mine = sel.filter((s) => s.key === key).map((s) => s.i).sort((a, b) => b - a);
+    const keep = [];
+    for (const i of mine) {
+      const out = clipAt(clips, pos) === i ? cutClip(clips, i, pos, player.minClip) : null;
+      if (!out) {
+        keep.push(i);
+        continue;
+      }
+      clips = out.clips;
+      for (let k = 0; k < keep.length; k++) keep[k] += 1;
+      keep.push(out.index);
+      done++;
+    }
+    setTrackClips(key, clips);
+    for (const i of keep) now.push({ key, i });
+  }
+  if (!done) {
+    notice(tr("The playhead is not on a clip selected: put it where the clip is to be cut."), "", 5000);
+    return;
+  }
+  // The parts after the playhead stay selected.
+  const pos = (s) => {
+    const t = player.track(s.key);
+    const c = clipsOf(t.clips, t.length)[s.i];
+    return c ? (t.start + c.at) / sr : -1;
+  };
+  app.timeline.setClipSelection(now.filter((s) => pos(s) >= player.position - 1.5 / sr));
+  scheduleUi();
+}
+
+function deleteClips() {
+  const sel = app.timeline.clipSelection;
+  if (!player.song || !sel.length) return;
+  for (const key of new Set(sel.map((s) => s.key))) {
+    const t = player.track(key);
+    if (t) setTrackClips(key, removeClips(clipsOf(t.clips, t.length), sel.filter((s) => s.key === key).map((s) => s.i)));
+  }
+  app.timeline.setClipSelection([]);
+  scheduleUi();
 }
 
 // Python's toggle_loop(): a loop switched on appears where the user is
@@ -2106,12 +2221,13 @@ function renderChart() {
 // a copy. An audio file becomes an EUTERIA project (.euteria) holding it.
 
 function practiceState() {
+  const sr = player.context ? player.context.sampleRate : 48000;
   return {
     rate: player.rate,
     semitones: player.semitones,
     loop: player.loop,
     gridVisible: app.gridVisible,
-    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain })),
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr) })),
   };
 }
 
@@ -3125,7 +3241,8 @@ function updateUi() {
   eye.title = app.gridVisible ? tr("The grid is shown: click to hide it") : tr("The grid is hidden: click to show it");
   // Nothing over the waveforms: why, first (no bars yet, or hidden).
   const state = !song ? "" : !hasGrid ? HINTS.noGrid() : !app.gridVisible ? HINTS.hidden() : "";
-  const hint = state ? `${state} ${HINTS.view()}` : (editor.on && song ? HINTS.edit : HINTS.view)();
+  const clipsHint = song && !phone ? ` ${HINTS.clips()}` : "";
+  const hint = (state ? `${state} ${HINTS.view()}` : (editor.on && song ? HINTS.edit : HINTS.view)()) + clipsHint;
   if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
   editor.refresh();
   // Separating the instruments (a song without stems, on a computer); once the
@@ -3225,6 +3342,12 @@ function updateUi() {
   if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
   $("key-hint").hidden = !!song && !player.hasStems;
 
+  // The clips: their tools over the timeline, on a computer.
+  $("clip-tools").hidden = phone || !song;
+  const clipsOff = !ready || locked || !app.timeline.clipSel.length;
+  $("clip-cut").disabled = clipsOff;
+  $("clip-delete").disabled = clipsOff;
+
   // Undo and Redo: not while the song opens, is exported or saved, or a take
   // is recorded.
   const stepsOff = !song || busy || app.saving || takesBusy;
@@ -3259,11 +3382,11 @@ function updateUi() {
   const status = $("project-status");
   const dirtyText = !songDirty()
     ? ""
-    : editor.dirty && recording.dirty
-      ? tr("Changes to the bars and chords, and to the takes, not saved yet.")
+    : editor.dirty && tracksDirty()
+      ? tr("Changes to the bars and chords, and to the tracks, not saved yet.")
       : editor.dirty
         ? tr("Changes to the bars and chords not saved yet.")
-        : tr("Changes to the takes not saved yet.");
+        : tr("Changes to the tracks not saved yet.");
   const statusText = m ? m.text : dirtyText;
   if (status.textContent !== statusText) status.textContent = statusText;
   const statusClass = `status ${m ? m.kind : dirtyText ? "dirty" : ""}`.trim();
@@ -3331,6 +3454,11 @@ function wire() {
     e.target.value = "";
     if (file && (await confirmLeave())) openSong(file, { source: "file" });
   });
+
+  // The clips (a computer)
+  setIcon($("clip-cut"), "scissors");
+  $("clip-cut").addEventListener("click", cutClips);
+  $("clip-delete").addEventListener("click", deleteClips);
 
   // Undo and Redo
   setIcon($("undo"), "undo");
@@ -3436,6 +3564,24 @@ function onKey(e) {
   if (typing || !open) return;
   if (editor.key(e)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // The clips (a computer): C cuts those selected at the playhead; X, Delete
+  // or Backspace deletes them; Escape lets them go.
+  if (!phone && (e.key === "c" || e.key === "C") && !e.repeat) {
+    cutClips();
+    return;
+  }
+  if (!phone && app.timeline.clipSel.length) {
+    if ((e.key === "x" || e.key === "X" || e.key === "Delete" || e.key === "Backspace") && !e.repeat) {
+      e.preventDefault();
+      deleteClips();
+      return;
+    }
+    if (e.key === "Escape") {
+      app.timeline.setClipSelection([]);
+      scheduleUi();
+      return;
+    }
+  }
   if (e.code === "Space") {
     if (tag === "BUTTON") return; // the focused button takes it
     e.preventDefault();

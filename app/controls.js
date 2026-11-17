@@ -42,6 +42,8 @@ const ICONS = {
   // An eye open, and closed (its lid and lashes).
   eye: '<path d="M2 12C5.5 6.4 18.5 6.4 22 12C18.5 17.6 5.5 17.6 2 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2"/>',
   eyeClosed: '<path d="M2 10.5C5.5 16 18.5 16 22 10.5M5.6 13.9 4 16.4M12 15.2V18M18.4 13.9 20 16.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // Scissors (the clips cut at the playhead).
+  scissors: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="3"/><circle cx="6.5" cy="17.5" r="3"/><path d="M9 8.2 20 18M9 15.8 20 6"/></g>',
   // Undo and redo: an arrow going back, and forward, round a bend.
   undo: '<path d="M9 4 4 9l5 5M4 9h10a5 5 0 0 1 0 10h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   redo: '<path d="M15 4l5 5-5 5M20 9H10a5 5 0 0 0 0 10h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',

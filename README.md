@@ -69,7 +69,8 @@ open, the keys of the player do nothing and the page under it stays still.
   export). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
-  a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac).
+  a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac), C cut the
+  clips selected at the playhead, X delete them.
 
 **Messages** (a song opening, the progress of a detection, of a separation or of a
 download, a save, an error) open in a band under the bar at the top: with a song open,
@@ -146,6 +147,32 @@ The overview, the grey strip above the bars, shows the whole song, the part in
 view and the loop: dragging the frame of the view or of the loop moves it (the loop by
 the finest step the overview's scale allows: the bar, mostly), a tap elsewhere brings the
 view there.
+
+**The clips of the tracks** (2.10.0, on a computer). Every track, stems, Original Track
+and takes alike, is played as its clips: at first one, the track whole. The strip at the
+top of its row has a block for each clip, over the part of the waveform it plays. A click
+on a block selects that clip (shift-click: more of them, on any track; *Escape* lets them
+go; clips and bars selected for their chords never go together). **C**, or the scissors
+of *Clips* (beside the overview, at the top of the column of the tracks), cuts the clips
+selected at the playhead: place it with a
+click in the waveform, which keeps the clip selected, then C; the part after the playhead
+stays selected, to cut it again further on. **X**, *Delete* or *Backspace*, or ✕ beside
+the scissors, deletes them: the track is silent there. Dragging a block moves the clips
+selected together, by the eighth note as the loop's edges (Alt: freely), kept where they
+were against the beats (a take played a little behind the beat stays as far behind it);
+never before the song, and past its end the song grows. A clip moved, or lengthened,
+over others of its track covers them: what is under it no longer plays. Dragging the
+edges of a block shortens or lengthens the clip, to the eighth note, as far as the
+track's audio goes. The knobs under the strip, at the corners of the clip selected or of
+the one under the mouse, fade it in and out: the curve and the part it lowers are drawn
+over the waveform. Every change is a step to undo; the audio itself is never touched (a
+take or a stem cut keeps its whole audio in the project, and the parts left out come back
+with their edges). An edge that cuts the sound fades over 4 milliseconds, so that it does
+not click; two clips that go on from one another, as a cut leaves them, play on without a
+break. The song plays, exports (MP3: a cut Original Track alone is exported too) and is
+saved with its clips, a separation gives the stems the cuts of the Original Track, and the
+phone plays them and shows them in its waveform, without the strip, as it does not edit
+them.
 
 **The loop** (2.5): the bar numbers choose a stretch of the song for it. A tap or a click
 on a number takes that bar; dragging along the numbers takes a stretch by the eighth note
@@ -604,6 +631,12 @@ travel as files (for example over WhatsApp).
   example `"6": ["Dm7", "", "G7", ""]`. Before 2.7 a bar had one text (`"Dm7 G7"`); such
   a project opens with its chords spread over the bar (two on beats 1 and 3) and is saved
   with slots.
+- **The clips** (2.10): `audio.clips` keys every track cut in EUTERIA Web (`"original"`,
+  a stem, `"take-<id>"`) to its clips, in the order they play: `from` and `to` (the part
+  of the track's own audio, seconds), `at` (where `from` plays, seconds from the track's
+  start: a take's Sync moves its clips with it), `fade_in` and `fade_out` (seconds). A
+  track whole is not listed; an empty list is a track that plays nothing. The audio
+  members stay as they are.
 - **The order of the tracks**: `practice.stem_order` keeps the order of the six stems,
   as EUTERIA (Python) reads it; `practice.track_order`, written by EUTERIA Web, lists
   every track in its order, the Original Track and the takes too. A project without
@@ -660,7 +693,11 @@ buses, the pitched instruments with the full mix, and the drums, and each bus ru
 through one [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/)
 instance. Tempo and key change live, the tracks cannot drift apart, and the drums keep
 their pitch, as in EUTERIA (Python). Volumes above 100% use the same soft limiter as
-EUTERIA (Python). During playback the sum goes through a limiter: where it would go over
+EUTERIA (Python). A track cut in clips (`src/clips.js`) is mixed part by part, each from
+where it is placed, with its fades (a raised cosine), and with 4 ms at each edge that cuts
+the sound; a part that goes on from the one before, as a cut leaves it, has no fade
+(checked offline, rendered with the engine: silence where a part is left out, a fade half
+way at half the level, no dip at a cut). During playback the sum goes through a limiter: where it would go over
 −0.9 dB the gain drops at once, just enough, and comes back over 120 ms, so the peaks of
 a song and a take played together are lowered rather than cut. While the metronome clicks
 over the song the gain is held instead: on a loud song every click goes over the limit,
@@ -979,7 +1016,8 @@ audio when it comes back.
 ## Repository layout
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
-  the editor of the grid and the chords in `editor.js`, undo and redo in `history.js`,
+  the editor of the grid and the chords in `editor.js`, undo and redo in `history.js`
+  (the clips of the tracks are edited in `timeline.js` and `app.js`),
   the separation in `separate.js`,
   the tempo and chord detection, on request, in `detect.js`,
   the recording of takes in `recording.js`, the number fields and the icons in
@@ -994,7 +1032,7 @@ audio when it comes back.
   (`engine*.js`), the player (`player.js`), the export worker (`render-worker.js`), the
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
-  (`grid.js`), chord names read and transposed (`chordnames.js`), the chord chart in
+  (`grid.js`), the clips of the tracks (`clips.js`), chord names read and transposed (`chordnames.js`), the chord chart in
   MusicXML (`musicxml.js`), the metronome's
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
@@ -1039,7 +1077,7 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   saving them in a project (online, being tested). Step 2: recording takes over a song,
   on every device, saved in the project (version 0.5, online, being tested). Step 3: the
   chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8), undo
-  and redo (2.9); then, on a computer, cutting, moving and fading the tracks, and copying
+  and redo (2.9), cutting, moving and fading the tracks on a computer (2.10); then copying
   tracks from one project to another (planned).
 - **Phase 3**: band features.
 

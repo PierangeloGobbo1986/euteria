@@ -1,8 +1,9 @@
 // The manifest a song is saved with (manifest.json of an EUTERIA project, see
 // src/zipwrite.js): the grid and the chords (manifest.music) and the practice
 // settings (manifest.practice), in the fields and the format EUTERIA (Python)
-// writes, the takes recorded in EUTERIA Web (manifest.audio.takes), every
-// other field of the project kept as it is.
+// writes, the takes recorded in EUTERIA Web (manifest.audio.takes) and the
+// clips of the tracks cut there (manifest.audio.clips), every other field of
+// the project kept as it is.
 
 import { STEM_NAMES, TAKES_DIR, isTake, takeToManifest } from "./project.js";
 import { musicFields } from "./grid.js";
@@ -21,8 +22,9 @@ function stemOrder(tracks) {
 
 // The practice settings as EUTERIA (Python) saves them (_save_music_settings),
 // with the order of every track (track_order) that EUTERIA Web adds.
-// state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key, on, gain}]},
-// the tracks in their order.
+// state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key,
+// on, gain, clips}]}, the tracks in their order (clips: as the manifest has
+// them, src/clips.js clipsToManifest(), or null).
 // The key counts as "transposed": EUTERIA Web transposes live, and
 // EUTERIA (Python), without transposed tracks in the file, plays the
 // original key.
@@ -68,6 +70,17 @@ export function withTakes(manifest, takes) {
   return manifest;
 }
 
+// The clips of the tracks cut (src/clips.js) in audio.clips, by track; with
+// none cut, no audio.clips. Those of tracks gone (a take deleted) go too.
+function withClips(manifest, tracks) {
+  const audio = (manifest.audio = { ...(manifest.audio || {}) });
+  const clips = {};
+  for (const t of tracks || []) if (Array.isArray(t.clips)) clips[t.key] = t.clips;
+  if (Object.keys(clips).length) audio.clips = clips;
+  else delete audio.clips;
+  return manifest;
+}
+
 // The tempo and chord detection of the song (app/detect.js) in
 // manifest.music, when there is one: beat_tracking, and its chords in
 // chord_recognition.
@@ -87,7 +100,7 @@ export function savedManifest(manifest, grid, state, takes = [], analysis = null
   out.music = withAnalysis({ ...(out.music || {}), ...musicFields(grid) }, analysis);
   out.practice = practiceFields(out.practice || {}, grid, state);
   out.edited_with = EDITED_WITH;
-  return withTakes(out, takes);
+  return withTakes(withClips(out, state.tracks), takes);
 }
 
 export function newProjectId() {
@@ -100,7 +113,7 @@ export function newProjectId() {
 export function newProjectManifest({ id, title, fileName, member, grid, state, takes = [], analysis = null }) {
   const volumes = { original: 1, transposed: 1 };
   for (const n of STEM_NAMES) volumes[n] = 1;
-  return withTakes({
+  const manifest = {
     format: "EUTERIA.musicproj",
     format_version: WEB_FORMAT_VERSION,
     variant: "web",
@@ -120,7 +133,8 @@ export function newProjectManifest({ id, title, fileName, member, grid, state, t
     practice: practiceFields({ track_volumes: volumes }, grid, state),
     markers: [],
     user_corrections: [],
-  }, takes);
+  };
+  return withTakes(withClips(manifest, state.tracks), takes);
 }
 
 // The manifest of a project made empty in EUTERIA Web, to record into: no

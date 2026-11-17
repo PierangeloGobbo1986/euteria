@@ -6,10 +6,14 @@
 //
 // While a take is being recorded (src/recorder.js) nothing may move the song
 // under it: jumps, tempo, key and the loop wait; Pause and Stop end the take.
+//
+// A track may be cut in clips (src/clips.js, setClips()): its `clips`, in
+// samples of its own audio, null while it plays whole.
 
 import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder, gainToSlider } from "./project.js";
 import { int16Peaks, PEAK_BUCKET } from "./peaks.js";
+import { clipsOf, clipsEnd, normalize, sameClips } from "./clips.js";
 import { tr } from "./i18n.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
@@ -17,6 +21,7 @@ const TEMPO_RANGE = [0.5, 2];
 export const KEY_RANGE = [-12, 12];
 const NEW_LOOP_SECONDS = 8;
 const GROW_SECONDS = 10; // a take past the end: the song grows by this much at a time
+const MIN_CLIP_SECONDS = 0.02; // the shortest a clip may be
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -257,6 +262,7 @@ export class Player {
       gain: t.gain,
       on: t.on,
       start: t.start || 0,
+      clips: t.clips || null,
       take: t.take || null,
       align: t.align || null,
       peaks: wanted.has(t.key) ? int16Peaks(t.channels, t.length) : null,
@@ -294,7 +300,7 @@ export class Player {
     if (!this.song) return false;
     const sr = this.context.sampleRate;
     let end = this.song.baseDuration;
-    for (const t of this.tracks) end = Math.max(end, (t.start + t.length) / sr);
+    for (const t of this.tracks) end = Math.max(end, (t.start + clipsEnd(t.clips, t.length)) / sr);
     if (Math.abs(end - this.song.duration) < 1e-9) return false;
     this.song.duration = end;
     return true;
@@ -429,7 +435,7 @@ export class Player {
     const sr = this.context.sampleRate;
     const start = takeStartSample(track.take, sr);
     const peaks = !this.peakKeys || this.peakKeys.includes(track.key) ? int16Peaks(track.channels, track.length) : null;
-    const t = { key: track.key, title: track.title, bus: "pitched", length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start, take: track.take, align: null, peaks };
+    const t = { key: track.key, title: track.title, bus: "pitched", length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start, clips: null, take: track.take, align: null, peaks };
     this.engine.addTrack({ key: t.key, bus: t.bus, channels: track.channels, length: t.length, gain: t.gain, on: t.on, start });
     this.tracks.push(t);
     this._updateDuration();
@@ -485,7 +491,7 @@ export class Player {
     if (!pcm) return null;
     const t = entry.track;
     if (before) before(t, pcm.channels);
-    this.engine.addTrack({ key, bus: t.bus, channels: pcm.channels, length: pcm.length, gain: t.gain, on: t.on, start: t.start });
+    this.engine.addTrack({ key, bus: t.bus, channels: pcm.channels, length: pcm.length, gain: t.gain, on: t.on, start: t.start, clips: t.clips });
     this.tracks.splice(clamp(index ?? entry.index, 0, this.tracks.length), 0, t);
     this._updateDuration();
     this._changed();
@@ -502,6 +508,27 @@ export class Player {
     let sum = 0;
     for (const { track } of this.stash.values()) sum += track.length * ((track.take && track.take.channels) || 2) * 2;
     return sum;
+  }
+
+  // ----- clips -------------------------------------------------------------------------
+
+  // The shortest a clip may be, in samples.
+  get minClip() {
+    return Math.round(MIN_CLIP_SECONDS * (this.context ? this.context.sampleRate : 48000));
+  }
+
+  // The clips of track `key` (src/clips.js, samples of its own audio; null:
+  // the track whole). Returns whether they changed.
+  setClips(key, clips) {
+    const t = this.track(key);
+    if (!t || this.busy || this.recording) return false;
+    const next = normalize(clips, t.length, 1);
+    if (sameClips(next, t.clips)) return false;
+    t.clips = next;
+    this.engine.setTrack(key, { clips: next });
+    this._updateDuration();
+    this._changed();
+    return true;
   }
 
   // Moves a take earlier (ms < 0) or later, against where it was recorded.
@@ -572,17 +599,23 @@ export class Player {
       const sorted = Uint8Array.from(level).sort();
       const ref = sorted[Math.min(n - 1, Math.floor(n * 0.99))];
       const limit = Math.max(2, ref * 0.04);
-      // Three buckets in a row (about 15 ms), so that a click or a pop is not the start.
-      let at = -1;
-      for (let i = 0; i + 2 < n; i++) {
-        if (level[i] >= limit && level[i + 1] >= limit && level[i + 2] >= limit) {
-          at = i;
-          break;
+      // Three buckets in a row (about 15 ms), so that a click or a pop is not
+      // the start; in the clips of the track, the first that has one.
+      for (const c of clipsOf(t.clips, t.length)) {
+        const a = Math.ceil(c.from / PEAK_BUCKET);
+        const b = Math.min(n, Math.floor(c.to / PEAK_BUCKET));
+        let at = -1;
+        for (let i = a; i + 2 < b; i++) {
+          if (level[i] >= limit && level[i + 1] >= limit && level[i + 2] >= limit) {
+            at = i;
+            break;
+          }
         }
+        if (at < 0) continue;
+        const time = ((t.start || 0) + c.at + at * PEAK_BUCKET - c.from) / this.song.sampleRate;
+        if (first === null || time < first) first = time;
+        break;
       }
-      if (at < 0) continue;
-      const time = (at * PEAK_BUCKET + (t.start || 0)) / this.song.sampleRate;
-      if (first === null || time < first) first = time;
     }
     return first === null ? 0 : first;
   }
@@ -748,8 +781,9 @@ export class Player {
     const takes = this.tracks.filter((t) => t.on && t.take);
     const original = this.tracks.find((t) => t.on && t.key === "original");
     const fullOn = !!original;
-    // As the fields show them: tempo in whole percent, volume in percent.
-    const changed = fullOn && (Math.round(this.rate * 100) !== 100 || this.semitones !== 0 || gainToSlider(original.gain) !== 100);
+    // As the fields show them: tempo in whole percent, volume in percent; or
+    // cut in clips.
+    const changed = fullOn && (Math.round(this.rate * 100) !== 100 || this.semitones !== 0 || gainToSlider(original.gain) !== 100 || !!original.clips);
     if (!stems.length && !takes.length && !changed) {
       let text;
       if (!fullOn) text = tr("No track is switched on. Switch on the tracks you want to export.");
@@ -813,6 +847,7 @@ export class Player {
         gain: meta ? meta.gain : t.gain,
         on: meta ? meta.on : t.on,
         start: meta ? meta.start : t.start,
+        clips: meta ? meta.clips : t.clips,
       });
     }
   }

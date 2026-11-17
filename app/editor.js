@@ -64,7 +64,8 @@ export class Editor {
   // ctx: {app, player, phone, timeline, changed() (the edits are to be kept),
   // refreshPage(), locked() (the tempo detection is running), notice(text,
   // kind, ms) (the band of the messages, app.js), step(back) (undo, or redo,
-  // app.js)}. Saving is in the Project files card (app.js).
+  // app.js), barsSelected() (bars were selected: the clips selected let go)}.
+  // Saving is in the Project files card (app.js).
   constructor(ctx) {
     this.ctx = ctx;
     this.on = false;
@@ -420,6 +421,7 @@ export class Editor {
     const n = this.grid.bars.length;
     this.sel = sel && n ? { anchor: clamp(sel.anchor ?? sel.lo, 0, n - 1), lo: clamp(sel.lo, 0, n - 1), hi: clamp(sel.hi, 0, n - 1) } : null;
     this.ctx.timeline.setSelection(this.sel);
+    if (this.sel && this.ctx.barsSelected) this.ctx.barsSelected(); // the clips selected let go
     if (reveal && this.sel) this.ctx.timeline.revealBars(this.sel.lo, this.sel.hi);
     this.loadInput();
     this._showSlot();
