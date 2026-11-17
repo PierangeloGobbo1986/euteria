@@ -13,7 +13,7 @@
 import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder, gainToSlider } from "./project.js";
 import { int16Peaks, PEAK_BUCKET } from "./peaks.js";
-import { clipsOf, clipsEnd, normalize, sameClips } from "./clips.js";
+import { clipsOf, clipsEnd, normalize, sameClips, bake, EDGE_FADE_SECONDS } from "./clips.js";
 import { tr } from "./i18n.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
@@ -429,13 +429,15 @@ export class Player {
   // ----- takes -------------------------------------------------------------------
 
   // track: {key, title, channels (Int16Array[], handed to the audio thread),
-  // length, take (src/project.js takeFromManifest()), gain, on}.
+  // length, take (src/project.js takeFromManifest()), gain, on}. A take
+  // pasted from the drums plays with them (take.bus), not transposed.
   addTake(track) {
     if (!this.song) return;
     const sr = this.context.sampleRate;
     const start = takeStartSample(track.take, sr);
     const peaks = !this.peakKeys || this.peakKeys.includes(track.key) ? int16Peaks(track.channels, track.length) : null;
-    const t = { key: track.key, title: track.title, bus: "pitched", length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start, clips: null, take: track.take, align: null, peaks };
+    const bus = track.take.bus === "drums" ? "drums" : "pitched";
+    const t = { key: track.key, title: track.title, bus, length: track.length, gain: track.gain ?? 1, on: track.on ?? true, start, clips: null, take: track.take, align: null, peaks };
     this.engine.addTrack({ key: t.key, bus: t.bus, channels: track.channels, length: t.length, gain: t.gain, on: t.on, start });
     this.tracks.push(t);
     this._updateDuration();
@@ -529,6 +531,29 @@ export class Player {
     this._updateDuration();
     this._changed();
     return true;
+  }
+
+  // Copy (app/app.js): clips `indexes` of track `key` as one piece of audio
+  // that sounds as they do in it (src/clips.js bake()), its audio copied
+  // from the audio thread while it goes on playing: {channels, length,
+  // start (the song sample where it begins)}, or null (no such track or
+  // clips, the track gone meanwhile).
+  async copyClips(key, indexes) {
+    const t = this.track(key);
+    if (!t || this.busy || !this.engine) return null;
+    const all = clipsOf(t.clips, t.length);
+    const list = [...new Set(indexes)].sort((a, b) => a - b).map((i) => all[i]).filter(Boolean);
+    if (!list.length) return null;
+    const start = t.start;
+    const audio = [];
+    for (const c of list) {
+      const channels = await this.engine.copyTrack(key, c.from, c.to);
+      if (!channels || this.track(key) !== t) return null;
+      audio.push(channels);
+    }
+    const edge = Math.max(1, Math.round(EDGE_FADE_SECONDS * this.context.sampleRate));
+    const piece = bake(list, audio, t.length, edge);
+    return { channels: piece.channels, length: piece.length, start: start + piece.at };
   }
 
   // Moves a take earlier (ms < 0) or later, against where it was recorded.

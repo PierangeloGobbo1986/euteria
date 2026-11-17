@@ -70,7 +70,8 @@ open, the keys of the player do nothing and the page under it stays still.
   on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac), C cut the
-  clips selected at the playhead, X delete them.
+  clips selected at the playhead, X delete them, Ctrl+C copy them, Ctrl+V paste them at
+  the playhead, in this song or another (⌘C and ⌘V on a Mac).
 
 **Messages** (a song opening, the progress of a detection, of a separation or of a
 download, a save, an error) open in a band under the bar at the top: with a song open,
@@ -173,6 +174,22 @@ break. The song plays, exports (MP3: a cut Original Track alone is exported too)
 saved with its clips, a separation gives the stems the cuts of the Original Track, and the
 phone plays them and shows them in its waveform, without the strip, as it does not edit
 them.
+
+**Copy and paste** (2.11.0, on a computer): tracks, or parts of them, from one song to
+another, or within the same song. **Ctrl+C** (⌘C on a Mac), or the copy button of
+*Clips*, copies the clips selected, on one track or several, as they sound: their fades
+and the 4-millisecond edges are in the audio copied, and what lies between two clips of a
+track is silence. The copy stays in the page while other songs are opened (not after the
+page is reloaded) and replaces the one before. **Ctrl+V** (⌘V), or the paste button
+(its tip says what it pastes), puts it at the playhead of the song open, as takes: one
+for each track copied, the first at the playhead and the others where they were against
+it, named after the track and the song it comes from (*Bass (Autumn Leaves)*), with its
+volume. A take pasted is a take like one recorded (its own MP3, saved in the project;
+Sync, ✕, Undo; its clips are cut, moved and faded as any other), selected at once, to be
+moved; pasted from the drums, it goes with them and is not transposed. It takes room
+among the takes of the song, as a recording does. The audio is copied from the audio
+thread a few seconds at a time, so the song goes on playing; the tempo and the key are
+not changed (the takes play at the song's own, as recorded ones).
 
 **The loop** (2.5): the bar numbers choose a stretch of the song for it. A tap or a click
 on a number takes that bar; dragging along the numbers takes a stretch by the eighth note
@@ -613,7 +630,9 @@ travel as files (for example over WhatsApp).
   their title, the moment of the song where they begin (`start`, seconds), `sync_ms`,
   the input, the date, and the tempo and key they were recorded at; `audio.tracks` gives
   their exact length, delay and padding as for the stems, and `practice` their volume
-  and switch (keys `take-<id>`). EUTERIA (Python) ignores them.
+  and switch (keys `take-<id>`). A take pasted (2.11) has no input and gives the song
+  it was copied from (`pasted_from`), and `bus: "drums"` when it comes from the drums
+  (it plays with them, not transposed). EUTERIA (Python) ignores them.
 - **The tempo detection**: `music.beat_tracking` keeps what it found: the times of the
   beats and of the downbeats (seconds, to the millisecond), the tempo, meter and anchor
   of the grid made from them, how far the beats stray from one tempo (`drift_ms`), the
@@ -697,7 +716,9 @@ EUTERIA (Python). A track cut in clips (`src/clips.js`) is mixed part by part, e
 where it is placed, with its fades (a raised cosine), and with 4 ms at each edge that cuts
 the sound; a part that goes on from the one before, as a cut leaves it, has no fade
 (checked offline, rendered with the engine: silence where a part is left out, a fade half
-way at half the level, no dip at a cut). During playback the sum goes through a limiter: where it would go over
+way at half the level, no dip at a cut). Copy (2.11) asks the audio thread for the
+audio of the clips (a copy, about ten seconds a message, the track playing on) and makes
+of them one piece as the engine plays them (`bake()` in `src/clips.js`). During playback the sum goes through a limiter: where it would go over
 −0.9 dB the gain drops at once, just enough, and comes back over 120 ms, so the peaks of
 a song and a take played together are lowered rather than cut. While the metronome clicks
 over the song the gain is held instead: on a loud song every click goes over the limit,
@@ -935,7 +956,7 @@ and major or minor well, sevenths and the rarer chords less often.
 page loads without cookies and without personal data. The app also counts, as events
 with a name only, what is done with it (`app/counter.js`): `song-opened-audio` and
 `song-opened-project`, `separation-done`, `separation-stopped` and `separation-failed`,
-`mp3-exported`, `take-recorded`, `project-shared` and `project-downloaded`. They appear
+`mp3-exported`, `take-recorded`, `tracks-pasted`, `project-shared` and `project-downloaded`. They appear
 in GoatCounter's list of pages under those names (the filter `is:event` shows them
 alone). GoatCounter counts visitors, not repetitions: someone who does the same thing
 again within a few hours counts once. Nothing about the songs, the projects
@@ -1077,8 +1098,8 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   saving them in a project (online, being tested). Step 2: recording takes over a song,
   on every device, saved in the project (version 0.5, online, being tested). Step 3: the
   chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8), undo
-  and redo (2.9), cutting, moving and fading the tracks on a computer (2.10); then copying
-  tracks from one project to another (planned).
+  and redo (2.9), cutting, moving and fading the tracks on a computer (2.10), copying and
+  pasting them from one project to another (2.11).
 - **Phase 3**: band features.
 
 ## Licence

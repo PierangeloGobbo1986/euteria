@@ -17,6 +17,11 @@
 // does not click; two clips that go on from one another, as a cut leaves
 // them, play on without a break.
 
+// As src/engine-core.js plays them: an edge that cuts the sound faded over
+// this, the fades of this shape.
+export const EDGE_FADE_SECONDS = 0.004;
+const fadeShape = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u);
+
 export const clipLength = (c) => c.to - c.from;
 // Where a clip ends, from the track's start.
 export const clipEnd = (c) => c.at + c.to - c.from;
@@ -161,6 +166,42 @@ export function fade(clips, i, side, len) {
   const room = clipLength(c);
   const next = side === "in" ? { ...c, fadeIn: clamp(len, 0, room - (c.fadeOut || 0)) } : { ...c, fadeOut: clamp(len, 0, room - (c.fadeIn || 0)) };
   return clips.map((x, j) => (j === i ? next : x));
+}
+
+// Copy (2.11): clips of a track (some of its own, in the order they play)
+// as one piece of audio that sounds as they do in the track: each clip's
+// audio in its place, its fades in it, an edge that cuts the sound faded
+// over `edge` (where the clip next to it in the track is not one of them, as
+// src/engine-core.js _parts() does), silence between them. Samples only.
+// audio[i]: clip i's own audio, from..to of the track (Int16Array[], one by
+// channel); length: the track's. Returns {at (where the piece begins, from
+// the track's start), length, channels}.
+export function bake(list, audio, length, edge) {
+  const at = list[0].at;
+  const n = Math.max(...list.map(clipEnd)) - at;
+  const channels = audio[0].map(() => new Int16Array(n));
+  list.forEach((c, i) => {
+    const m = clipLength(c);
+    const prev = list[i - 1];
+    const next = list[i + 1];
+    const joinedIn = !!prev && prev.to === c.from && clipEnd(prev) === c.at;
+    const joinedOut = !!next && next.from === c.to && clipEnd(c) === next.at;
+    let fi = Math.max(Math.round(c.fadeIn || 0), c.from > 0 && !joinedIn ? edge : 0);
+    let fo = Math.max(Math.round(c.fadeOut || 0), c.to < length && !joinedOut ? edge : 0);
+    if (fi + fo > m) {
+      const k = m / (fi + fo);
+      fi = Math.floor(fi * k);
+      fo = Math.floor(fo * k);
+    }
+    const o = c.at - at;
+    channels.forEach((dst, ch) => {
+      const src = audio[i][ch] || audio[i][0];
+      dst.set(src.subarray(0, Math.min(m, src.length)), o);
+      for (let j = 0; j < fi; j++) dst[o + j] = Math.round(src[j] * fadeShape((j + 0.5) / fi));
+      for (let j = m - fo; j < m; j++) dst[o + j] = Math.round(src[j] * fadeShape((m - j - 0.5) / fo));
+    });
+  });
+  return { at, length: n, channels };
 }
 
 // Where the last clip ends (from the track's start); 0 with none.

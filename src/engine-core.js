@@ -332,6 +332,16 @@
       return out;
     }
 
+    // A copy of samples from..to of track `key`'s own audio (Int16Array[],
+    // one by channel), which goes on playing; null without the track.
+    copyTrack(key, from, to) {
+      const t = this.tracks.get(key);
+      if (!t) return null;
+      const a = Math.max(0, Math.min(t.length, Math.round(from)));
+      const b = Math.max(a, Math.min(t.length, Math.round(to)));
+      return t.ch.map((c) => c.slice(a, b));
+    }
+
     setTrack(key, params) {
       const t = this.tracks.get(key);
       if (!t) return;

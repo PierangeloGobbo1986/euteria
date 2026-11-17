@@ -47,6 +47,9 @@ const ICONS = {
   // Undo and redo: an arrow going back, and forward, round a bend.
   undo: '<path d="M9 4 4 9l5 5M4 9h10a5 5 0 0 1 0 10h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   redo: '<path d="M15 4l5 5-5 5M20 9H10a5 5 0 0 0 0 10h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Copy and paste: two sheets, one over the other; a clipboard.
+  copy: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></g>',
+  paste: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="3.5" rx="1"/></g>',
 };
 
 export function icon(name) {

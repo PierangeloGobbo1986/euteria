@@ -144,6 +144,12 @@
           this.port.postMessage({ type: "reply", id: m.id, tracks }, transfer);
           break;
         }
+        case "copy": {
+          const copy = core.copyTrack(m.key, m.from, m.to);
+          const channels = copy ? copy.map((a) => a.buffer) : null;
+          this.port.postMessage({ type: "reply", id: m.id, channels }, channels || []);
+          break;
+        }
         case "play":
           core.play(m.at, m.countIn, m.countEnd);
           break;

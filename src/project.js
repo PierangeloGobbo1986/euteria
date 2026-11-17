@@ -35,7 +35,8 @@ export function inTrackOrder(list, keys) {
   return list.map((t, i) => [rank(t, i), t]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
 }
 
-// Takes: track keys "take-<id>", members "audio/takes/<id>.mp3".
+// Takes: track keys "take-<id>", members "audio/takes/<id>.mp3". A take may
+// also be audio pasted from the tracks of a song (2.11).
 const TAKE_PREFIX = "take-";
 export const TAKES_DIR = "audio/takes/";
 export const isTake = (key) => typeof key === "string" && key.startsWith(TAKE_PREFIX);
@@ -55,6 +56,10 @@ function takeFromManifest(t, info = null) {
     recorded: t.recorded ? String(t.recorded) : "",
     tempoPercent: isFinite(+t.tempo_percent) ? +t.tempo_percent : 100,
     semitones: isFinite(+t.transpose_semitones) ? Math.round(+t.transpose_semitones) : 0,
+    // Pasted (2.11) from the tracks of a song (its name), the drums with the
+    // drums (not transposed).
+    pastedFrom: t.pasted_from ? String(t.pasted_from) : "",
+    bus: t.bus === "drums" ? "drums" : "pitched",
     info,
     saved: true, // its MP3 is in the song's file
     mp3: null, // the MP3 in memory, until it is in the file
@@ -75,6 +80,8 @@ export function takeToManifest(t) {
     recorded: t.recorded,
     tempo_percent: t.tempoPercent,
     transpose_semitones: t.semitones,
+    ...(t.pastedFrom ? { pasted_from: t.pastedFrom } : {}),
+    ...(t.bus === "drums" ? { bus: "drums" } : {}),
   };
 }
 
@@ -90,7 +97,7 @@ export async function decodeTake(zip, take, context) {
     key: takeKey(take.id),
     member: take.member,
     title: take.title,
-    bus: "pitched",
+    bus: take.bus === "drums" ? "drums" : "pitched",
     channels: toInt16(buffer, align.trimStart, align.length),
     length: align.length,
     align,

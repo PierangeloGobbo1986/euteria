@@ -655,6 +655,8 @@ export class Recorder {
         recorded: new Date().toISOString(),
         tempoPercent: Math.round(r * 100),
         semitones: begin.semitones,
+        pastedFrom: "",
+        bus: "pitched",
         info: null,
         saved: false,
         mp3: null,
@@ -664,6 +666,34 @@ export class Recorder {
       out.push({ key: takeKey(id), title: take.title, channels: parts, length, take, onsets: hits });
     }
     return out;
+  }
+
+  // A take made of audio pasted from the tracks of a song (Paste,
+  // app/recording.js): {title, channels (Int16Array[], the take's own now),
+  // length, start (song seconds), bus, from (the song's name)}, encoded to
+  // MP3 at once as a take recorded. Returns its track, for player.addTake().
+  pastedTake({ title, channels, length, start, bus, from }) {
+    const id = newId();
+    const take = {
+      id,
+      title,
+      member: takeMember(id),
+      start,
+      syncMs: 0,
+      channels: channels.length,
+      input: "",
+      recorded: new Date().toISOString(),
+      tempoPercent: 100,
+      semitones: 0,
+      pastedFrom: from,
+      bus: bus === "drums" ? "drums" : "pitched",
+      info: null,
+      saved: false,
+      mp3: null,
+      crc: null,
+    };
+    this.encode(take, channels.map((c) => c.slice()), this.player.context.sampleRate);
+    return { key: takeKey(id), title, channels, length, take };
   }
 
   // The take as MP3 (320 kbps stereo, 160 kbps mono), in the background.

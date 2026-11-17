@@ -565,9 +565,9 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .notation-btn { height: 44px; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .tl-side-tools { flex: none; height: var(--tl-ruler, 28px); display: flex; flex-direction: column; justify-content: center; }
 /* Beside the overview: the tools of the clips (cut, delete), named as the lanes. */
-.clip-tools { position: absolute; top: 0; left: 0; right: 10px; height: var(--tl-over, 26px); display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.clip-tools { position: absolute; top: 0; left: 0; right: 10px; height: var(--tl-over, 26px); display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .clip-tools .lane-name { margin-right: 2px; font-size: 11px; font-weight: 650; letter-spacing: .02em; color: var(--muted); white-space: nowrap; }
-.clip-tools button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 26px; min-height: 0; padding: 0; border-radius: 7px; font-size: 13px; font-weight: 700; }
+.clip-tools button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 26px; min-height: 0; padding: 0; border-radius: 7px; font-size: 13px; font-weight: 700; }
 .clip-tools .icon { width: 16px; height: 16px; }
 .tl-side-tools > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
@@ -926,6 +926,7 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   .timeline-card { --tl-col: 150px; }
   :lang(it) .timeline-card { --tl-col: 194px; }
   .tl-side-tools > button, .tl-side .quick button { font-size: 12px; padding: 0 4px; }
+  .clip-tools .lane-name { display: none; }
 }
 @media (max-width: 900px) {
   [data-layout=computer] .brand .acronym span { display: block; }

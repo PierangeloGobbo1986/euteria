@@ -70,7 +70,7 @@ const HINTS = phone
       noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and press Set first beat."),
       hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
       clips: () =>
-        tr("The strip at the top of each track holds its clips: click one to select it (shift-click: more), drag it to move it by the eighth note (Alt: freely), its edges to shorten or lengthen it, the knobs at its corners to fade it in and out. C cuts the clips selected at the playhead, X deletes them, Escape lets them go."),
+        tr("The strip at the top of each track holds its clips: click one to select it (shift-click: more), drag it to move it by the eighth note (Alt: freely), its edges to shorten or lengthen it, the knobs at its corners to fade it in and out. C cuts the clips selected at the playhead, X deletes them, Escape lets them go. Ctrl+C (⌘C on a Mac) copies them; Ctrl+V pastes them at the playhead, in this song or in another opened next, as takes."),
       edit: () =>
         tr("Click a chord, or a beat, and type its chord: the boxes over the timeline are the beats of the bar (Tab: the next beat; Return: the next bar). Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. Shift-click or drag along the chords to select several bars. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Bar numbers: a click takes a bar, dragging along them a stretch by the eighth note, shift-click takes in more bars; Loop (L) loops it, and with the loop on the loop goes there at once. Sections, the top row: click a section or a bar to select it, click the bars selected to name them; with the loop on, a section clicked is looped, shift-click takes in more. Shift-click on the time scale moves an edge of the loop to the nearest beat. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
     };
@@ -103,6 +103,8 @@ const app = {
   analysisInFile: false, // it is in the song's file already
   saving: false,
   clipsSaved: new Map(), // key -> the clips of the track as last saved (null: whole)
+  clipboard: null, // what Copy took, for Paste in this song or another: copyClips()
+  copying: false,
   sharing: false, // the share sheet is open
   projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
@@ -499,7 +501,7 @@ async function restoreState(s, fields) {
     if ((returned || has(`gain:${t.key}`)) && t.gain !== v.gain) player.setTrackGain(t.key, v.gain);
     if (t.take && (returned || has(`sync:${t.key}`)) && t.take.syncMs !== v.sync) {
       player.setTakeSync(t.key, v.sync);
-      if (!returned) recording.recorder.rememberSync(t.take.input, v.sync); // the next takes from its input
+      if (!returned && !t.take.pastedFrom) recording.recorder.rememberSync(t.take.input, v.sync); // the next takes from its input
     }
     if (returned || has(`clips:${t.key}`)) player.setClips(t.key, v.clips);
   }
@@ -1776,7 +1778,9 @@ function waveRows() {
 // the clips selected at the playhead (the part after it selected, to cut it
 // again further on); X, Delete or Backspace, or ✕, takes them out of their
 // tracks (silent there); Escape lets them go. Clips selected and bars
-// selected (for their chords) never go together.
+// selected (for their chords) never go together. Ctrl+C (⌘C) copies them,
+// Ctrl+V (⌘V) pastes them at the playhead, in this song or another, as
+// takes: copyClips(), pasteClips().
 
 // The clips of track `key` changed (the timeline, a cut): the track takes
 // them, and its row shows them as the track has them.
@@ -1850,6 +1854,75 @@ function deleteClips() {
   scheduleUi();
 }
 
+// Copy: the clips selected, as they sound (their fades in them), into the
+// page's clipboard, which stays while other songs are opened: one piece of
+// audio by track, each where it was against the others.
+async function copyClips() {
+  const sel = app.timeline.clipSelection;
+  const song = player.song;
+  if (!song || !sel.length) {
+    notice(tr("Select a clip first: click its block in the strip at the top of its track."), "", 4000);
+    return;
+  }
+  if (app.copying || player.busy) return;
+  app.copying = true;
+  scheduleUi();
+  try {
+    const pieces = [];
+    for (const t of player.tracks) {
+      const mine = sel.filter((s) => s.key === t.key).map((s) => s.i);
+      if (!mine.length) continue;
+      const piece = await player.copyClips(t.key, mine);
+      if (player.song !== song) return;
+      if (!piece) continue;
+      // Named after the track and the song, unless pasted already (its name
+      // says where it comes from).
+      const title = t.take && t.take.pastedFrom ? t.title : `${tr(t.title)} (${song.title})`;
+      pieces.push({ ...piece, title, bus: t.bus, gain: t.gain });
+    }
+    if (!pieces.length) return;
+    const first = Math.min(...pieces.map((p) => p.start));
+    const end = Math.max(...pieces.map((p) => p.start + p.length));
+    app.clipboard = {
+      song: song.title,
+      seconds: (end - first) / player.context.sampleRate,
+      tracks: pieces.map(({ start, ...p }) => ({ ...p, offset: start - first })),
+    };
+    const keys = MAC ? "⌘V" : "Ctrl+V";
+    notice(tr("Copied {time} of {what}. Put the playhead where it goes, in this song or another, and paste it ({keys}).", { what: clipboardName(), time: fmtTime(app.clipboard.seconds, true), keys }), "ok", 7000);
+  } finally {
+    app.copying = false;
+    scheduleUi();
+  }
+}
+
+// Paste: what Copy took, at the playhead, as takes of the song open (each
+// with its own audio: Sync, ✕ and Undo as for a take recorded), selected to
+// be moved at once.
+function pasteClips() {
+  const clip = app.clipboard;
+  if (!clip || !player.song || player.busy || recording.busy || app.saving) return;
+  const keys = recording.paste(clip, Math.round(player.position * player.context.sampleRate));
+  if (!keys) return;
+  const list = keys.filter((key) => player.track(key)).map((key) => ({ key, i: 0 }));
+  app.timeline.setClipSelection(list);
+  clipsSelected(list);
+  notice(tr("Pasted at {time}: {what}.", { time: fmtTime(player.position, true), what: clipboardName() }), "ok", 4000);
+}
+
+// What the clipboard holds, in words: its track, or how many and whence.
+function clipboardName() {
+  const clip = app.clipboard;
+  if (!clip) return "";
+  return clip.tracks.length === 1 ? clip.tracks[0].title : tr("{n} tracks from {song}", { n: clip.tracks.length, song: clip.song });
+}
+
+function labelClipTools() {
+  const copy = $("clip-copy");
+  setAttr(copy, "aria-label", tr("Copy the clips selected"));
+  setAttr(copy, "title", tr("Copy the clips selected ({keys})", { keys: MAC ? "⌘C" : "Ctrl+C" }));
+}
+
 // Python's toggle_loop(): a loop switched on appears where the user is
 // looking. Here it starts at the bar being played if the playhead is in
 // view, else in the middle of the view; it lasts 16 seconds, or as long as
@@ -1917,6 +1990,7 @@ function trackRow(t) {
     h("span", { class: "dot", "aria-hidden": "true" }),
     h("span", { class: "name", text: title })
   );
+  if (t.take) toggle.title = title; // a take's name may be long (a take pasted: the song's too)
   toggle.addEventListener("click", () => {
     const track = player.track(key);
     if (track) player.setTrackOn(key, !track.on);
@@ -3346,7 +3420,14 @@ function updateUi() {
   $("clip-tools").hidden = phone || !song;
   const clipsOff = !ready || locked || !app.timeline.clipSel.length;
   $("clip-cut").disabled = clipsOff;
+  $("clip-copy").disabled = clipsOff || app.copying;
   $("clip-delete").disabled = clipsOff;
+  // Paste: what Copy took (in this song or another), named in its tip.
+  const paste = $("clip-paste");
+  paste.disabled = !ready || locked || takesBusy || app.saving || !app.clipboard;
+  const pasteKeys = MAC ? "⌘V" : "Ctrl+V";
+  setAttr(paste, "aria-label", app.clipboard ? tr("Paste {what} at the playhead", { what: clipboardName() }) : tr("Paste at the playhead"));
+  setAttr(paste, "title", app.clipboard ? tr("Paste {what} at the playhead ({keys})", { what: clipboardName(), keys: pasteKeys }) : tr("Paste at the playhead ({keys}): copy clips first", { keys: pasteKeys }));
 
   // Undo and Redo: not while the song opens, is exported or saved, or a take
   // is recorded.
@@ -3457,7 +3538,12 @@ function wire() {
 
   // The clips (a computer)
   setIcon($("clip-cut"), "scissors");
+  setIcon($("clip-copy"), "copy");
+  setIcon($("clip-paste"), "paste");
+  labelClipTools();
   $("clip-cut").addEventListener("click", cutClips);
+  $("clip-copy").addEventListener("click", copyClips);
+  $("clip-paste").addEventListener("click", pasteClips);
   $("clip-delete").addEventListener("click", deleteClips);
 
   // Undo and Redo
@@ -3563,6 +3649,20 @@ function onKey(e) {
   }
   if (typing || !open) return;
   if (editor.key(e)) return;
+  // Ctrl+C, ⌘C: the clips selected copied (not the text selected on the
+  // page); Ctrl+V, ⌘V: pasted at the playhead. The chords of the bars
+  // selected go first (app/editor.js).
+  const plain = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
+  if (!phone && plain && (e.key === "c" || e.key === "C") && app.timeline.clipSel.length && !String(window.getSelection() || "")) {
+    e.preventDefault();
+    if (!e.repeat) copyClips();
+    return;
+  }
+  if (!phone && plain && (e.key === "v" || e.key === "V") && app.clipboard) {
+    e.preventDefault();
+    if (!e.repeat) pasteClips();
+    return;
+  }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   // The clips (a computer): C cuts those selected at the playhead; X, Delete
   // or Backspace deletes them; Escape lets them go.
@@ -3765,6 +3865,7 @@ function relabel() {
   relabelTrainer();
   if (chartField) chartField.relabel(tr("Bars per line"));
   labelSteps();
+  labelClipTools();
   labelLayoutSwitch();
   showCounting();
   showUpdate(shownLatest);

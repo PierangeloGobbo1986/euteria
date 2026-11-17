@@ -1,6 +1,9 @@
 // Main-thread side of the EUTERIA audio engine (see src/engine-core.js).
 
 const loading = new WeakMap();
+// Samples of a track copied in one message (copyTrack()): about ten seconds,
+// a megabyte by channel.
+const COPY_CHUNK = 1 << 19;
 
 // Adds the engine's three scripts to the context's AudioWorklet, once.
 function loadEngine(context) {
@@ -115,6 +118,26 @@ export class Engine {
   async takeTracks(keys) {
     const reply = await this.request({ type: "take", keys });
     return reply.tracks.map((t) => ({ ...t, channels: t.channels.map((b) => new Int16Array(b)) }));
+  }
+
+  // A copy of samples from..to of track `key`'s own audio, which goes on
+  // playing (Copy, src/player.js copyClips()): Int16Array[], one by channel,
+  // or null without the track. It comes over COPY_CHUNK samples at a time,
+  // so that the audio thread is never held up for long.
+  async copyTrack(key, from, to) {
+    from = Math.round(from);
+    const n = Math.max(0, Math.round(to) - from);
+    let out = null;
+    let at = 0;
+    do {
+      const len = Math.min(COPY_CHUNK, n - at);
+      const reply = await this.request({ type: "copy", key, from: from + at, to: from + at + len });
+      if (!reply.channels) return null;
+      out = out || reply.channels.map(() => new Int16Array(n));
+      reply.channels.forEach((b, c) => out[c].set(new Int16Array(b), at));
+      at += len;
+    } while (at < n);
+    return out;
   }
 
   // countIn: bars of metronome clicks before the song starts; countEnd: the

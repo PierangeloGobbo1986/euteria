@@ -166,7 +166,7 @@
           <button id="record" type="button" class="round rec" aria-pressed="false" aria-label="Record a take" title="Record a take over the song (R)" hidden><span class="rec-dot" aria-hidden="true"></span></button>
         </div>
       </div>
-      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save · Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac) · C cut the clips selected at the playhead, X delete them. Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
+      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save · Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac) · C cut the clips selected at the playhead, X delete them · Ctrl+C copy them, Ctrl+V paste them at the playhead, in this song or another (⌘C and ⌘V on a Mac). Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
     </div>
 
     <!-- What Record records from -->
@@ -233,6 +233,8 @@
           <div id="clip-tools" class="clip-tools" role="group" aria-label="Clips" hidden>
             <span class="lane-name">Clips</span>
             <button id="clip-cut" type="button" title="Cut the clips selected at the playhead (C)" aria-label="Cut the clips selected at the playhead" disabled></button>
+            <button id="clip-copy" type="button" disabled></button>
+            <button id="clip-paste" type="button" disabled></button>
             <button id="clip-delete" type="button" title="Delete the clips selected (X)" aria-label="Delete the clips selected" disabled>✕</button>
           </div>
           <!-- Beside the lanes over the tracks: their names (the sections, the chords, the bars), then,

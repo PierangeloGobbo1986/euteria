@@ -16,6 +16,7 @@ const TITLES = {
   "separation-failed": "Separation failed",
   "mp3-exported": "MP3 exported",
   "take-recorded": "Take recorded",
+  "tracks-pasted": "Tracks pasted",
   "project-shared": "Project shared",
   "project-downloaded": "Project downloaded",
 };

@@ -8,7 +8,8 @@
 // the separation need to write the takes in the song's file. Takes recorded,
 // deleted or moved make the song "not saved", as edits to the bars and
 // chords do. A take deleted is kept aside (src/player.js stashTake()), for
-// undo and redo (app/history.js) to bring it back: restore().
+// undo and redo (app/history.js) to bring it back: restore(). Tracks copied
+// (app.js) are pasted as takes: paste().
 
 import { Recorder } from "../src/recorder.js";
 import { takesDelayMs } from "../src/take-sync.js";
@@ -274,12 +275,40 @@ export class RecordingFlow {
     return back;
   }
 
+  // Paste (app.js): the tracks of `clip` (Copy's: {song, tracks: [{title,
+  // bus, channels, length, gain, offset}]}) as takes of this song, the first
+  // at song sample `at`, the others where they were against it, each with a
+  // copy of its audio. Returns the keys of the takes, or null (no room).
+  paste(clip, at) {
+    const { player, notice, takesChanged } = this.ctx;
+    if (this.busy || !player.song) return null;
+    const r = this.recorder;
+    const bytes = clip.tracks.reduce((sum, t) => sum + t.length * t.channels.length * 2, 0);
+    r.room(bytes);
+    if (r.usedBytes() + bytes > r.budget) {
+      notice(tr("There is no room for what was copied among the takes of this song: delete a take with its ✕ first."), "error", 8000);
+      return null;
+    }
+    const sr = player.context.sampleRate;
+    const keys = [];
+    for (const t of clip.tracks) {
+      const track = r.pastedTake({ title: t.title, channels: t.channels.map((c) => c.slice()), length: t.length, start: (at + t.offset) / sr, bus: t.bus, from: clip.song });
+      player.addTake({ ...track, gain: t.gain, on: true });
+      keys.push(track.key);
+    }
+    this.dirty = true;
+    takesChanged();
+    countEvent("tracks-pasted");
+    return keys;
+  }
+
   setSync(key, ms) {
     const { player, refreshPage } = this.ctx;
     const t = player.track(key);
     if (!t || !t.take) return;
     player.setTakeSync(key, ms);
-    this.recorder.rememberSync(t.take.input, t.take.syncMs);
+    // The next takes from its input start with it (not a take pasted).
+    if (!t.take.pastedFrom) this.recorder.rememberSync(t.take.input, t.take.syncMs);
     this.dirty = true;
     refreshPage();
   }
