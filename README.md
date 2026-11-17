@@ -219,8 +219,8 @@ open:
   over the bar, the same way.
 - **The tools of the chords** (2.5: over the timeline, where the loop's own buttons were):
   *Bars and chords* with its eye, the fields of the beats, ‹ Bar n ›, *Copy* and *Paste*,
-  *Clear chords* (two taps: it removes every chord and keeps the grid; a grid not wanted is
-  hidden with the eye), then *Zoom*; on the phone the eye and *Zoom*, then the fields of the
+  *Clear chords* (it removes every chord and keeps the grid, *Undo* brings them back; a grid
+  not wanted is hidden with the eye), then *Zoom*; on the phone the eye and *Zoom*, then the fields of the
   beats in a row of their own, then the bar with *Copy* and *Paste*, then the notation and
   *Clear chords*. What they do (chords copied, pasted, cleared, bars renumbered) is said in
   the band of the messages. A button beside *Chords*, in the column of the timeline (on the
@@ -233,7 +233,7 @@ open:
   bar, on the beat where each starts (2.7; before, one chord a bar or two on its halves):
   a change on beat 3 of 4/4 (beat 4 of 6/8) needs little evidence, on the other beats
   clearly more, so a chord heard for a moment does not change the bar; a bar without a
-  clear chord stays empty. Pressed again (a second click when the bars have chords), it
+  clear chord stays empty. Pressed again, it
   writes them again as they were found, in place of the chords changed or typed since:
   the song keeps what was found, so this is at once, on the phone too, and after a
   change of tempo or first beat the chords go in the new bars. They are suggestions to check
@@ -392,8 +392,8 @@ at 100%, free to change (`src/level.js`).
 
 Every take is a track at the bottom of the tracks (a row of its own in the timeline on a
 computer, drawn in red; its grip moves it elsewhere), with its switch, its volume, a red
-✕ that deletes it (a second tap confirms; on the phone it sits between the grip and the
-name; *Undo* brings it back) and **Sync**. The take is lined up with the
+✕ that deletes it at once (*Undo* brings it back; on the phone it sits between the grip
+and the name) and **Sync**. The take is lined up with the
 song from what the engine was playing while each sample came in, minus the delay of the
 devices that the browser reports (the sound on its way to the ears, the input on its way
 to the page). What it does not report, as the delay of Bluetooth headphones or speakers
@@ -505,8 +505,8 @@ got a chord. The song is analysed as it was recorded, whatever the tempo set to 
 it: the grid is right at 100% and follows any tempo; at another tempo a grey line beside the
 BPM says the tempo played (`96 BPM at this speed` at 80%). What was found is kept in this browser and written in the
 project by *Save* and by the separation, so a song is analysed once: pressed again,
-the buttons bring back the grid or the chords as they were found, at once, after a
-second click when they replace a grid or chords. The changes they make are changes to
+the buttons bring back the grid or the chords as they were found, at once (what they
+replace comes back with *Undo*). The changes they make are changes to
 save. Only in a browser without workers or WebAssembly does a song never analysed have no
 buttons: its grid is the one it brings, or one made by hand.
 

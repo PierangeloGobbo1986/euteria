@@ -1156,8 +1156,8 @@ function toggleNotation() {
 // bar, finding the tempo first for a song without a grid. What a song kept
 // from an earlier detection is used at once, so the buttons bring back the
 // grid or the chords as they were found after any change; else (a computer,
-// Chrome or Edge) the song is analysed now (app/detect.js). Both ask for a
-// second click before replacing a grid or chords.
+// Chrome or Edge) the song is analysed now (app/detect.js). What they replace
+// comes back with Undo.
 
 let reopen = null; // the song whose Bars and Chords opens again after a detection
 
@@ -1637,8 +1637,8 @@ function buildControls() {
     apply: applyDetection,
     finished: detectionFinished,
   });
-  confirmTap($("find-bpm"), () => (phone ? tr("Tap again to replace the grid") : tr("Click again to replace the grid")), findTempo, 4000, () => app.grid.bars.length > 0);
-  confirmTap($("find-chords"), () => (phone ? tr("Tap again to rewrite the chords") : tr("Click again to rewrite the chords")), findChords, 4000, () => app.grid.chords.size > 0);
+  $("find-bpm").addEventListener("click", findTempo);
+  $("find-chords").addEventListener("click", findChords);
   wireMetronome();
   wireTrainer();
   separation = new SeparationFlow({
@@ -1818,10 +1818,10 @@ function trackRow(t) {
   let del = null;
   let sync = null;
   if (t.take) {
-    // A take: ✕ deletes it (a second tap confirms), Sync moves it in time.
+    // A take: ✕ deletes it (Undo brings it back), Sync moves it in time.
     // On the phone ✕ comes between the grip and the name, on a computer after the name.
     del = h("button", { type: "button", class: "take-del", title: tr("Delete {title}", { title }), "aria-label": tr("Delete {title}", { title }), text: "✕" });
-    confirmTap(del, () => tr("Delete"), () => recording.deleteTake(key));
+    del.addEventListener("click", () => recording.deleteTake(key));
     if (phone) parts.splice(1, 0, del);
     else parts.push(del);
   }

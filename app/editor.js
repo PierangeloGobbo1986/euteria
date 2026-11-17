@@ -28,7 +28,7 @@
 // chords found in the song (app/detect.js, src/chords.js) on the beats of
 // every bar.
 
-import { h, numberField, fmtTime, fmtSigned, parseTime, confirmTap } from "./controls.js";
+import { h, numberField, fmtTime, fmtSigned, parseTime } from "./controls.js";
 import { chordView } from "../src/chordnames.js";
 import { barChords } from "../src/chords.js";
 import { setSection, sectionTitles, sectionIndexAt } from "../src/sections.js";
@@ -118,7 +118,6 @@ export class Editor {
   // ----- controls ----------------------------------------------------------------
 
   _build() {
-    const phone = this.ctx.phone;
     this.bpm = numberField({
       label: tr("Tempo of the grid"),
       min: BPM_RANGE[0],
@@ -154,7 +153,7 @@ export class Editor {
     });
     $("bpm-double").addEventListener("click", () => this.scaleTempo(2));
     $("bpm-half").addEventListener("click", () => this.scaleTempo(0.5));
-    confirmTap($("clear-chords"), () => (phone ? tr("Tap again to clear") : tr("Click again to clear")), () => this.clearChords());
+    $("clear-chords").addEventListener("click", () => this.clearChords());
 
     this.bar = numberField({
       label: tr("Number of the selected bar"),
