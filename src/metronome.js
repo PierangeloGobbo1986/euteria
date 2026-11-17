@@ -24,8 +24,9 @@
 // Kept in this browser: the volume, the metronome's own tempo, the beats of
 // each meter and what a silent bar silences. Not kept: every song opens with
 // the metronome off, a count-in of one bar (heard only with the metronome
-// on), the whole song, and the silent bars off (when on: clicks for 4 bars,
-// then 2 silent, not at random): songDefaults().
+// on), the count-in only (2.7.1; before, the whole song), and the silent bars
+// off (when on: clicks for 4 bars, then 2 silent, not at random):
+// songDefaults().
 
 import { METERS } from "./grid.js";
 
@@ -69,7 +70,7 @@ export function defaultMetronome() {
     muteOn: false, // the silent bars, on or off
     play: 4, // bars with the clicks…
     mute: 2, // …then silent bars
-    mode: "song", // what it plays: the count-in only, or the whole song
+    mode: "count", // what it plays: the count-in only, or the whole song
     silence: "all", // what they silence
     random: false, // silent bars at random, in the same proportion
     countIn: 1, // bars before the song starts (with the metronome on)
@@ -102,8 +103,8 @@ export function saveMetronome(s) {
   } catch (_) {}
 }
 
-// A song opens: the metronome off, a count-in of one bar, the whole song, the
-// silent bars off.
+// A song opens: the metronome off, a count-in of one bar, the count-in only,
+// the silent bars off.
 export function songDefaults(s) {
   const d = defaultMetronome();
   for (const k of PER_SONG) s[k] = d[k];
