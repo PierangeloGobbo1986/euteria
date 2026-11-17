@@ -1,15 +1,24 @@
-// The bar grid and the chords of a song as EUTERIA (Python) keeps them in
+// The bar grid and the chords of a song as a project keeps them in
 // manifest.music: the times of the beats and of the bars in seconds, the
 // shift of the bar numbers (bar_number_offset: the first bar is number
-// offset + 1) and the chords, one per bar, keyed by the bar's index; and the
-// sections of the song (its form, src/sections.js), which EUTERIA Web adds.
-// The grid is edited here too: rebuilt from its anchor (the first beat of a
-// bar), tempo and meter, as in EUTERIA (Python).
+// offset + 1), the chords keyed by the bar's index, and the sections of the
+// song (its form, src/sections.js). The chords of a bar are kept beat by beat,
+// as its slots: a text for each beat a chord may start on (four in 4/4, three
+// in 3/4, two in 6/8 on its beats 1 and 4), "" where none starts. A project
+// saved before EUTERIA Web 2.7.0 has one text a bar ("C G"): its chords are
+// spread over the bar, two on beats 1 and 3 (spread()). The grid is edited
+// here too: rebuilt from its anchor (the first beat of a bar), tempo and meter.
 
 import { readSections, sectionsFields, shiftSections } from "./sections.js";
 
 const METER_BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
 export const METERS = Object.keys(METER_BEATS);
+// The beats of a bar a chord may start on, counted from 0: each beat in 4/4
+// and 3/4; in 6/8 the two beats of the bar, on its eighth notes 1 and 4.
+const SLOT_BEATS = { "4/4": [0, 1, 2, 3], "3/4": [0, 1, 2], "6/8": [0, 3] };
+export const beatsPerBar = (meter) => METER_BEATS[meter] || 4;
+export const slotBeats = (meter) => SLOT_BEATS[meter] || SLOT_BEATS["4/4"];
+export const slotCount = (meter) => slotBeats(meter).length;
 export const BPM_RANGE = [20, 400];
 export const DEFAULT_BPM = 180; // EUTERIA (Python), for a song without one
 
@@ -37,25 +46,106 @@ function buildGrid(anchor, bpm, meter, duration) {
 const times = (list, duration) =>
   (Array.isArray(list) ? list.map(Number) : []).filter((t) => Number.isFinite(t) && t >= 0 && t <= duration + 1e-6).sort((a, b) => a - b);
 
+// The words of a chord text: the chords one after the other.
+export const chordWords = (text) => String(text || "").trim().split(/\s+/).filter(Boolean);
+
+// `words` (chords, one after the other) spread over `n` slots: k chords take
+// n / k slots each, the first ones a slot more when they do not divide
+// evenly (in 4/4 two chords on beats 1 and 3, three on 1, 3 and 4); with more
+// chords than slots, the last slots take two (the changes quicken toward the
+// end of a bar).
+export function spread(words, n) {
+  const out = new Array(Math.max(0, n)).fill("");
+  const k = words.length;
+  if (!k || !n) return out;
+  if (k <= n) {
+    const base = Math.floor(n / k);
+    const extra = n % k;
+    let at = 0;
+    for (let i = 0; i < k; i++) {
+      out[at] = words[i];
+      at += base + (i < extra ? 1 : 0);
+    }
+  } else {
+    const base = Math.floor(k / n);
+    const extra = k % n;
+    let w = 0;
+    for (let j = 0; j < n; j++) {
+      const take = base + (j >= n - extra ? 1 : 0);
+      out[j] = words.slice(w, w + take).join(" ");
+      w += take;
+    }
+  }
+  return out;
+}
+
+// A bar's chords as the slots of `meter`, or null when it has none: from the
+// text of a whole bar (a project saved before 2.7.0) spread over it, or from
+// slots, moved to those of another meter by where they fall in the bar (two
+// chords landing in one slot share it).
+export function toSlots(value, meter) {
+  const n = slotCount(meter);
+  let out;
+  if (typeof value === "string") out = spread(chordWords(value), n);
+  else if (Array.isArray(value)) {
+    const list = value.map((v) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") : ""));
+    if (list.length === n) out = list;
+    else {
+      out = new Array(n).fill("");
+      list.forEach((text, j) => {
+        if (!text) return;
+        const to = Math.min(n - 1, Math.round((j * n) / list.length));
+        out[to] = out[to] ? `${out[to]} ${text}` : text;
+      });
+    }
+  } else return null;
+  return out.some(Boolean) ? out : null;
+}
+
+// The chords of a project, or of the edits kept in this browser ({bar index:
+// slots, or a text}), as the slots of `meter`: Map(bar index -> slots).
+function readChords(fields, meter) {
+  const chords = new Map();
+  if (!fields || typeof fields !== "object") return chords;
+  for (const [k, v] of Object.entries(fields)) {
+    if (!/^-?\d+$/.test(String(k).trim())) continue;
+    const slots = toSlots(v, meter);
+    if (slots) chords.set(parseInt(k, 10), slots);
+  }
+  return chords;
+}
+
+// The chords moved to the slots of another meter.
+export function chordsInMeter(chords, meter) {
+  const out = new Map();
+  for (const [i, slots] of chords) {
+    const s = toSlots(slots, meter);
+    if (s) out.set(i, s);
+  }
+  return out;
+}
+
+// Every chord text of the chords (for the key they are in).
+export function chordTexts(chords) {
+  const out = [];
+  for (const slots of chords.values()) for (const text of slots) if (text) out.push(text);
+  return out;
+}
+
 // The grid of a project (an audio file has none): {beats, bars, offset,
-// chords: Map(bar index -> text), sections, meter, bpm, firstBeat}. As in EUTERIA
-// (Python), the saved beats and bars are the grid; a project saved without
-// them has none.
+// chords: Map(bar index -> slots), sections, meter, bpm, firstBeat}. The
+// saved beats and bars are the grid; a project saved without them has none.
 export function readGrid(manifest, duration) {
   const m = (manifest && manifest.music) || {};
-  const chords = new Map();
-  for (const [k, v] of Object.entries(m.chords && typeof m.chords === "object" ? m.chords : {})) {
-    if (!/^-?\d+$/.test(String(k).trim()) || typeof v !== "string" || !v.trim()) continue;
-    chords.set(parseInt(k, 10), v.trim());
-  }
+  const meter = METER_BEATS[m.time_signature] ? m.time_signature : "4/4";
   const offset = Number.isInteger(+m.bar_number_offset) ? +m.bar_number_offset : 0;
   return {
     beats: times(m.beats, duration),
     bars: times(m.bars, duration),
     offset,
-    chords,
+    chords: readChords(m.chords, meter),
     sections: readSections(m.sections),
-    meter: METER_BEATS[m.time_signature] ? m.time_signature : "4/4",
+    meter,
     bpm: +m.bpm > 0 ? +m.bpm : null,
     firstBeat: +m.first_beat >= 0 ? +m.first_beat : 0,
   };
@@ -77,11 +167,11 @@ export function nearestBar(bars, t) {
 }
 
 // The grid rebuilt from its anchor, tempo and meter (fields `firstBeat`,
-// `bpm`, `meter` already changed): a new grid. EUTERIA (Python) keeps the
-// chords and the bar numbers on the same indexes; here they (and the
+// `bpm`, `meter` already changed): a new grid. The chords (and the
 // sections) stay with the bars they belong to, measured at the anchor, so
 // that a bar appearing or vanishing at the start of the song (the anchor
-// moved by a few hundredths, the tempo changed) shifts nothing.
+// moved by a few hundredths, the tempo changed) shifts nothing; with another
+// meter they move to its slots.
 export function rebuildGrid(old, duration) {
   const { beats, bars } = buildGrid(old.firstBeat, old.bpm, old.meter, duration);
   let shift = 0;
@@ -89,7 +179,7 @@ export function rebuildGrid(old, duration) {
   const after = nearestBar(bars, old.firstBeat);
   if (before >= 0 && after >= 0) shift = after - before;
   const chords = new Map();
-  for (const [i, text] of old.chords) chords.set(i + shift, text);
+  for (const [i, slots] of chordsInMeter(old.chords, old.meter)) chords.set(i + shift, slots);
   const sections = shiftSections(old.sections, shift);
   return { ...old, beats, bars, chords, sections, offset: old.offset - shift, shift };
 }
@@ -144,10 +234,8 @@ export function applyGridEdits(grid, edits, duration) {
   if (METER_BEATS[edits.meter]) out.meter = edits.meter;
   if (+edits.firstBeat >= 0) out.firstBeat = +edits.firstBeat;
   if (Number.isInteger(edits.offset)) out.offset = edits.offset;
-  if (edits.chords && typeof edits.chords === "object") {
-    out.chords = new Map();
-    for (const [k, v] of Object.entries(edits.chords)) if (/^-?\d+$/.test(k) && typeof v === "string" && v.trim()) out.chords.set(+k, v.trim());
-  }
+  if (edits.chords && typeof edits.chords === "object") out.chords = readChords(edits.chords, out.meter);
+  else if (out.meter !== grid.meter) out.chords = chordsInMeter(out.chords, out.meter);
   if (Array.isArray(edits.sections)) out.sections = readSections(edits.sections);
   if (edits.empty) {
     out.beats = [];
@@ -160,7 +248,7 @@ export function applyGridEdits(grid, edits, duration) {
 
 const r6 = (t) => Math.round(t * 1e6) / 1e6;
 
-// The grid as manifest.music writes it (EUTERIA (Python) _save_music_settings).
+// The grid as manifest.music writes it: the chords of each bar as its slots.
 export function musicFields(grid) {
   return {
     bpm: grid.bpm,
@@ -172,6 +260,31 @@ export function musicFields(grid) {
     chords: Object.fromEntries([...grid.chords].sort((a, b) => a[0] - b[0]).map(([k, v]) => [String(k), v])),
     sections: sectionsFields(grid.sections),
   };
+}
+
+// How long bar i lasts: to the next bar; the last one as long as the one
+// before it (or as the tempo says).
+export function barLength(grid, i) {
+  const bars = grid.bars;
+  if (i + 1 < bars.length) return bars[i + 1] - bars[i];
+  if (bars.length > 1) return bars[bars.length - 1] - bars[bars.length - 2];
+  return grid.bpm ? (60 / grid.bpm) * beatsPerBar(grid.meter) : 2;
+}
+
+// The times the slots of bar i start at (its beats a chord may start on).
+export function slotTimes(grid, i) {
+  const a = grid.bars[i];
+  const len = barLength(grid, i);
+  const per = beatsPerBar(grid.meter);
+  return slotBeats(grid.meter).map((b) => a + (len * b) / per);
+}
+
+// The slot of bar i that time t falls in (the first one before its start).
+export function slotAt(grid, i, t) {
+  const at = slotTimes(grid, i);
+  let k = 0;
+  for (let j = 1; j < at.length; j++) if (t >= at[j] - 1e-9) k = j;
+  return k;
 }
 
 // The number shown on bar `index`.

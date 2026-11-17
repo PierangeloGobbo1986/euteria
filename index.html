@@ -181,8 +181,8 @@
 
     <section class="card timeline-card">
       <!-- Over the tracks, in one row (more on the phone): the bars and chords shown or hidden
-           (the eye beside Bars and chords), the chord of the bars selected in the chord lane, the
-           bar (‹ ›, its number), copy and paste, Clear chords; then the zoom. -->
+           (the eye beside Bars and chords), the chords of the bars selected in the chord lane, beat by
+           beat, the bar (‹ ›, its number), copy and paste, Clear chords; then the zoom. -->
       <div class="tl-toolbar">
         <div id="chord-edit" class="chord-edit" hidden>
           <div id="grid-view" class="grid-view" hidden>
@@ -190,7 +190,14 @@
             <button id="grid-eye" type="button" class="small eye" aria-pressed="true" aria-label="Show the grid"></button>
           </div>
           <button id="chord-notation-phone" type="button" class="small notation-btn phone-only" title="Chords in the Italian names or in letters"></button>
-          <input id="chord-input" class="chord-input" type="text" maxlength="40" placeholder="Chord" aria-label="Chord of the selected bars" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next">
+          <!-- The chords of the bars selected, beat by beat: a field for each beat a chord may start on
+               (four in 4/4, three in 3/4, two in 6/8); app/editor.js names them and hides those the meter has not. -->
+          <div id="chord-slots" class="chord-slots off" role="group" aria-label="Chords of the selected bars, beat by beat">
+            <input id="chord-slot-0" class="chord-slot" type="text" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" disabled>
+            <input id="chord-slot-1" class="chord-slot" type="text" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" disabled>
+            <input id="chord-slot-2" class="chord-slot" type="text" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" disabled>
+            <input id="chord-slot-3" class="chord-slot" type="text" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" disabled>
+          </div>
           <div class="bar-nav">
             <button id="bar-prev" type="button" class="small" aria-label="Previous bar" title="Previous bar">‹</button>
             <span class="mini-label">Bar</span>

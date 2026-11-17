@@ -496,16 +496,16 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 [data-layout=computer] .chord-edit .num { height: 36px; }
 [data-layout=computer] .chord-edit .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .chord-edit .num input { font-size: 15px; }
-/* Phone: the eye and the zoom, then the chord field, then the bar, copy,
-   paste and Clear chords. */
+/* Phone: the eye and the zoom, then the chord fields of the beats, then the
+   bar, copy and paste, then the notation and Clear chords. */
 [data-layout=phone] .chord-edit { display: contents; }
 [data-layout=phone] .chord-edit .grid-view { order: 1; }
 [data-layout=phone] .zoom-group { order: 2; margin-left: auto; }
-[data-layout=phone] .chord-edit .notation-btn { order: 3; }
-[data-layout=phone] .chord-edit .chord-input { order: 4; flex: 1 1 8em; }
+[data-layout=phone] .chord-edit .chord-slots { order: 3; flex: 1 1 100%; }
 [data-layout=phone] .chord-edit .bar-nav { order: 5; }
 [data-layout=phone] .chord-edit .clip { order: 6; }
-[data-layout=phone] .chord-edit #clear-chords { order: 7; margin-left: auto; }
+[data-layout=phone] .chord-edit .notation-btn { order: 7; }
+[data-layout=phone] .chord-edit #clear-chords { order: 8; margin-left: auto; }
 [data-layout=phone] .chord-edit .clip button { padding-left: 10px; padding-right: 10px; }
 [data-layout=phone] .tl-toolbar .grid-view .eye { min-width: 44px; min-height: 44px; }
 [data-layout=phone] .tl-toolbar .zoom-group .tool-label { display: none; }
@@ -625,24 +625,43 @@ button.eye .icon { width: 18px; height: 18px; }
 .bpm-scale { display: flex; gap: 4px; }
 .bpm-scale button { min-width: 40px; padding: 0 8px; font-variant-numeric: tabular-nums; }
 [data-layout=computer] .bpm-scale button { min-height: 36px; }
-.chord-input {
-  appearance: none;
-  -webkit-appearance: none;
-  flex: 1 1 9em;
+/* The chord fields of the beats of a bar: one box, a field a beat. The beat
+   being written is marked under its field (gold), the field typed in lit. */
+.chord-slots {
+  display: flex;
+  flex: 1 1 16em;
   min-width: 0;
   height: 44px;
-  padding: 0 12px;
   background: var(--field);
-  color: #e8cf9c;
   border: 1px solid var(--border);
   border-radius: 10px;
+  overflow: hidden;
+}
+.chord-slots:focus-within { border-color: var(--gold); }
+.chord-slots.off { opacity: .5; }
+.chord-slot {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 0;
+  width: 0; /* no width of its own (an input's is about 20 letters): the box shares its own */
+  min-width: 0;
+  height: 100%;
+  padding: 0 9px;
+  background: transparent;
+  color: #e8cf9c;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
   font: inherit;
   font-size: 17px;
   font-weight: 650;
 }
-.chord-input::placeholder { color: var(--dim); font-weight: 500; }
-.chord-input:focus { outline: none; border-color: var(--gold); background: #262a24; }
-.chord-input:disabled { opacity: .5; }
+.chord-slot:first-child { border-left: 0; }
+.chord-slot[hidden] { display: none; }
+.chord-slot::placeholder { color: var(--dim); font-weight: 500; }
+.chord-slot.current { box-shadow: inset 0 -2px 0 rgba(214, 168, 95, .55); }
+.chord-slot:focus { outline: none; background: #262a24; box-shadow: inset 0 -2px 0 var(--gold); }
+.chord-slot:disabled { opacity: 1; }
 .bar-nav { display: flex; align-items: center; gap: 6px; }
 .bar-nav > button { min-width: 38px; padding: 0; font-size: 22px; line-height: 1; }
 .clip { display: flex; gap: 8px; }
@@ -656,7 +675,8 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=computer] .edit-panel .num { height: 36px; }
 [data-layout=computer] .edit-panel .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .edit-panel .num input, [data-layout=computer] .edit-panel .num select { font-size: 15px; }
-[data-layout=computer] .chord-input { height: 36px; font-size: 15px; flex: 0 1 12em; }
+[data-layout=computer] .chord-slots { height: 36px; font-size: 15px; width: 17em; flex: 0 1 auto; }
+[data-layout=computer] .chord-slot { font-size: 15px; padding: 0 8px; }
 [data-layout=computer] .bar-nav > button { min-width: 34px; font-size: 20px; }
 [data-layout=phone] .tl-toolbar { gap: 8px; }
 [data-layout=phone] .tl-toolbar .spacer { display: none; }

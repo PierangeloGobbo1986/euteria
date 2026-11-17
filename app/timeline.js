@@ -21,11 +21,13 @@
 // brings the view there. While the song plays the view follows the playhead,
 // except for a few seconds after the user moved it.
 //
-// The chords are for the chords: while the grid and the chords are edited, a
-// tap or a click on a chord selects its bar, dragging along them (or
-// shift-click) selects several; otherwise a tap on a bar asks for its chord
-// to be edited (onBarTap) and dragging scrolls. The chords are shown in the
-// key the song is played in (setChordShift, src/chordnames.js).
+// The chords are for the chords, each on the beat where it starts: while the
+// grid and the chords are edited, a tap or a click on a chord selects its
+// bar, and says the beat it was on (its slot, src/grid.js), dragging along
+// them (or shift-click) selects several; otherwise a tap on a bar asks for
+// its chord to be edited (onBarTap) and dragging scrolls. The beat being
+// written is marked in the bars selected (setActiveSlot). The chords are
+// shown in the key the song is played in (setChordShift, src/chordnames.js).
 //
 // The bar numbers choose a stretch of the song for the loop (onRange): a tap
 // takes the bar, dragging along them a stretch by the eighth note (half a
@@ -45,7 +47,7 @@
 // nearest beat (before the loop or after it, the loop grows; inside, the
 // nearer edge comes in).
 
-import { barNumber, barAt } from "../src/grid.js";
+import { barNumber, barAt, slotTimes, slotAt, chordTexts } from "../src/grid.js";
 import { chordView } from "../src/chordnames.js";
 import { sectionTitles, sectionColor, sectionIndexAt } from "../src/sections.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
@@ -69,6 +71,8 @@ const C = {
   range: "rgba(107, 183, 170, 0.3)",
   select: "rgba(214, 168, 95, 0.26)",
   selectEdge: "#d6a85f",
+  slot: "rgba(214, 168, 95, 0.3)",
+  slotEdge: "rgba(214, 168, 95, 0.55)",
   playhead: "#e7bd6d",
   window: "rgba(237, 240, 236, 0.09)",
   windowEdge: "rgba(237, 240, 236, 0.6)",
@@ -116,7 +120,8 @@ export class Timeline {
   // {pointerType}) when a bar is tapped while not editing, onSectionMenu({lo,
   // hi, x, y, pointerType}) when the bars selected are tapped in the lane of
   // the sections (x, y: where, in the window), onRange({start, end}) when a
-  // stretch has been chosen on the bar numbers.
+  // stretch has been chosen on the bar numbers. onSelect and onBarTap say the
+  // beat pressed too (slot).
   // varsOn: the element that gets --tl-over, --tl-ruler, --tl-head, --tl-row,
   // --tl-sections, --tl-nums and --tl-chords (the height of the overview, of
   // the time scale, of everything over the tracks, of a row, of the lanes of
@@ -130,6 +135,7 @@ export class Timeline {
     this.onSectionMenu = onSectionMenu || (() => {});
     this.editing = false;
     this.selection = null; // {anchor, lo, hi}: bars selected in the chord lane
+    this.activeSlot = null; // the beat being written in them (its slot)
     this.onScrub = onScrub || (() => {});
     this.scrub = null; // where a finger is dragging the playhead
     this.varsOn = varsOn || host;
@@ -206,7 +212,7 @@ export class Timeline {
     this.sampleRate = sampleRate || 48000;
     this.rows = rows;
     this.grid = grid;
-    this.chordNames = chordView(grid.chords.values(), this.chordShift);
+    this.chordNames = chordView(chordTexts(grid.chords), this.chordShift);
     this.titles = sectionTitles(grid.sections);
     this.gridVisible = gridVisible;
     this.barSec = spacing(grid.bars, grid.bpm ? (60 / grid.bpm) * 4 : 2);
@@ -262,7 +268,7 @@ export class Timeline {
   setGrid(grid) {
     const head = this.headHeight;
     this.grid = grid;
-    this.chordNames = chordView(grid.chords.values(), this.chordShift);
+    this.chordNames = chordView(chordTexts(grid.chords), this.chordShift);
     this.titles = sectionTitles(grid.sections);
     this.barSec = spacing(grid.bars, grid.bpm ? (60 / grid.bpm) * 4 : 2);
     this.beatSec = spacing(grid.beats, grid.bpm ? 60 / grid.bpm : 0.5);
@@ -278,13 +284,19 @@ export class Timeline {
     const shift = Math.round(+semitones || 0);
     if (shift === this.chordShift) return;
     this.chordShift = shift;
-    this.chordNames = chordView(this.grid.chords.values(), shift);
+    this.chordNames = chordView(chordTexts(this.grid.chords), shift);
     if (this.showChords) this.requestDraw();
   }
 
-  // A bar's chord as it is shown (in the key of now).
-  chordShown(index) {
-    return this.chordNames.show(this.grid.chords.get(index));
+  // A bar's chords as they are shown (in the key of now), one after the
+  // other; with k, the chord of its slot k.
+  chordShown(index, k = null) {
+    const slots = this.grid.chords.get(index) || [];
+    if (k !== null) return this.chordNames.show(slots[k] || "");
+    return slots
+      .filter(Boolean)
+      .map((text) => this.chordNames.show(text))
+      .join(" ");
   }
 
   // Editing: a tap on the bars selects them.
@@ -296,6 +308,14 @@ export class Timeline {
 
   setSelection(sel) {
     this.selection = sel ? { anchor: sel.anchor ?? sel.lo, lo: sel.lo, hi: sel.hi } : null;
+    this.drawTop();
+  }
+
+  // The beat being written in the bars selected (its slot), or null.
+  setActiveSlot(k) {
+    const v = Number.isInteger(k) ? k : null;
+    if (v === this.activeSlot) return;
+    this.activeSlot = v;
     this.drawTop();
   }
 
@@ -641,6 +661,9 @@ export class Timeline {
     return lo > 0 ? `${text.slice(0, lo)}…` : "";
   }
 
+  // The chords, each where its beat is (a short mark under one that starts
+  // inside its bar), its name as long as the room before the next chord
+  // allows (over the following bars without one too, up to 160 pixels).
   _chords(ctx) {
     const y0 = this.chordsTop;
     const h = this.dims.chords;
@@ -653,23 +676,39 @@ export class Timeline {
     ctx.font = `600 ${this.compact ? 11 : 12}px ${FONT}`;
     ctx.textBaseline = "middle";
     const [a, b] = this._range(g.bars, this.barSec);
-    for (let i = Math.max(0, a - 1); i < b; i++) {
+    const from = Math.max(0, a - 1);
+    for (let i = from; i < b; i++) {
       const x0 = this.x(g.bars[i]);
       if (x0 > W) break;
       if (mod(barNumber(g, i) - 1, lines) === 0 && x0 >= 0) {
         ctx.fillStyle = C.sep;
         ctx.fillRect(Math.round(x0), y0, 1, h);
       }
-      const text = this.chordNames.show(g.chords.get(i));
-      if (!text) continue;
-      // A chord may use the following bars that have none.
-      let j = i + 1;
-      while (j < g.bars.length && !g.chords.has(j) && this.x(g.bars[j]) - x0 < 160) j++;
-      const x1 = j < g.bars.length ? this.x(g.bars[j]) : this.x(this.duration);
+    }
+    // The chords from the bar before the view to a little past it.
+    const events = [];
+    for (let i = from; i < g.bars.length && this.x(g.bars[i]) <= W + 200; i++) {
+      const slots = g.chords.get(i);
+      if (!slots) continue;
+      const at = slotTimes(g, i);
+      slots.forEach((text, k) => text && events.push({ t: at[k], text, i, k }));
+    }
+    const pad = this.textX;
+    for (let e = 0; e < events.length; e++) {
+      const ev = events[e];
+      const x0 = this.x(ev.t);
+      if (x0 > W) break;
+      const next = e + 1 < events.length ? this.x(events[e + 1].t) : this.x(this.duration);
+      const barEnd = this.x(this._barEnd(ev.i));
+      const x1 = Math.min(next, Math.max(barEnd, x0 + 160));
       if (x1 < 0) continue;
-      const pad = this.textX;
+      if (ev.k > 0 && x0 >= 0) {
+        ctx.fillStyle = C.sep;
+        ctx.fillRect(Math.round(x0), y0 + h - 6, 1, 5);
+      }
+      const text = this.chordNames.show(ev.text);
       const room = x1 - x0 - pad - 2;
-      if (room < 9) continue;
+      if (!text || room < 9) continue;
       ctx.fillStyle = C.chord;
       const fitted = this._fit(ctx, text, room);
       if (fitted) {
@@ -790,6 +829,7 @@ export class Timeline {
         const h = this.numsTop - 1;
         ctx.fillStyle = C.select;
         ctx.fillRect(x1, 0, x2 - x1, h);
+        this._slotsSelected(ctx, sel);
         ctx.fillStyle = C.selectEdge;
         ctx.fillRect(x1, 0, x2 - x1, 2);
         ctx.fillRect(x1, h - 2, x2 - x1, 2);
@@ -828,6 +868,35 @@ export class Timeline {
       ctx.lineTo(x, T + 8);
       ctx.closePath();
       ctx.fill();
+    }
+  }
+
+  // In the chord lane of the bars selected that are in view: a line between
+  // their beats a chord may start on, and the beat being written lit.
+  _slotsSelected(ctx, sel) {
+    const g = this.grid;
+    const [a, b] = this._range(g.bars, this.barSec);
+    const lo = Math.max(sel.lo, a - 1, 0);
+    const hi = Math.min(sel.hi, b, g.bars.length - 1);
+    const y = this.chordsTop + 3;
+    const h = this.dims.chords - 6;
+    for (let i = lo; i <= hi; i++) {
+      const at = slotTimes(g, i);
+      const end = this._barEnd(i);
+      for (let k = 0; k < at.length; k++) {
+        if (at[k] >= end) break;
+        const xa = Math.round(this.x(at[k]));
+        const xb = Math.round(this.x(k + 1 < at.length ? Math.min(at[k + 1], end) : end));
+        if (xb < 0 || xa > this.width) continue;
+        if (k > 0) {
+          ctx.fillStyle = C.slotEdge;
+          ctx.fillRect(xa, y, 1, h);
+        }
+        if (k === this.activeSlot && xb - xa > 4) {
+          ctx.fillStyle = C.slot;
+          ctx.fillRect(xa + 2, y, xb - xa - 4, h);
+        }
+      }
     }
   }
 
@@ -1044,6 +1113,23 @@ export class Timeline {
     return k >= 0 ? { lo: list[k].lo, hi: list[k].hi } : { lo: i, hi: i };
   }
 
+  // The beat of bar i pressed at x: the one under it, or the chord of the
+  // bar whose name, written before it, reaches x.
+  _slotAtX(i, x) {
+    const g = this.grid;
+    const k = slotAt(g, i, this.t(x));
+    const slots = g.chords.get(i);
+    if (!slots || slots[k]) return k;
+    for (let j = k - 1; j >= 0; j--) {
+      if (!slots[j]) continue;
+      const ctx = this.base.getContext("2d");
+      ctx.font = `600 ${this.compact ? 11 : 12}px ${FONT}`;
+      const end = this.x(slotTimes(g, i)[j]) + this.textX + ctx.measureText(this.chordNames.show(slots[j])).width;
+      return x <= end + 2 ? j : k;
+    }
+    return k;
+  }
+
   // The end of bar `i` (the start of the next one, or the end of the song).
   _barEnd(i) {
     const bars = this.grid.bars;
@@ -1143,8 +1229,9 @@ export class Timeline {
     if (zone === "chords") {
       const i = this.barIndexAt(p.x);
       const anchor = e.shiftKey && this.selection ? this.selection.anchor : i;
-      this.gesture = { kind: "select", id: e.pointerId, x0: p.x, anchor, moved: false };
-      this._select(anchor, i, false);
+      const slot = this._slotAtX(i, p.x);
+      this.gesture = { kind: "select", id: e.pointerId, x0: p.x, anchor, slot, moved: false };
+      this._select(anchor, i, false, slot);
       return;
     }
     // The edges and the body of the loop move by the step of the bar numbers
@@ -1184,7 +1271,7 @@ export class Timeline {
     if (g.kind === "select") {
       if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
       g.moved = true;
-      this._select(g.anchor, this.barIndexAt(p.x), false);
+      this._select(g.anchor, this.barIndexAt(p.x), false, g.slot);
       return;
     }
     if (g.kind === "range") {
@@ -1278,7 +1365,7 @@ export class Timeline {
       this.onLoop(lp);
     };
     if (g.kind === "select") {
-      if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled });
+      if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled, slot: g.slot });
     } else if (g.kind === "range") {
       if (this.range && !cancelled) this.onRange({ ...this.range });
     } else if (g.kind === "section") {
@@ -1311,7 +1398,10 @@ export class Timeline {
       if (t !== null && (g.moved || !cancelled)) this.onSeek(t);
     } else if (g.kind === "press") {
       if (!cancelled && pt) {
-        if (g.bar) this.onBarTap(this.barIndexAt(pt.x), { pointerType: e.pointerType });
+        if (g.bar) {
+          const i = this.barIndexAt(pt.x);
+          this.onBarTap(i, { pointerType: e.pointerType, slot: this._slotAtX(i, pt.x) });
+        }
         else this.onSeek(clamp(this.t(pt.x), 0, this.duration));
       }
     } else if (g.kind === "pan") {
@@ -1321,10 +1411,10 @@ export class Timeline {
     this.drawTop();
   }
 
-  _select(anchor, i, done) {
+  _select(anchor, i, done, slot = null) {
     this.selection = { anchor, lo: Math.min(anchor, i), hi: Math.max(anchor, i) };
     this.drawTop();
-    this.onSelect({ ...this.selection }, { done });
+    this.onSelect({ ...this.selection }, { done, slot });
   }
 
   _selectRange(anchor, lo, hi) {

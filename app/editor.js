@@ -1,9 +1,9 @@
-// Editing the grid and the chords of the open song, as in EUTERIA (Python):
-// the tempo of the grid (BPM, doubled or halved with ×2 and ÷2), the meter,
-// the first beat (a bar starts there; Set first beat puts it at the playhead),
-// the numbers of the bars, a chord per bar, copying and pasting the chords of
-// several bars, clearing the chords. Every edit is kept in this browser at
-// once (src/settings.js), and written in the song's file by Save (app.js).
+// Editing the grid and the chords of the open song: the tempo of the grid
+// (BPM, doubled or halved with ×2 and ÷2), the meter, the first beat (a bar
+// starts there; Set first beat puts it at the playhead), the numbers of the
+// bars, the chords of each bar beat by beat, copying and pasting the chords
+// of several bars, clearing the chords. Every edit is kept in this browser
+// at once (src/settings.js), and written in the song's file by Save (app.js).
 //
 // The editor is in the Song analysis card, always at hand: the bars and the
 // chords can be edited whenever they are shown (the eye), except while the
@@ -14,18 +14,40 @@
 // or a click selects one, dragging along them (or shift-click) several; ‹ and
 // › start from the bar at the playhead. No bar is selected until then, so that
 // the keys stay the transport's (← → five seconds) until a bar is chosen;
-// Escape lets it go. The chord typed applies to every bar selected; Return
-// goes on to the next bar. With the song transposed (Key), the chord field
-// shows and takes the chords in the key of now, and the bars keep them in the
-// song's own key (src/chordnames.js), so that the song saved is the same in
-// any key. Detect chords (Song analysis, wired in app/app.js) writes the
-// chords found in the song (app/detect.js, src/chords.js) in every bar.
+// Escape lets it go. The chord fields are the beats of the bar a chord may
+// start on (its slots, src/grid.js: four in 4/4, three in 3/4, two in 6/8): a
+// click on a chord, or on a beat, in the timeline opens the field of that
+// beat. A chord typed applies to that beat of every bar selected; chords typed
+// one after the other in a field are spread over the rest of the bar (two
+// from beat 1 on beats 1 and 3, src/grid.js spread()); an empty field removes
+// the chord of its beat. Tab goes on to the next beat (from the last one, to
+// the next bar), Return to the next bar. With the song transposed (Key), the
+// fields show and take the chords in the key of now, and the bars keep them in
+// the song's own key (src/chordnames.js), so that the song saved is the same
+// in any key. Detect chords (Song analysis, wired in app/app.js) writes the
+// chords found in the song (app/detect.js, src/chords.js) on the beats of
+// every bar.
 
 import { h, numberField, fmtTime, fmtSigned, parseTime, confirmTap } from "./controls.js";
 import { chordView } from "../src/chordnames.js";
 import { barChords } from "../src/chords.js";
 import { setSection, sectionTitles, sectionIndexAt } from "../src/sections.js";
-import { METERS, BPM_RANGE, DEFAULT_BPM, rebuildGrid, gridEdits, barNumber, barAt } from "../src/grid.js";
+import {
+  METERS,
+  BPM_RANGE,
+  DEFAULT_BPM,
+  rebuildGrid,
+  gridEdits,
+  barNumber,
+  barAt,
+  slotBeats,
+  slotCount,
+  chordWords,
+  spread,
+  toSlots,
+  chordTexts,
+  chordsInMeter,
+} from "../src/grid.js";
 import { tr, trn } from "../src/i18n.js";
 
 const $ = (id) => document.getElementById(id);
@@ -47,9 +69,10 @@ export class Editor {
     this.ctx = ctx;
     this.on = false;
     this.sel = null; // {anchor, lo, hi}: bar indexes
-    this.clip = []; // chords copied, one per bar ("" for none)
-    this.target = null; // the bars whose chord the chord field shows
-    this.shown = ""; // what it showed
+    this.clip = []; // chords copied: the slots of each bar (null for none)
+    this.target = null; // the bars whose chords the fields show
+    this.shown = []; // what each field showed
+    this.slot = 0; // the beat being written (its slot)
     this.shift = 0; // the song moved by these semitones (Key)
     this.dirty = false; // edits not saved in the file yet
     this.differs = false; // the grid is not the file's (kept in this browser)
@@ -63,7 +86,17 @@ export class Editor {
 
   // The chords of the song seen in the key of now.
   get names() {
-    return chordView(this.grid.chords.values(), this.shift);
+    return chordView(chordTexts(this.grid.chords), this.shift);
+  }
+
+  // How many fields the meter has, and the beat each one is.
+  get slotCount() {
+    return slotCount(this.grid.meter);
+  }
+
+  // The field of the beat being written.
+  get chord() {
+    return this.slots[Math.min(this.slot, this.slotCount - 1)];
   }
 
   // The song moved by `semitones` (Key): what was typed goes in first, in the
@@ -139,22 +172,52 @@ export class Editor {
     $("chord-copy").addEventListener("click", () => this.copy());
     $("chord-paste").addEventListener("click", () => this.paste());
 
-    const input = (this.chord = $("chord-input"));
-    input.addEventListener("focus", () => {
-      // The whole chord selected, to type over it (not when a key started it).
-      // Some browsers place the caret after the focus: selected again then,
-      // unless something was typed already.
-      if (this.keepCaret) {
-        this.keepCaret = false;
-        return;
-      }
-      const value = input.value;
-      input.select();
-      setTimeout(() => document.activeElement === input && input.value === value && input.select(), 0);
+    // The fields of the beats of a bar.
+    this.slots = [0, 1, 2, 3].map((k) => $(`chord-slot-${k}`));
+    this.slots.forEach((input, k) => {
+      input.addEventListener("focus", () => {
+        this.slot = k;
+        this._showSlot();
+        // The whole chord selected, to type over it (not when a key started
+        // it). Some browsers place the caret after the focus: selected again
+        // then, unless something was typed already.
+        if (this.keepCaret) {
+          this.keepCaret = false;
+          return;
+        }
+        const value = input.value;
+        input.select();
+        setTimeout(() => document.activeElement === input && input.value === value && input.select(), 0);
+      });
+      input.addEventListener("blur", () => this.commitInput(k));
+      input.addEventListener("keydown", (e) => this._inputKey(e, k));
     });
-    input.addEventListener("blur", () => this.commitInput());
-    input.addEventListener("keydown", (e) => this._inputKey(e));
+    this._labelSlots();
+  }
 
+  // The names of the fields: the beat of each (in 6/8, beats 1 and 4).
+  _labelSlots() {
+    const beats = slotBeats(this.grid.meter);
+    this.slots.forEach((input, k) => {
+      if (k < beats.length) input.setAttribute("aria-label", tr("Chord on beat {n}", { n: beats[k] + 1 }));
+    });
+  }
+
+  // The field of beat k, with the cursor in it.
+  focusSlot(k) {
+    this.slot = clamp(k, 0, this.slotCount - 1);
+    const input = this.chord;
+    if (!input.disabled) input.focus();
+    this._showSlot();
+  }
+
+  // The beat being written: marked among the fields and in the timeline.
+  _showSlot() {
+    const n = this.slotCount;
+    if (this.slot >= n) this.slot = n - 1;
+    const on = !!this.sel;
+    this.slots.forEach((input, k) => input.classList.toggle("current", on && k === this.slot));
+    this.ctx.timeline.setActiveSlot(on ? this.slot : null);
   }
 
   // Time `t` put on the beat the tempo detection found nearest to it, if one is
@@ -176,25 +239,51 @@ export class Editor {
     this.anchor.relabel(tr("First beat"));
     this.bar.relabel(tr("Number of the selected bar"));
     this.bar.input.title = tr("Type a number to renumber the bars from here");
-    if (this.ctx.player.song) this.chord.placeholder = this._placeholder(); // else the page's own
+    this._labelSlots();
+    if (this.ctx.player.song) {
+      this.commitInput();
+      this.loadInput();
+    }
     this.refresh();
   }
 
-  // Return: the next bar (Shift: the previous one), the keyboard stays up.
-  // Escape: the chord as it was. Ctrl+C and Ctrl+V (⌘ on a Mac) copy and
-  // paste the chords of the bars, as in EUTERIA (Python), unless part of the
-  // text is selected (copy) or nothing was copied (paste).
-  _inputKey(e) {
-    const input = this.chord;
+  // In the field of beat k. Return: the next bar, from its beat 1 (Shift:
+  // the previous one), the keyboard stays up. Tab: the next beat, from the
+  // last one beat 1 of the next bar (Shift: back). ← → at an end of the text:
+  // the beat beside. Escape: the chord as it was. Ctrl+C and Ctrl+V (⌘ on a
+  // Mac) copy and paste the chords of the bars, unless part of the text is
+  // selected (copy) or nothing was copied (paste).
+  _inputKey(e, k) {
+    const input = this.slots[k];
     const mod = e.metaKey || e.ctrlKey;
+    const n = this.slotCount;
     if (e.key === "Enter" && !mod && !e.altKey) {
       e.preventDefault();
       this.commitInput();
       this.move(e.shiftKey ? -1 : 1, false);
-      input.select();
+      this.focusSlot(0);
+      this.chord.select();
+    } else if (e.key === "Tab" && !mod && !e.altKey) {
+      const next = k + (e.shiftKey ? -1 : 1);
+      if (next >= 0 && next < n) return; // the browser goes on to that field
+      const i = this.sel ? (e.shiftKey ? this.sel.lo - 1 : this.sel.hi + 1) : -1;
+      if (i < 0 || i >= this.grid.bars.length) return; // out of the fields
+      e.preventDefault();
+      this.commitInput();
+      this.select({ anchor: i, lo: i, hi: i }, { reveal: true });
+      this.focusSlot(e.shiftKey ? n - 1 : 0);
+    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !mod && !e.altKey && !e.shiftKey) {
+      const a = input.selectionStart;
+      const b = input.selectionEnd;
+      const left = e.key === "ArrowLeft";
+      if (a !== b || a !== (left ? 0 : input.value.length)) return;
+      const next = k + (left ? -1 : 1);
+      if (next < 0 || next >= n) return;
+      e.preventDefault();
+      this.focusSlot(next);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      input.value = this.shown;
+      input.value = this.shown[k] || "";
       input.blur();
     } else if (mod && !e.altKey && !e.shiftKey && (e.key === "c" || e.key === "C")) {
       const all = input.selectionStart === input.selectionEnd || (input.selectionStart === 0 && input.selectionEnd === input.value.length);
@@ -205,7 +294,8 @@ export class Editor {
       if (!this.clip.length) return;
       e.preventDefault();
       this.paste();
-      input.select();
+      this.focusSlot(k);
+      this.chord.select();
     }
   }
 
@@ -218,12 +308,15 @@ export class Editor {
     this.dirty = dirty && differs;
     this.sel = null;
     this.target = null;
+    this.slot = 0;
     this.anchor.setRange(0, this.duration);
     // The bars and the chords can be edited whenever they are shown.
     this.on = !!this.ctx.player.song && this.ctx.app.gridVisible && !this.locked;
     this.ctx.timeline.setEditing(this.on);
     this.ctx.timeline.setSelection(null);
+    this._labelSlots();
     this.loadInput();
+    this._showSlot();
     this.refresh();
   }
 
@@ -242,7 +335,9 @@ export class Editor {
     this.target = null;
     this.ctx.timeline.setGrid(grid);
     this.ctx.timeline.setSelection(null);
+    this._labelSlots();
     this.loadInput();
+    this._showSlot();
     this.ctx.refreshPage();
   }
 
@@ -274,6 +369,7 @@ export class Editor {
     this.sel = null;
     timeline.setSelection(null);
     this.loadInput();
+    this._showSlot();
     this.ctx.refreshPage();
   }
 
@@ -302,26 +398,31 @@ export class Editor {
     this.ctx.timeline.setSelection(this.sel);
     if (reveal && this.sel) this.ctx.timeline.revealBars(this.sel.lo, this.sel.hi);
     this.loadInput();
+    this._showSlot();
     this.refresh();
   }
 
-  // From the timeline: bars selected (by their numbers or their chords). On a
-  // computer a click puts the cursor in the chord field.
+  // From the timeline: bars selected (by their numbers or their chords), and
+  // the beat the press was on (slot). On a computer a click puts the cursor
+  // in the field of that beat.
   onSelect(sel, info = {}) {
     if (!this.on) return;
+    if (Number.isInteger(info.slot)) this.slot = info.slot;
     this.select(sel);
-    if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone && info.lane !== "sections") this.chord.focus();
+    if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone && info.lane !== "sections") this.focusSlot(this.slot);
   }
 
   // A bar tapped in the timeline while Bars and Chords is closed: it opens
-  // with that bar selected (and, with a mouse, the cursor in the chord field).
-  // On a computer its tools open over the timeline: the page scrolls with
-  // them, so that the timeline stays where it was under the mouse.
-  openAt(index, { pointerType = "" } = {}) {
+  // with that bar selected (and, with a mouse, the cursor in the field of
+  // the beat tapped). On a computer its tools open over the timeline: the
+  // page scrolls with them, so that the timeline stays where it was under the
+  // mouse.
+  openAt(index, { pointerType = "", slot = 0 } = {}) {
     const host = this.ctx.timeline.main;
     const before = host.getBoundingClientRect().top;
     this.setOn(true);
     if (!this.on) return;
+    this.slot = Number.isInteger(slot) ? slot : 0;
     this.select({ anchor: index, lo: index, hi: index });
     const shift = host.getBoundingClientRect().top - before;
     if (shift) window.scrollBy(0, shift);
@@ -346,46 +447,70 @@ export class Editor {
     }
   }
 
-  // The chord field shows the chord of the bars selected (empty if they
-  // differ).
+  // The fields show the chords of the bars selected, beat by beat (a field
+  // is empty where they differ, with … in it). As many fields as the meter
+  // has beats a chord may start on.
   loadInput() {
-    const input = this.chord;
-    input.placeholder = this._placeholder();
+    const beats = slotBeats(this.grid.meter);
+    const n = beats.length;
+    this.slots.forEach((input, k) => (input.hidden = k >= n));
+    if (this.slot >= n) this.slot = n - 1;
+    this.shown = [];
     if (!this.sel) {
       this.target = null;
-      this.shown = "";
-      input.value = "";
+      this.slots.forEach((input, k) => {
+        input.value = "";
+        input.placeholder = k < n ? String(beats[k] + 1) : "";
+        input.removeAttribute("title");
+      });
       return;
     }
     const { lo, hi } = this.sel;
-    const texts = new Set();
-    for (let i = lo; i <= hi; i++) texts.add(this.grid.chords.get(i) || "");
-    const value = texts.size === 1 ? this.names.show([...texts][0]) : "";
+    const names = this.names;
     this.target = { lo, hi };
-    this.shown = value;
-    input.value = value;
-    if (document.activeElement === input) input.select();
+    for (let k = 0; k < n; k++) {
+      const texts = new Set();
+      for (let i = lo; i <= hi; i++) texts.add((this.grid.chords.get(i) || [])[k] || "");
+      const same = texts.size === 1;
+      const value = same ? names.show([...texts][0]) : "";
+      const input = this.slots[k];
+      this.shown[k] = value;
+      input.value = value;
+      input.placeholder = same ? String(beats[k] + 1) : "…";
+      if (same) input.removeAttribute("title");
+      else input.title = tr("Several chords");
+    }
+    const active = this.slots.indexOf(document.activeElement);
+    if (active >= 0) this.slots[active].select();
   }
 
-  // What the chord field says while empty: what to do, or that the bars
-  // selected have different chords.
-  _placeholder() {
-    if (!this.sel) return this.grid.bars.length ? tr("Select a bar") : tr("No grid");
-    const { lo, hi } = this.sel;
-    const first = this.grid.chords.get(lo) || "";
-    for (let i = lo + 1; i <= hi; i++) if ((this.grid.chords.get(i) || "") !== first) return tr("Several chords");
-    return tr("Chord");
-  }
-
-  // What was typed in the chord field goes to its bars (empty: no chord).
-  commitInput() {
+  // What was typed in the fields (only: in that one) goes to their beats in
+  // the bars selected: one chord on its beat, several spread over the rest of
+  // the bar, nothing removes the chord of that beat.
+  commitInput(only = null) {
     const t = this.target;
     if (!t) return;
-    const text = this.chord.value.trim().replace(/\s+/g, " ");
-    if (text === this.shown) return;
-    this.shown = text;
-    const stored = this.names.store(text); // in the song's own key
-    this._setChords(t.lo, t.hi, () => stored);
+    const n = this.slotCount;
+    const names = this.names;
+    const edits = [];
+    for (let k = 0; k < n; k++) {
+      if (only !== null && k !== only) continue;
+      const text = this.slots[k].value.trim().replace(/\s+/g, " ");
+      if (text === (this.shown[k] || "")) continue;
+      this.shown[k] = text;
+      edits.push([k, chordWords(names.store(text))]); // in the song's own key
+    }
+    if (!edits.length) return;
+    this._setChords(t.lo, t.hi, (_, current) => {
+      const slots = current ? [...current] : new Array(n).fill("");
+      for (const [k, words] of edits) {
+        if (words.length <= 1) slots[k] = words[0] || "";
+        else spread(words, n - k).forEach((w, j) => (slots[k + j] = w));
+      }
+      return slots;
+    });
+    // The chords spread over the next beats show in their fields.
+    if (edits.some(([, words]) => words.length > 1)) this.loadInput();
   }
 
   // ----- edits ------------------------------------------------------------------------
@@ -400,11 +525,13 @@ export class Editor {
     this.ctx.refreshPage();
   }
 
+  // The chords of bars lo..hi: chordFor(k (from lo), the bar's slots or
+  // null) gives the new slots (null: none).
   _setChords(lo, hi, chordFor) {
     const chords = new Map(this.grid.chords);
     for (let i = lo; i <= hi; i++) {
-      const v = chordFor(i - lo);
-      if (v) chords.set(i, v);
+      const v = chordFor(i - lo, chords.get(i) || null);
+      if (v && v.some(Boolean)) chords.set(i, v);
       else chords.delete(i);
     }
     this.ctx.app.grid = { ...this.grid, chords };
@@ -422,7 +549,9 @@ export class Editor {
       return said;
     }
     this.commitInput();
-    this.ctx.app.grid = { ...this.grid, meter };
+    this.ctx.app.grid = { ...this.grid, meter, chords: chordsInMeter(this.grid.chords, meter) };
+    this._labelSlots();
+    this.loadInput();
     const said = tr("Meter {meter}.", { meter });
     this._edited(said);
     return said;
@@ -439,8 +568,10 @@ export class Editor {
     this.ctx.app.grid = next;
     this.built = true;
     if (this.sel) this.sel = { anchor: this.sel.anchor + shift, lo: this.sel.lo + shift, hi: this.sel.hi + shift };
+    this._labelSlots();
     this._edited(message);
     if (this.on && this.sel) this.select(this.sel);
+    else this.loadInput();
   }
 
   // ×2 and ÷2: the tempo of the grid doubled or halved, from the anchor
@@ -480,10 +611,10 @@ export class Editor {
     this._edited(tr("Chords cleared: the grid stays."));
   }
 
-  // The chords found in the song (app.analysis.chords, src/chords.js) in
-  // every bar, spelled in the song's key, in place of the chords it had (a
-  // bar without a clear chord is left empty). quiet: no message here.
-  // Returns how many bars got a chord.
+  // The chords found in the song (app.analysis.chords, src/chords.js) on
+  // the beats of every bar, spelled in the song's key, in place of the chords
+  // it had (a bar without a clear chord is left empty). quiet: no message
+  // here. Returns how many bars got a chord.
   writeChords({ quiet = false } = {}) {
     const { app, player } = this.ctx;
     const found = app.analysis && app.analysis.chords;
@@ -517,6 +648,7 @@ export class Editor {
     this.sel = null;
     app.gridVisible = true;
     timeline.setGridVisible(true);
+    this._labelSlots();
     this.loadInput();
     this._edited();
   }
@@ -531,7 +663,7 @@ export class Editor {
   clearSelection() {
     if (!this.sel) return;
     const { lo, hi } = this.sel;
-    this._setChords(lo, hi, () => "");
+    this._setChords(lo, hi, () => null);
     this.loadInput();
   }
 
@@ -540,19 +672,24 @@ export class Editor {
     if (!this.sel) return;
     const { lo, hi } = this.sel;
     this.clip = [];
-    for (let i = lo; i <= hi; i++) this.clip.push(this.grid.chords.get(i) || "");
+    for (let i = lo; i <= hi; i++) {
+      const slots = this.grid.chords.get(i);
+      this.clip.push(slots ? [...slots] : null);
+    }
     this.say(trn(this.clip.length, "Chords of {n} bar copied.", "Chords of {n} bars copied."));
   }
 
-  // Into the bars selected, repeating the chords copied to fill them (EUTERIA
-  // (Python)); one bar selected: all the chords copied, from there.
+  // Into the bars selected, repeating the chords copied to fill them; one bar
+  // selected: all the chords copied, from there. Copied in another meter,
+  // they move to the beats of this one.
   paste() {
     this.commitInput();
     if (!this.sel || !this.clip.length) return;
     const n = this.clip.length;
     let { lo, hi } = this.sel;
     if (lo === hi) hi = Math.min(this.grid.bars.length - 1, lo + n - 1);
-    this._setChords(lo, hi, (k) => this.clip[k % n]);
+    const meter = this.grid.meter;
+    this._setChords(lo, hi, (k) => (this.clip[k % n] ? toSlots(this.clip[k % n], meter) : null));
     this.select({ anchor: lo, lo, hi }, { reveal: true });
     this.say(trn(hi - lo + 1, "Chords pasted into {n} bar.", "Chords pasted into {n} bars."));
   }
@@ -582,7 +719,7 @@ export class Editor {
     if (!this.sel) return false;
     if (e.key === "Enter") {
       e.preventDefault();
-      this.chord.focus();
+      this.focusSlot(this.slot);
       return true;
     }
     if (e.key === "Backspace" || e.key === "Delete") {
@@ -595,12 +732,13 @@ export class Editor {
       return true;
     }
     if (CHORD_KEY.test(e.key) && !e.repeat) {
-      // The chord starts with this key.
+      // The chord of the beat being written starts with this key.
       e.preventDefault();
+      const input = this.chord;
       this.keepCaret = true;
-      this.chord.focus();
-      this.chord.value = e.key;
-      this.chord.setSelectionRange(1, 1);
+      input.focus();
+      input.value = e.key;
+      input.setSelectionRange(1, 1);
       return true;
     }
     return false;
@@ -646,7 +784,8 @@ export class Editor {
     this.bar.disable(!sel);
     $("bar-prev").disabled = busy || !has || (!!sel && sel.lo <= 0);
     $("bar-next").disabled = busy || !has || (!!sel && sel.hi >= g.bars.length - 1);
-    this.chord.disabled = !sel;
+    for (const input of this.slots) input.disabled = !sel;
+    $("chord-slots").classList.toggle("off", !sel);
     $("chord-copy").disabled = !sel;
     $("chord-paste").disabled = !sel || !this.clip.length;
 

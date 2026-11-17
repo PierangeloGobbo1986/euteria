@@ -112,8 +112,9 @@ drawn dimmed); on the phone the row is the Original Track. Mouse and finger work
 on the waveforms: a tap or a click places the playhead (the yellow line), dragging from
 inside the loop moves the loop and keeps its length, dragging from anywhere else drags
 the playhead, to place it exactly. A tap or a click on the time scale places the
-playhead too; a tap or a click on a chord selects its bar, to write its chord (with a
-mouse, the cursor goes in the chord field). Dragging the time scale scrolls (with
+playhead too; a tap or a click on a chord, or on a beat of the chord lane, selects its
+bar, to write its chords (with a mouse, the cursor goes in the field of that beat).
+Dragging the time scale scrolls (with
 momentum on a touch screen);
 pinching, ctrl+wheel (a trackpad pinch) or the buttons of *Zoom* (at the right of the
 timeline's toolbar) go from the whole song (100%) to about 100 pixels per second, and a
@@ -139,13 +140,14 @@ beat; Alt or Option moves them freely): with a finger by their handles at the fo
 time scale, with a mouse also anywhere along them; on a computer [ and ] put the start or
 the end of the loop at the playhead. While the song plays, the view follows the playhead,
 except for a few seconds after it was moved by hand.
-The eye beside *Bars and chords*, over the timeline at the left of the chord field, shows
+The eye beside *Bars and chords*, over the timeline at the left of the chord fields, shows
 or hides the sections, the grid lines and the chords
 (open: shown and editable, closed: hidden; the choice is kept with the song, in this browser,
 and saved in the project). When nothing is over the waveforms, the line under the timeline
 says why first: the song has no bars yet (*Detect tempo* finds them, on a computer; *Set first
 beat* makes them by hand), or they are hidden, and where the eye is. Bar numbers start from the number saved by
-EUTERIA (Python), and a chord too long for its bar uses the following empty bars.
+EUTERIA (Python). Each chord is written where its beat is (2.7: a short mark under one that
+starts inside its bar), and a name too long for its room uses the following empty bars.
 
 **Editing the grid and the chords.** The editor of EUTERIA (Python) is in two places,
 the same on the computer and on the phone: the grid in the *Song analysis* card (between
@@ -167,30 +169,47 @@ open:
   that appears or vanishes at the start of the song shifts nothing. A song without a
   grid starts at 180 BPM as in EUTERIA (Python), once the first beat is set; *Detect
   tempo* makes the grid from the tempo found (below).
-- **The chords**: a tap or a click on a chord, in its lane, selects its bar; dragging
-  along the chords (or shift-click) selects several (the bar numbers are for the loop). No bar is selected when a
-  song opens, so the keys stay the transport's (← → five seconds) until a bar is chosen;
-  ‹ and › start from the bar at the playhead, and Escape lets the selection go. The chord typed goes to every bar selected (an empty
-  chord removes it); Return (*next* on the phone keyboard) goes on to the following
-  bar, so a song is entered chord after chord without leaving the keyboard. ‹ and ›
-  move the selection. *Copy* and *Paste* copy the chords of the bars selected: pasted
-  into several bars they repeat to fill them (as in EUTERIA (Python)), pasted into one
-  bar they all go in from there. On a computer: a click puts the cursor in the chord
-  field, a key from A to G starts a chord, ← → move the selection (Shift: extend it),
-  Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
+- **The chords** (2.7: beat by beat): a bar has a field for each beat a chord may start on,
+  four in 4/4, three in 3/4, two in 6/8 (beats 1 and 4), side by side over the timeline,
+  each with the number of its beat while empty. A tap or a click on a chord, or on a beat,
+  in its lane selects its bar and that beat (lit in the bar and under its field; on a
+  chord's name, that chord's beat, even where the name runs over the next beats); dragging
+  along the chords (or shift-click) selects several bars (the bar numbers are for the
+  loop). No bar is selected when a song opens, so the keys stay the transport's (← → five
+  seconds) until a bar is chosen; ‹ and › start from the bar at the playhead, and Escape
+  lets the selection go. A chord typed in a field goes on that beat of every bar selected
+  (an emptied field removes the chord of its beat; where the bars selected differ, the
+  field shows …). Chords typed one after the other in one field are spread over the rest
+  of the bar, as a chart reads them: two typed in the field of beat 1 go on beats 1 and
+  3, three on 1, 3 and 4, more than the beats left share the last ones. Return (*next*
+  on the phone keyboard) goes on to beat 1 of the following bar, so a song is entered
+  bar after bar without leaving the keyboard; on a computer Tab goes on to the next beat
+  (from the last one, to the next bar; Shift+Tab back), and ← → at an end of the text
+  to the field beside. *Copy* and *Paste* copy the chords of the bars selected, beat by
+  beat: pasted into several bars they repeat to fill them, pasted into one bar they all
+  go in from there. On a computer: a click puts the cursor in the field of the beat
+  clicked, a key from A to G starts a chord on the beat lit, ← → move the selection
+  (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
+  With another meter the chords move to its beats, by where they fall in the bar (from
+  4/4 to 6/8, beat 3 goes on beat 4 of 6/8; two landing on the same beat share it). A
+  project saved before 2.7 has one text a bar (*C G*): it opens with its chords spread
+  over the bar, the same way.
 - **The tools of the chords** (2.5: over the timeline, where the loop's own buttons were):
-  *Bars and chords* with its eye, the chord field, ‹ Bar n ›, *Copy* and *Paste*, *Clear
-  chords* (two taps: it removes every chord and keeps the grid; a grid not wanted is hidden
-  with the eye), then *Zoom*; on the phone the eye and *Zoom*, then the chord field, then the
-  bar with *Copy* and *Paste*, then *Clear chords*. What they do (chords copied, pasted,
-  cleared, bars renumbered) is said in the band of the messages. A button beside *Chords*,
-  in the column of the timeline (on the phone, beside the chord field), switches every
+  *Bars and chords* with its eye, the fields of the beats, ‹ Bar n ›, *Copy* and *Paste*,
+  *Clear chords* (two taps: it removes every chord and keeps the grid; a grid not wanted is
+  hidden with the eye), then *Zoom*; on the phone the eye and *Zoom*, then the fields of the
+  beats in a row of their own, then the bar with *Copy* and *Paste*, then the notation and
+  *Clear chords*. What they do (chords copied, pasted, cleared, bars renumbered) is said in
+  the band of the messages. A button beside *Chords*, in the column of the timeline (on the
+  phone, beside *Clear chords*), switches every
   chord between letters and the Italian names, written in capitals so that the m of a minor
   chord stands out (*REm7*, *SOL7*): it says the notation it changes to (*DO RE MI…* while
   the chords are in letters, *C D E…* in Italian); the choice is kept in this browser, and
-  the chord field takes either, the Italian names in any case (*DO7*, *Do7*, *do7*).
+  the fields take either, the Italian names in any case (*DO7*, *Do7*, *do7*).
 - **Detect chords** (the third button of the card): the chords found (below) written in every
-  bar, one chord a bar, or two when each half of the bar has its own; a bar without a
+  bar, on the beat where each starts (2.7; before, one chord a bar or two on its halves):
+  a change on beat 3 of 4/4 (beat 4 of 6/8) needs little evidence, on the other beats
+  clearly more, so a chord heard for a moment does not change the bar; a bar without a
   clear chord stays empty. Pressed again (a second click when the bars have chords), it
   writes them again as they were found, in place of the chords changed or typed since:
   the song keeps what was found, so this is at once, on the phone too, and after a
@@ -198,7 +217,7 @@ open:
   by ear: the model often writes a triad where a seventh is played (G for G7, Dm for
   Dm7), and the names are spelled in the key of the song.
 - **The chords follow the key**: with the song transposed (*Key*), the timeline and the
-  chord field show the chords in the new key, and a line under the chord field says so; a
+  fields of the beats show the chords in the new key, and a line under them says so; a
   chord typed then is kept in the song's own key, so the project saved is the same in any
   key and the chords move again with the next change of key. Only chord names move: a
   root (C to B, or DO to SI), its sharp or flat, what follows it as it is (m7, maj7,
@@ -554,6 +573,12 @@ travel as files (for example over WhatsApp).
   for no chord, the mean probability of that chord over the segment), with the model,
   where it ran, how long it took and the version of EUTERIA Web. *Detect chords* puts
   them again in the bars of the grid of now.
+- **The chords of the bars**: `music.chords` keys each bar with chords by its index
+  (`"0"` is the first bar of the grid) and gives its slots (2.7): a text for each beat a
+  chord may start on, four in 4/4, three in 3/4, two in 6/8, `""` where none starts, for
+  example `"6": ["Dm7", "", "G7", ""]`. Before 2.7 a bar had one text (`"Dm7 G7"`); such
+  a project opens with its chords spread over the bar (two on beats 1 and 3) and is saved
+  with slots.
 - **The order of the tracks**: `practice.stem_order` keeps the order of the six stems,
   as EUTERIA (Python) reads it; `practice.track_order`, written by EUTERIA Web, lists
   every track in its order, the Original Track and the takes too. A project without
@@ -821,13 +846,22 @@ what BTC's `test.py` does:
 
 `src/chords.js` keeps them as segments: the probabilities averaged over 5 frames (half
 a second), the most likely chord of each frame, frames in a row with the same chord
-joined. In the bars, the chords are weighed by family (a root and its triad: C, C6,
-Cmaj7 and C7 are one family; Cm, Cm6, Cm7 and Cm(maj7) another), as BTC shares its
-belief among them: the family that covers most of a bar, weighted by probability, is
-the bar's if it covers a third of it, written as its chord that covers most; two chords
-when each half of a 4/4 or 6/8 bar has a clear family of its own that one chord for the
-whole bar would hide. The names are spelled in the key of the song, estimated from all
-its chords (`src/chordnames.js`).
+joined. In the bars (2.7), the chords are put on the beats a chord may start on (four in
+4/4, three in 3/4, two in 6/8) and weighed by family (a root and its triad: C, C6, Cmaj7
+and C7 are one family; Cm, Cm6, Cm7 and Cm(maj7) another), as BTC shares its belief among
+them. Each bar is cut into runs of whole beats, each given the family that covers most of
+it, the cut that fits best once each change of chord has paid its cost (a small dynamic
+programme over the beats): 0.6 beats of evidence on beat 3 of 4/4 (0.3 on beat 4 of 6/8,
+the half of a bar), 0.8 on the other beats (0.7 on beat 3 of 3/4), so that a chord
+changes on a weak beat only when the new one clearly covers it. A run shorter than the
+bar must be clear (its family over 60% of it, BTC's mean probability of it at least 0.3),
+a whole bar needs a family over 40% of it; each run's chord is written on the beat where
+it starts, as the chord of its family BTC is surest of. BTC finds a change about a tenth
+of a second early (its frames hear what comes): the segments are read 0.08 s later. The
+names are spelled in the key of the song, estimated from all its chords
+(`src/chordnames.js`). On synthesised songs with changes on every beat (80, 120 and 160
+BPM, the real model in the browser), 74 of 78 chords landed on the right beat with the
+right root, none on a wrong beat; the misses were chords lasting one beat.
 
 Tested in the browser on synthesised chord sequences with the real model; the tempo
 model there was the stand-in. BTC was trained on pop and rock songs: it finds roots
@@ -961,7 +995,10 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   all, that do not keep a mathematical tempo.
 - **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
   saving them in a project (online, being tested). Step 2: recording takes over a song,
-  on every device, saved in the project (version 0.5, online, being tested).
+  on every device, saved in the project (version 0.5, online, being tested). Step 3,
+  on a computer: the chords beat by beat (2.7), then the chord chart exported for
+  MuseScore (MusicXML), undo and redo, cutting, moving and fading the tracks, and
+  copying tracks from one project to another (planned).
 - **Phase 3**: band features.
 
 ## Licence

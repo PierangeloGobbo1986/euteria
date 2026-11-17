@@ -8,19 +8,26 @@
 // "N", the mean probability of that chord over the segment). That is what a
 // song keeps (manifest.music.chord_recognition), a few kilobytes.
 //
-// Bars: the chords of a bar are taken by family (a root and its triad: C, C6,
-// Cmaj7 and C7 are one family, Cm, Cm6, Cm7 and Cm(maj7) another, then the
-// diminished ones, aug, sus2, sus4), as BTC shares its belief among the
-// chords of a family. The family whose segments cover most of the bar,
-// weighted by their probability, is the bar's if it covers enough (a third),
-// written as its chord that covers most; two chords (half a bar each) when each
-// half has a clear family of its own that the whole bar would hide (4/4 and
-// 6/8; not 3/4). No chord ("N"), an unknown one ("X") or no clear one: the bar
-// stays empty. The names are spelled in the key of
-// the song, estimated from all its chords (src/chordnames.js): Bb7 in F, A#
-// nowhere but in sharp keys.
+// Bars: the chords are put on the beats of each bar a chord may start on
+// (its slots, src/grid.js: four in 4/4, three in 3/4, two in 6/8), taken by
+// family (a root and its triad: C, C6, Cmaj7 and C7 are one family, Cm, Cm6,
+// Cm7 and Cm(maj7) another, then the diminished ones, aug, sus2, sus4), as
+// BTC shares its belief among the chords of a family. A bar is cut into runs
+// of whole beats, each given the family that covers most of it, the cut that
+// fits best once each change has paid its cost (barRuns()): little on beat 3
+// of 4/4 (beat 4 of 6/8, half the bar), more on the other beats, so that a
+// chord changes on a weak beat only when it clearly does, and a chord found
+// for a moment does not change the bar. A run shorter than the bar must be
+// clear (its family covering most of it, BTC sure enough of it); a whole bar
+// needs a family that covers enough of it. Each run's chord is written on the
+// beat where it starts, as the chord of its family BTC is surest of. No chord
+// ("N"), an unknown one ("X") or no clear one: nothing is written there. BTC
+// finds a change about a tenth of a second early, which is made up for. The
+// names are spelled in the key of the song, estimated from all its chords
+// (src/chordnames.js): Bb7 in F, A# nowhere but in sharp keys.
 
 import { keyFrom, nameChord } from "./chordnames.js";
+import { barLength, slotCount, slotTimes } from "./grid.js";
 
 export const ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 export const QUALITIES = ["min", "maj", "dim", "aug", "min6", "maj6", "min7", "minmaj7", "maj7", "7", "dim7", "hdim7", "sus2", "sus4"];
@@ -93,9 +100,9 @@ export function keyOfSegments(segments) {
   return keyFrom(chords);
 }
 
-// How much of [a, b) each label covers, weighted by its probability: a Map
-// label → share (0 to 1).
-function shares(segments, a, b) {
+// How long each label lasts within [a, b): a Map label -> {t (seconds), tp
+// (seconds times its probability)}.
+function cover(segments, a, b) {
   const out = new Map();
   if (!(b > a)) return out;
   // The first segment that may reach a (they are in order).
@@ -109,40 +116,113 @@ function shares(segments, a, b) {
   for (let i = lo; i < segments.length && segments[i][0] < b; i++) {
     const [s, e, label, p] = segments[i];
     const over = Math.min(b, e) - Math.max(a, s);
-    if (over > 0) out.set(label, (out.get(label) || 0) + (over * p) / (b - a));
+    if (over <= 0) continue;
+    const c = out.get(label) || { t: 0, tp: 0 };
+    c.t += over;
+    c.tp += over * p;
+    out.set(label, c);
   }
   return out;
 }
 
 const FAMILY = { maj: "M", maj6: "M", maj7: "M", 7: "M", min: "m", min6: "m", min7: "m", minmaj7: "m", dim: "o", dim7: "o", hdim7: "o", aug: "+", sus2: "s2", sus4: "s4" };
 
-// The family that covers most of a span, and its chord that covers most:
-// {label, share} (share: the family's).
-function top(labels) {
-  const families = new Map();
-  for (const [label, share] of labels) {
-    const c = parseLabel(label);
-    const key = c ? `${c.pc}${FAMILY[c.quality]}` : label;
-    const f = families.get(key) || { share: 0, label: null, best: 0 };
-    f.share += share;
-    if (share > f.best) {
-      f.best = share;
-      f.label = label;
-    }
-    families.set(key, f);
+// The families of chords in a span (cover()): Map key -> {t, tp (as
+// cover() says, the family's), labels (Map label -> tp)}. No chord ("N")
+// and an unknown one ("X") are families of their own.
+function families(labels) {
+  const out = new Map();
+  for (const [label, c] of labels) {
+    const parsed = parseLabel(label);
+    const key = parsed ? `${parsed.pc}${FAMILY[parsed.quality]}` : label;
+    let f = out.get(key);
+    if (!f) out.set(key, (f = { t: 0, tp: 0, labels: new Map() }));
+    f.t += c.t;
+    f.tp += c.tp;
+    f.labels.set(label, (f.labels.get(label) || 0) + c.tp);
   }
-  let out = { label: null, share: 0 };
-  for (const f of families.values()) if (f.share > out.share) out = { label: f.label, share: f.share };
   return out;
 }
 
-const ENOUGH = 0.33; // the share a family needs to be written in a bar
-const HALF = 0.45; // the share each half needs for two chords in a bar
-const GAIN = 0.15; // and how much better two chords must fit than one
+// BTC finds a change of chord a little early (its frames hear what comes,
+// about 0.1 s): the segments are read this much later.
+const LEAD_S = 0.08;
+const ENOUGH = 0.4; // how much of a whole bar a family must cover to be written there
+const CLEAR = 0.6; // and of a part of a bar
+const SURE = 0.3; // how sure BTC must be of it (its mean probability there)
+// What a change of chord costs on each slot of a bar (the first one is where
+// the bar's chord is written anyway), in beats: the new family must cover
+// that much more of the beats it takes than the old one would.
+const CHANGE = { "4/4": [0, 0.8, 0.6, 0.8], "3/4": [0, 0.8, 0.7], "6/8": [0, 0.3] };
+
+// One bar cut into runs of slots. spans: [{fam (families()), len (seconds)}],
+// unit: the seconds of a slot; costs: CHANGE of the meter. A run shorter than
+// the bar must be clear: its family covering at least CLEAR of it, BTC sure
+// enough of it (SURE). Returns [{at (first slot), label (the family's chord
+// BTC is surest of), share (of the run the family covers), sure, whole (the
+// run is the bar)}], or [].
+function barRuns(spans, unit, costs) {
+  const n = spans.length;
+  const best = new Array(n + 1).fill(-Infinity);
+  const back = new Array(n + 1).fill(null);
+  best[0] = 0;
+  for (let q = 1; q <= n; q++) {
+    for (let p = 0; p < q; p++) {
+      if (best[p] === -Infinity) continue;
+      const keys = new Set();
+      let len = 0;
+      for (let j = p; j < q; j++) {
+        len += spans[j].len;
+        for (const key of spans[j].fam.keys()) keys.add(key);
+      }
+      if (!(len > 0)) continue;
+      const whole = p === 0 && q === n;
+      for (const key of keys) {
+        let t = 0;
+        let tp = 0;
+        for (let j = p; j < q; j++) {
+          const f = spans[j].fam.get(key);
+          if (f) {
+            t += f.t;
+            tp += f.tp;
+          }
+        }
+        const share = t / len;
+        const sure = t > 0 ? tp / t : 0;
+        if (!whole && (share < CLEAR || sure < SURE)) continue;
+        const total = best[p] + t / unit - (p > 0 ? costs[p] || 0 : 0);
+        if (total > best[q]) {
+          best[q] = total;
+          back[q] = { p, key, share, sure };
+        }
+      }
+    }
+  }
+  if (best[n] === -Infinity) return [];
+  const runs = [];
+  for (let q = n; q > 0; q = back[q].p) {
+    const { p, key, share, sure } = back[q];
+    const labels = new Map();
+    for (let j = p; j < q; j++) {
+      const f = spans[j].fam.get(key);
+      if (f) for (const [label, v] of f.labels) labels.set(label, (labels.get(label) || 0) + v);
+    }
+    let label = null;
+    let most = -Infinity;
+    for (const [l, v] of labels) {
+      if (v > most) {
+        most = v;
+        label = l;
+      }
+    }
+    runs.unshift({ at: p, label, share, sure, whole: p === 0 && q === n });
+  }
+  return runs;
+}
 
 // The chords of the bars of `grid` ({bars, beats, meter, bpm}) from the
-// segments, for the bars `want(i)` accepts: a Map bar index → text, the
-// names spelled in the song's key.
+// segments, for the bars `want(i)` accepts: a Map bar index -> slots (src/grid.js),
+// the names spelled in the song's key.
 export function barChords(segments, grid, { duration = Infinity, want = () => true } = {}) {
   const out = new Map();
   const bars = grid.bars || [];
@@ -152,26 +232,28 @@ export function barChords(segments, grid, { duration = Infinity, want = () => tr
     const c = parseLabel(label);
     return c ? nameChord(c.pc, SUFFIX[c.quality], key) : "";
   };
-  const perBar = Number(String(grid.meter || "4/4").split("/")[0]) || 4;
-  const halves = perBar % 2 === 0;
-  // The last bar lasts as long as the one before it.
-  const fallback = bars.length > 1 ? bars[bars.length - 1] - bars[bars.length - 2] : grid.bpm ? (60 / grid.bpm) * perBar : 2;
+  const n = slotCount(grid.meter);
+  const costs = CHANGE[grid.meter] || CHANGE["4/4"];
   for (let i = 0; i < bars.length; i++) {
     if (!want(i)) continue;
-    const a = bars[i];
-    const b = Math.min(duration, i + 1 < bars.length ? bars[i + 1] : a + fallback);
-    if (!(b > a)) continue;
-    const whole = top(shares(segments, a, b));
-    let text = whole.share >= ENOUGH ? name(whole.label) : "";
-    if (halves) {
-      const m = (a + b) / 2;
-      const h1 = top(shares(segments, a, m));
-      const h2 = top(shares(segments, m, b));
-      const n1 = h1.share >= HALF ? name(h1.label) : "";
-      const n2 = h2.share >= HALF ? name(h2.label) : "";
-      if (n1 && n2 && n1 !== n2 && (h1.share + h2.share) / 2 >= whole.share + GAIN) text = `${n1} ${n2}`;
+    const at = slotTimes(grid, i);
+    const end = bars[i] + barLength(grid, i);
+    const unit = (end - bars[i]) / n;
+    const spans = [];
+    for (let j = 0; j < n; j++) {
+      const a = at[j];
+      const b = Math.min(duration, j + 1 < n ? at[j + 1] : end);
+      if (!(b > a) || !(unit > 0)) break;
+      spans.push({ fam: families(cover(segments, a - LEAD_S, b - LEAD_S)), len: b - a });
     }
-    if (text) out.set(i, text);
+    if (!spans.length) continue;
+    const slots = new Array(n).fill("");
+    for (const run of barRuns(spans, unit, costs)) {
+      if (run.whole && (run.share < ENOUGH || run.sure < SURE)) continue;
+      const text = name(run.label);
+      if (text) slots[run.at] = text;
+    }
+    if (slots.some(Boolean)) out.set(i, slots);
   }
   return out;
 }
