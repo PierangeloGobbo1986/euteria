@@ -24,6 +24,7 @@ import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, key
 import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { getNotation, setNotation } from "../src/chordnames.js";
+import { chartXml } from "../src/musicxml.js";
 import { Editor } from "./editor.js";
 import { SectionMenu } from "./sectionmenu.js";
 import { sectionIndexAt } from "../src/sections.js";
@@ -1740,6 +1741,72 @@ async function shareSelected() {
   }
 }
 
+// ----- the chord chart (MuseScore) -------------------------------------------------------------
+//
+// Export for MuseScore (the File export and sharing card) writes the bars and
+// chords of the song as a chord chart in MusicXML (src/musicxml.js), as they
+// are now (edits not saved yet too), in the key of now, with a new line after
+// Bars per line (kept in this browser) and at each section: sent with the
+// share sheet on a smartphone that can share it, downloaded elsewhere.
+
+const CHART_KEY = "euteria-chart-lines";
+const CHART_LINES = [1, 12];
+let chartLines = 4;
+try {
+  const kept = +localStorage.getItem(CHART_KEY);
+  if (Number.isInteger(kept) && kept >= CHART_LINES[0] && kept <= CHART_LINES[1]) chartLines = kept;
+} catch (_) {}
+let chartField = null;
+
+function wireChart() {
+  chartField = numberField({
+    label: tr("Bars per line"),
+    min: CHART_LINES[0],
+    max: CHART_LINES[1],
+    onChange: (v) => {
+      chartLines = v;
+      try {
+        localStorage.setItem(CHART_KEY, String(v));
+      } catch (_) {}
+    },
+  });
+  chartField.set(chartLines);
+  $("chart-lines-box").append(chartField.el);
+  $("export-chart").addEventListener("click", exportChart);
+}
+
+async function exportChart() {
+  if (!player.song || !app.grid.bars.length) return;
+  editor.commitInput();
+  const title = player.song.title || "EUTERIA";
+  const shift = player.semitones;
+  const xml = chartXml({ title, grid: app.grid, shift, barsPerLine: chartLines, software: `EUTERIA Web ${VERSION}`.trim() });
+  const name = `${safeName(title)}.musicxml`;
+  const file = new File([xml], name, { type: "application/vnd.recordare.musicxml+xml" });
+  const said = shift
+    ? tr("Chord chart exported in the key of now ({shift}): {name}. Open it in MuseScore.", { shift: fmtSigned(shift), name })
+    : tr("Chord chart exported: {name}. Open it in MuseScore.", { name });
+  if (shareMode() === "share") {
+    try {
+      await navigator.share({ files: [file], title });
+    } catch (error) {
+      if (error && error.name === "AbortError") return;
+      downloadBlob(file, name);
+    }
+  } else downloadBlob(file, name);
+  notice(said, "ok", 8000);
+}
+
+function renderChart() {
+  const song = player.song;
+  const ready = !!song && app.grid.bars.length > 0;
+  $("export-chart").disabled = !ready;
+  chartField.disable(!song);
+  const text = song && !ready ? tr("This song has no bars yet: the chord chart is made from them.") : "";
+  const status = $("chart-status");
+  if (status.textContent !== text) status.textContent = text;
+}
+
 // ----- saving the song ------------------------------------------------------------------------
 //
 // The edits (grid, chords) and the practice settings go into the song's
@@ -2858,6 +2925,7 @@ function updateUi() {
   // volume changed (player.exportMp3 says so when it is not).
   $("export").disabled = !ready || takesBusy;
   $("export").textContent = player.busy === "exporting" ? tr("Exporting…") : tr("Export MP3");
+  renderChart();
   const exportHint = EXPORT_HINT();
   if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
   $("key-hint").hidden = !!song && !player.hasStems;
@@ -3017,6 +3085,7 @@ function wire() {
     scheduleUi();
   });
   $("export").addEventListener("click", exportMp3);
+  wireChart();
   $("download").addEventListener("click", downloadSelected);
   $("share").addEventListener("click", shareSelected);
 
@@ -3232,6 +3301,7 @@ function relabel() {
   relabelControls();
   relabelMetronome();
   relabelTrainer();
+  if (chartField) chartField.relabel(tr("Bars per line"));
   labelLayoutSwitch();
   showCounting();
   showUpdate(shownLatest);

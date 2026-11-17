@@ -493,4 +493,12 @@ export const IT = {
   "The project file is damaged ({name}).": "Il file di progetto è danneggiato ({name}).",
   "The project has no {name}.": "Nel progetto manca {name}.",
   "Unsupported compression in {name}.": "Compressione non supportata in {name}.",
+  // The chord chart for MuseScore (2.8.0)
+  "Chord chart": "Spartito",
+  "The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now.": "Battute e accordi come spartito (MusicXML) da aprire, modificare e stampare in MuseScore: una barra per ogni tempo, ogni accordo sul suo tempo, le sezioni, una nuova riga dopo le battute per riga indicate qui e a ogni sezione, nella tonalità in cui il brano è ora.",
+  "Bars per line": "Battute per riga",
+  "Export for MuseScore": "Esporta per MuseScore",
+  "Chord chart exported in the key of now ({shift}): {name}. Open it in MuseScore.": "Spartito esportato nella tonalità di ora ({shift}): {name}. Aprilo in MuseScore.",
+  "Chord chart exported: {name}. Open it in MuseScore.": "Spartito esportato: {name}. Aprilo in MuseScore.",
+  "This song has no bars yet: the chord chart is made from them.": "Questo brano non ha ancora battute: lo spartito nasce da quelle.",
 };

@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v39";
+const CACHE = "euteria-app-v40";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -58,6 +58,7 @@ const SHELL = [
   "src/melspec.js",
   "src/metronome.js",
   "src/model-store.js",
+  "src/musicxml.js",
   "src/onnx-rewrite.js",
   "src/peaks.js",
   "src/player.js",

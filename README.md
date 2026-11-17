@@ -64,7 +64,8 @@ open, the keys of the player do nothing and the page under it stays still.
   tracks as rows; the column of the tracks starts with *All stems*
   and *Original only*, beside the bars and the time scale. *Song analysis*,
   *Metronome*, *Tempo and key* and *File export and sharing* follow, each across the page
-  (*File export and sharing* in two columns). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
+  (*File export and sharing* in two columns: the project and the chord chart, then the MP3
+  export). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save.
@@ -954,7 +955,8 @@ anchor, bar number offset and chords: the beats and bars are rebuilt from them.
   (`engine*.js`), the player (`player.js`), the export worker (`render-worker.js`), the
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
-  (`grid.js`), chord names read and transposed (`chordnames.js`), the metronome's
+  (`grid.js`), chord names read and transposed (`chordnames.js`), the chord chart in
+  MusicXML (`musicxml.js`), the metronome's
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,

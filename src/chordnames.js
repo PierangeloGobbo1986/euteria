@@ -256,12 +256,12 @@ export function setNotation(n) {
 
 // The chords of a song (an iterable of texts) seen with the song moved by
 // `semitones`: show(text) is how a chord of the song looks in the key of now
-// and in the notation chosen, store(text) brings a chord typed in the key of
-// now back to the song's own key (as it was typed). The views are made again
-// when the notation changes.
-export function chordView(texts, semitones = 0) {
+// and in the notation chosen (letters: in letters whatever was chosen),
+// store(text) brings a chord typed in the key of now back to the song's own
+// key (as it was typed). The views are made again when the notation changes.
+export function chordView(texts, semitones = 0, { letters = false } = {}) {
   const shift = Math.round(+semitones || 0);
-  const italian = notation === "italian";
+  const italian = !letters && notation === "italian";
   const found = shift ? estimateKey(texts) : null;
   const home = found || { pc: 0, minor: false };
   const now = keyAt(home.pc + shift, home.minor);

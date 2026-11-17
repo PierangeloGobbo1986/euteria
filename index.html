@@ -390,6 +390,15 @@
             </div>
             <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
             <p id="project-status" class="status" role="status" aria-live="polite"></p>
+            <!-- The bars and chords as a chord chart for MuseScore (MusicXML, src/musicxml.js). -->
+            <h3 class="sub">Chord chart</h3>
+            <p class="hint top">The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now.</p>
+            <div class="row chart-row">
+              <span class="mini-label">Bars per line</span>
+              <div id="chart-lines-box"></div>
+              <button id="export-chart" type="button">Export for MuseScore</button>
+            </div>
+            <p id="chart-status" class="status" role="status" aria-live="polite"></p>
           </div>
           <div class="card-col">
             <h3 class="sub">Export MP3</h3>

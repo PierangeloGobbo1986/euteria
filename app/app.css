@@ -793,6 +793,9 @@ button.eye .icon { width: 18px; height: 18px; }
 .tempo-bpm { margin: 0; flex: none; color: var(--muted); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ----- project files ----- */
+.chart-row .num { height: 36px; }
+.chart-row .num input { width: 2.2em; font-size: 15px; text-align: center; }
+[data-layout=phone] .chart-row .num { height: 44px; }
 .project-card .sub { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 650; margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }
 #project-status.dirty { color: var(--gold); }
 .leave-dialog { max-width: min(420px, calc(100vw - 32px)); padding: 20px; background: var(--panel); color: var(--text); border: 1px solid var(--border-hi); border-radius: 14px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
