@@ -50,9 +50,11 @@ open, the keys of the player do nothing and the page under it stays still.
   song, its name (with its tracks and length on the same line, *Undo* and *Redo* at its
   right), play, stop, −5 s, +5 s,
   the loop, Record and the position join the bar at the top, with *Library* and *Save*:
-  one banner that stays in view as the page scrolls. Under it come *Recording input*
-  (see below), then the card of the timeline, the tracks, *Song analysis* (below), *Metronome*,
-  *Tempo and key* and *File export and sharing*. Deleting a song frees the space of the app's copy; the file it was added from
+  one banner that stays in view as the page scrolls. At its foot are the tabs of the song's
+  tools (2.12), as icons with a short name: *Analysis*, *Tempo*, *Metronome*, *Record* and
+  *Export*. A tap brings up the panel of a tab from the bottom of the screen, under the
+  banner; its ✕, or its tab again, takes it down, and so does another song opened. Under
+  the banner come the card of the timeline and the tracks. Deleting a song frees the space of the app's copy; the file it was added from
   (in Files, in a chat) is not touched, as a web app cannot reach it.
 - **Computer layout**: songs are opened from any folder (*Open MP3 / audio*, *Open
   EUTERIA project*, or dropped on the window), so the folder where you keep the songs
@@ -60,13 +62,22 @@ open, the keys of the player do nothing and the page under it stays still.
   opened before, to open them again with one click (the browser asks once for
   permission). The transport stays in view as the page scrolls, the song's name at its
   top (its tracks and length on the same line, *Undo* and *Redo* at the right end of it; a
-  click on the name renames the project, see Saving). Under it comes *Recording input* (see
-  below), then the card of the timeline, with the overview, the bars, the chords and the
-  tracks as rows; the column of the tracks starts with *All stems*
-  and *Original only*, beside the bars and the time scale. *Song analysis*,
-  *Metronome*, *Tempo and key* and *File export and sharing* follow, each across the page
-  (*File export and sharing* in two columns: the project and the chord chart, then the MP3
-  export). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
+  click on the name renames the project, see Saving). Over the name are the tabs of the
+  song's tools (2.12), as the ribbon of a word processor: *Song analysis*, *Tempo and key*,
+  *Metronome*, *Recording* and *File export and sharing*. A click opens the panel of a tab
+  under the transport, a click again closes it; one at a time, and the one open stays open
+  from one visit to the next (in that browser). Each panel is one band, as high as the
+  others: its groups side by side with their names over them, the numbers small, with ▲▼
+  (they are typed, or changed with the arrow keys), the main actions as big buttons with an
+  icon, the help texts as the tooltips of their groups; the MP3 files exported open in a
+  small window under their button. In a narrow window the groups go on more rows. The tabs
+  say what their panels are doing: the tempo and the key changed (*80% · +2*), the
+  metronome on, a take being recorded, a detection, a separation (its percentage) or an
+  export running. *Keys*, at the right of the tabs, shows the keys in a small window
+  (Escape, or a click elsewhere, closes it). Under the transport comes the card of the
+  timeline, with the overview, the bars, the chords and the tracks as rows; the column of
+  the tracks starts with *All stems* and *Original only*, beside the bars and the time
+  scale. The page is up to 1280 pixels wide. Volumes and tempo also have sliders; keyboard (listed under *Keys*): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
   a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac), C cut the
@@ -107,14 +118,14 @@ excluded), a loop with its start and end. Every track card has a grip (⠿) at i
 dragging it puts the track elsewhere, the Original Track and the takes as the stems, and
 on a computer the row of the track in the timeline follows (on the grip, the arrow keys
 ↑ ↓ move the track too; the keys 1 to 9 follow the order). The order is kept with the
-song and written in the project by *Save*. The card *File export and sharing* has *Share
+song and written in the project by *Save*. The tab *File export and sharing* has *Share
 project*, for smartphones: with one tap it sends the song's file, with its bars, chords
 and practice settings, with the share sheet (email, WhatsApp, Files, AirDrop), and saves
 the song in the library, so the library and the file sent are the same project. Chrome
 and Edge cannot share project files (they share only images, audio, video, PDF and
 text): there a smartphone downloads the project instead. On a computer *Share project*
 says that it works on smartphones: there the project file saved with *Save* is shared
-with the app wanted, by attaching it to an email or a message. The card has the MP3
+with the app wanted, by attaching it to an email or a message. The tab has the MP3
 export of the stems and the takes that are on, too (with no stem on, the Original Track
 goes with the takes, or alone if its tempo, key or volume was changed: as it is, it would
 be the file you already have, and the app says so), downloaded or shared where the browser can share files (Safari,
@@ -217,8 +228,8 @@ EUTERIA (Python). Each chord is written where its beat is (2.7: a short mark und
 starts inside its bar), and a name too long for its room uses the following empty bars.
 
 **Editing the grid and the chords.** The editor of EUTERIA (Python) is in two places,
-the same on the computer and on the phone: the grid in the *Song analysis* card (between
-the tracks and the metronome), the chords over the timeline, in the row of their tools.
+the same on the computer and on the phone: the grid in the *Song analysis* tab, the chords
+over the timeline, in the row of their tools.
 Both are always at hand, with the chords selectable in the timeline as long as the eye is
 open:
 
@@ -273,7 +284,7 @@ open:
   chord stands out (*REm7*, *SOL7*): it says the notation it changes to (*DO RE MI…* while
   the chords are in letters, *C D E…* in Italian); the choice is kept in this browser, and
   the fields take either, the Italian names in any case (*DO7*, *Do7*, *do7*).
-- **Detect chords** (the third button of the card): the chords found (below) written in every
+- **Detect chords** (the third button of *Song analysis*): the chords found (below) written in every
   bar, on the beat where each starts (2.7; before, one chord a bar or two on its halves):
   a change on beat 3 of 4/4 (beat 4 of 6/8) needs little evidence, on the other beats
   clearly more, so a chord heard for a moment does not change the bar; a bar without a
@@ -321,7 +332,7 @@ open:
   (Python) leaves alone.
 
 Every edit is kept in the browser at once, so nothing is lost if the page closes; until
-it is saved, a dot on *Save* and the line under the card's rows say so. Leaving the song for the
+it is saved, a dot on *Save* says so (on the phone, the line under the grid in *Song analysis* too). Leaving the song for the
 Library or another song then asks, as EUTERIA (Python) does: *Save*, *Don't save* (the
 song goes back to what its file has) or *Cancel*. A song opens with the name its file
 gives it (an audio file, its file name); a click or a tap on the name at the top turns it
@@ -408,12 +419,12 @@ song is as long as its longest take (deleting the take shortens it again). While
 recorded its waveform grows in the timeline, in red: on a computer in a row at the
 bottom (*Recording…* beside it), on the phone in a lane under the waveform. It is drawn
 as large as it can be, so a quiet input shows as clearly as a loud one; a flat line
-means nothing is coming in. The input is chosen in the card **Recording input** (under
-the transport): the menu lists the microphone of the
+means nothing is coming in. The input is chosen in the tab **Recording** (the panel
+*Recording input* on the phone): the menu lists the microphone of the
 phone or the computer and the audio interfaces connected, such as a guitar processor on
 USB-C. The browser names them only once the page may use the microphone, so the first
 time ↻ asks for that permission, then lists them; the list follows what is plugged in
-and out, the choice is kept. The meter beside the menu (on a computer it fills the rest of the card; under the menu on the phone) shows the
+and out, the choice is kept. The meter beside the menu (under it on the phone) shows the
 level of the input in dB, as in recording programs, for a few seconds after an input is
 chosen and while recording: green, then yellow from −12 dB, red from −3 dB (too loud:
 the take may distort; 0 dB is the loudest a take can be), and a line that holds the
@@ -486,13 +497,13 @@ audio interface sound better. EUTERIA (Python) does not show the takes.
 
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*
-first in the *Song analysis* card; once the song has its stems the button stays there,
+first in the *Song analysis* tab; once the song has its stems the button stays there,
 grey, and says the instruments are separated already. It first asks where to
 save the EUTERIA project (`.euteria`) it is going to make, so that a separation left to
 run on its own is saved when it ends. The first time, it downloads the separation model
 (336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
-browser. A bar in the *Song analysis* card shows the progress, the speed and the time left
-(the band of the messages, under the transport, shows them too);
+browser. A bar in the *Song analysis* panel shows the progress, the speed and the time left
+(the band of the messages, under the transport, shows them too, and the tab its percentage);
 *Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps, with the
 Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3 too), the
 grid, the chords, the practice settings and the takes recorded over the song, and the
@@ -534,7 +545,7 @@ chords* (2.6.0; from 2.3.0 to 2.5.2 it ran the small model): Safari on iPhone ca
 give ONNX Runtime the WebAssembly memory it asks for (`RangeError: Out of memory`, then
 `no available backend found`), so the project is prepared on a computer and played
 there with its grid, chords and sections, which can still be edited by hand.
-**Detect tempo**, in the *Song analysis* card (the buttons are *Separate instruments*, on a
+**Detect tempo**, in the *Song analysis* tab (the buttons are *Separate instruments*, on a
 computer, *Detect tempo* and *Detect chords*, in the order they are pressed), finds the beats and the
 downbeats of the song with Beat This! (see *How the tempo detection works*) and makes
 the grid from them: the tempo, the meter (4/4 or 3/4; two beats a bar become a 6/8) and
@@ -554,24 +565,24 @@ replace comes back with *Undo*). The changes they make are changes to
 save. Only in a browser without workers or WebAssembly does a song never analysed have no
 buttons: its grid is the one it brings, or one made by hand.
 
-**The metronome** (a card of its own, between *Song analysis* and *Tempo and key*, every device, and a round
+**The metronome** (a tab of its own, after *Tempo and key*, every device, and a round
 button with a metronome in the transport, between *Loop* and *Rec*, M on a computer) is
 only the click: the tempo and the bars of the song stay those of *Song analysis*. It clicks on the beats of the grid, each on the beat found in the
 song when there is one near it (*Detect tempo*), so it stays with a recording whose tempo
 moves, a live one above all, as one steady tempo would not; it follows the tempo set,
-the loop and every jump. Its first row has *On*/*Off*, its tempo in BPM (− and +), the
-*Volume* up to 200% (a slider on a computer, and the value with − and +, as for the
-tracks; 100% is as loud as the click was up to 0.10) and a button per beat of the bar,
+the loop and every jump. Its first group, *Click*, has *On*/*Off*, its tempo in BPM, a
+button per beat of the bar and the *Volume* up to 200% (a slider on a computer, and the
+value, as for the tracks; 100% is as loud as the click was up to 0.10); the buttons per beat,
 for the meter of the grid: a click makes a beat an accent (a higher click), then
 silent, then a beat again, for example the first beat accented, or only 2 and 4. The
 tempo field says the song's tempo; changed, the click goes steadily at its own tempo,
 from the first bar, and *Follow the song* brings it back (a new tempo of the grid does
 too). A song without bars clicks at the metronome's own tempo from its start, with the
-meter in *Song analysis*. The second row has the *Count-in* (*Off*, 1 or 2 bars; 1 by
+meter in *Song analysis*. The second group has the *Count-in* (*Off*, 1 or 2 bars; 1 by
 default) of clicks before the song starts, before playback and before a take, with the
 beats as set, heard only with the metronome *On* (the same for the key M and the round
 button), and *Plays*, *Count-in only* (the default, 2.7.1: the metronome counts the bars
-in, then goes quiet) or *Whole song*. Under a line, *Silent bars* is a part of the card of its own,
+in, then goes quiet) or *Whole song*. *Silent bars* is a group of its own in the tab,
 a mode of the metronome as *Speed training* under it is (2.5.1), for the whole song only
 (dimmed with the count-in only): its switch *On*/*Off* (2.5; *Off* with every song, the rest
 of its row dimmed), then *Clicks for* N *bars, then mute for* M *bars* (*bar* for 1),
@@ -598,7 +609,7 @@ on: *Clicks for* 4 *bars, then mute for* 2, *Random* off), whatever was set befo
 *Random* left on from an earlier session no longer silences bars unannounced). (The settings kept before 2.0
 go back to *Metronome and tracks*, the new default.)
 
-**Speed training**, the last part of the metronome's card, under its own title: *On*/*Off*
+**Speed training**, the last group of the metronome's tab, under its own title: *On*/*Off*
 (as the metronome's), then, with the loop on, the speed changes by its *Step* (5% to
 start with) every so many passes of the loop (*Passes per step*), *Up to* the speed set
 (100%), and says when it gets there; from 70%, for example, a hard passage comes up to
@@ -1037,7 +1048,8 @@ audio when it comes back.
 ## Repository layout
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
-  the editor of the grid and the chords in `editor.js`, undo and redo in `history.js`
+  the editor of the grid and the chords in `editor.js`, undo and redo in `history.js`,
+  the tabs of the song's tools (the ribbon) in `ribbon.js`
   (the clips of the tracks are edited in `timeline.js` and `app.js`),
   the separation in `separate.js`,
   the tempo and chord detection, on request, in `detect.js`,

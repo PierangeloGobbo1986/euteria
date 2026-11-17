@@ -139,10 +139,21 @@
 
   <!-- The player -->
   <section id="player-view" class="view" hidden>
-    <!-- The transport stays in view; at its top, the song's name (a click turns it into a
-         field to rename the project), its tracks and length, and at the right Undo and Redo
-         (app/history.js); on a computer, the keys under the buttons. -->
+    <!-- The transport stays in view. At its top (2.12) the tabs of the song's tools, as the
+         ribbon of a word processor: a click opens the panel of a tab under the transport, a click
+         again closes it, one at a time (on the phone, icons under the transport, the panel coming
+         up from the bottom); at the right, Keys (a computer). Then the song's name (a click turns
+         it into a field to rename the project), its tracks and length, and at the right Undo and
+         Redo (app/history.js). -->
     <div id="transport" class="transport">
+      <nav id="ribbon-tabs" class="ribbon-tabs" aria-label="Song tools">
+        <button id="tab-analysis" type="button" class="rtab" data-tab="analysis" aria-controls="analysis-card" aria-expanded="false"><span class="rtab-name">Song analysis</span><span class="rtab-short" aria-hidden="true">Analysis</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="tab-tempo" type="button" class="rtab" data-tab="tempo" aria-controls="tempo-card" aria-expanded="false"><span class="rtab-name">Tempo and key</span><span class="rtab-short" aria-hidden="true">Tempo</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="tab-metro" type="button" class="rtab" data-tab="metro" aria-controls="metro-card" aria-expanded="false"><span class="rtab-name">Metronome</span><span class="rtab-short" aria-hidden="true">Metronome</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="tab-record" type="button" class="rtab" data-tab="record" aria-controls="input-card" aria-expanded="false"><span class="rtab-name">Recording</span><span class="rtab-short" aria-hidden="true">Record</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="tab-export" type="button" class="rtab" data-tab="export" aria-controls="project-card" aria-expanded="false"><span class="rtab-name">File export and sharing</span><span class="rtab-short" aria-hidden="true">Export</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="keys-btn" type="button" class="keys-btn computer-only" aria-expanded="false" aria-controls="keys-pop">Keys</button>
+      </nav>
       <div class="song-head">
         <h1 id="song-title-h"><button id="song-title" type="button" class="title-btn" title="Click to rename the project" disabled></button></h1>
         <input id="song-title-input" class="title-input" type="text" maxlength="120" aria-label="Name of the project" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" hidden>
@@ -166,22 +177,231 @@
           <button id="record" type="button" class="round rec" aria-pressed="false" aria-label="Record a take" title="Record a take over the song (R)" hidden><span class="rec-dot" aria-hidden="true"></span></button>
         </div>
       </div>
-      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save · Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac) · C cut the clips selected at the playhead, X delete them · Ctrl+C copy them, Ctrl+V paste them at the playhead, in this song or another (⌘C and ⌘V on a Mac). Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
-    </div>
-
-    <!-- What Record records from -->
-    <section id="input-card" class="card input-card" hidden>
-      <h2 id="input-label">Recording input</h2>
-      <div class="input-row">
-        <button id="input-refresh" type="button" class="small input-refresh" aria-label="Look for the inputs again">↻</button>
-        <span class="select-wrap"><select id="input-select" aria-labelledby="input-label"></select></span>
-        <span id="input-meter" class="input-meter" aria-hidden="true"
-          title="Level of the input, in dB (0 dB: the loudest a take can be). Green, then yellow; red is too loud, the take may distort. It lights up for a few seconds after an input is chosen, and while recording.">
-          <span class="meter-bar"><span id="input-unlit" class="meter-unlit"></span><span id="input-peak" class="meter-peak"></span></span>
-          <span id="input-scale" class="meter-scale"></span><span class="meter-unit">dB</span>
-        </span>
+      <!-- Keys (a computer): the keys of the player, in a small window under the button. -->
+      <div id="keys-pop" class="keys-pop computer-only" role="dialog" aria-label="Keys" hidden>
+        <p class="hint keys">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save · Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac) · C cut the clips selected at the playhead, X delete them · Ctrl+C copy them, Ctrl+V paste them at the playhead, in this song or another (⌘C and ⌘V on a Mac). Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
       </div>
-    </section>
+      <!-- The panels of the tabs, each in groups with their name over them (the ribbon). On the
+           phone app.js moves them into the player, where the one open comes up from the bottom.
+           A help text (.rtip) is the tooltip of its group on a computer. -->
+      <div id="ribbon" class="ribbon">
+        <!-- Song analysis: the instruments separated (a computer), the tempo and the chords found,
+             the grid of the bars (its tempo, meter and first beat). -->
+        <section id="analysis-card" class="rpanel analysis-card" data-tab="analysis" aria-labelledby="tab-analysis">
+          <div class="rpanel-head"><h2>Song analysis</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div class="rgroup find-group">
+              <h3 class="rgroup-title">Detect</h3>
+              <div class="analysis-find">
+                <button id="separate" type="button" class="small find-btn rbig" hidden>Separate instruments</button>
+                <button id="find-bpm" type="button" class="small find-btn rbig" title="Find the tempo of the song and make the grid of its bars" hidden>Detect tempo</button>
+                <button id="find-chords" type="button" class="small find-btn rbig" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
+              </div>
+            </div>
+            <!-- The grid: tempo, meter and first beat -->
+            <div class="rgroup grid-group">
+              <h3 class="rgroup-title">Bar grid</h3>
+              <div id="grid-edit" class="edit-panel grid-edit" hidden>
+                <div class="edit-row grid-row">
+                  <div class="edit-item bpm-item">
+                    <div id="bpm-box"></div>
+                    <div class="bpm-scale" role="group" aria-label="Double or halve the tempo of the grid">
+                      <button id="bpm-double" type="button" class="small" title="Double the tempo of the grid: bars half as long"><span translate="no">×2</span></button>
+                      <button id="bpm-half" type="button" class="small" title="Halve the tempo of the grid: bars twice as long"><span translate="no">÷2</span></button>
+                    </div>
+                  </div>
+                  <div id="meter-box" class="edit-item"></div>
+                </div>
+                <div class="edit-row grid-row">
+                  <div class="edit-item anchor-item">
+                    <button id="set-anchor" type="button" class="small" title="A bar starts at the playhead: the first beat of the grid">Set first beat</button>
+                    <div id="anchor-box"></div>
+                  </div>
+                  <p id="tempo-bpm" class="tempo-bpm" hidden></p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rpanel-foot">
+            <!-- Separating the instruments (computer) -->
+            <div id="sep-panel" class="sep-panel computer-only" hidden>
+              <div id="sep-bar" class="sep-bar"><div id="sep-fill" class="sep-fill"></div></div>
+              <p id="sep-text" class="sep-text" role="status" aria-live="polite"></p>
+              <button id="sep-stop" type="button" class="small ghost danger">Stop</button>
+              <button id="sep-close" type="button" class="small ghost" aria-label="Close this message" hidden>✕</button>
+            </div>
+            <p id="edit-status" class="edit-status" role="status" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <section id="tempo-card" class="rpanel tempo-card" data-tab="tempo" aria-labelledby="tab-tempo">
+          <div class="rpanel-head"><h2>Tempo and key</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div class="rgroup tempo-group">
+              <h3 class="rgroup-title">Tempo</h3>
+              <div id="tempo-box" class="control-box"></div>
+            </div>
+            <div class="rgroup key-group">
+              <h3 class="rgroup-title">Key</h3>
+              <div class="rgroup-row">
+                <div id="key-box" class="control-box"></div>
+                <p id="key-hint" class="hint rnote">The key moves every instrument except the drums.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- The metronome, on the beats of the grid or at a tempo of its own (src/metronome.js): on
+             and off, its tempo, its volume, each beat of the bar a beat, an accent or silent; the bars
+             of count-in before playback; bars with the clicks, then silent bars (the metronome, the
+             tracks or both), or silent bars at random; the speed training. -->
+        <section id="metro-card" class="rpanel metro-card" data-tab="metro" aria-labelledby="tab-metro">
+          <div class="rpanel-head"><h2>Metronome</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div id="metro" class="metro rgroups">
+            <div class="rgroup click-group">
+              <h3 class="rgroup-title">Click</h3>
+              <div class="metro-row">
+                <button id="metro-on" type="button" class="metro-on" aria-pressed="false" aria-label="Metronome" title="Turns the metronome on or off"><span class="dot" aria-hidden="true"></span><span id="metro-state">Off</span></button>
+                <div class="metro-item">
+                  <div id="metro-bpm-box" class="metro-bpm-box"></div>
+                  <button id="metro-follow" type="button" class="small ghost metro-follow" hidden>Follow the song</button>
+                </div>
+              </div>
+              <div class="metro-row">
+                <div class="metro-item">
+                  <span class="mini-label phone-only">Beats</span>
+                  <div id="metro-beats" class="metro-beats" role="group" aria-label="The beats of the bar: a click goes from beat to accent to silent"></div>
+                </div>
+                <div class="metro-item metro-volume" title="Volume">
+                  <span class="mini-label phone-only">Volume</span>
+                  <div id="metro-volume-box" class="metro-volume-box"></div>
+                </div>
+              </div>
+            </div>
+            <div class="rgroup count-group">
+              <h3 class="rgroup-title">Count-in</h3>
+              <div class="metro-row">
+                <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
+              </div>
+              <div class="metro-row">
+                <label class="mini-label" for="metro-mode">Plays</label>
+                <div class="num metro-mode"><div class="value"><select id="metro-mode"></select></div></div>
+              </div>
+            </div>
+            <!-- Silent bars, a mode of the metronome as Speed training is: off with every song; on,
+                 the bars with the clicks and the silent ones alternate as set here (or come at
+                 random), silencing the metronome, the tracks or both. -->
+            <div class="rgroup metro-mute-sub">
+              <h3 class="rgroup-title">Silent bars</h3>
+              <div class="metro-row metro-cycle">
+                <button id="metro-mute-on" type="button" class="metro-on" aria-pressed="false" aria-label="Silent bars on or off" title="Silent bars: the metronome clicks for some bars, then is silent for some, to check that you keep the time"><span class="dot" aria-hidden="true"></span><span id="metro-mute-state">Off</span></button>
+                <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">Random 💀</button>
+                <div class="num metro-silence" title="What to mute"><div class="value"><select id="metro-silence" aria-label="What to mute"></select></div></div>
+              </div>
+              <div class="metro-row metro-cycle">
+                <span class="metro-group"><span class="mini-label"><span class="phone-only">Clicks for</span><span class="computer-only">Clicks</span></span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label phone-only">bars,</span></span></span>
+                <span class="metro-group"><span class="mini-label"><span class="phone-only">then mute for</span><span class="computer-only">then mute</span></span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
+              </div>
+            </div>
+            <!-- Speed training: with the loop on, the speed goes up by a step every few passes of
+                 the loop, up to a target. -->
+            <div class="rgroup trainer-group">
+              <h3 class="rgroup-title">Speed training</h3>
+              <div id="trainer" class="trainer">
+                <div class="metro-row">
+                  <button id="trainer-on" type="button" class="metro-on" aria-pressed="false" aria-label="Speed training" title="Turns the speed training on or off"><span class="dot" aria-hidden="true"></span><span id="trainer-state">Off</span></button>
+                  <span class="trainer-item"><span class="mini-label">Step</span><span id="trainer-step-box"></span></span>
+                </div>
+                <div class="metro-row">
+                  <span class="trainer-item" title="Passes per step"><span class="mini-label"><span class="phone-only">Passes per step</span><span class="computer-only">Passes</span></span><span id="trainer-every-box"></span></span>
+                  <span class="trainer-item"><span class="mini-label">Up to</span><span id="trainer-target-box"></span></span>
+                </div>
+              </div>
+              <p class="hint rtip">With the loop on, the speed goes up by the step at every pass of the loop, or every few passes, up to the speed to reach. Start from a slower speed, set in Tempo and key (for example 70%).</p>
+            </div>
+          </div>
+          <div class="rpanel-foot">
+            <p id="metro-mode-hint" class="hint" hidden></p>
+            <p id="metro-hint" class="hint" hidden></p>
+            <p id="metro-random-hint" class="hint" hidden></p>
+            <p id="trainer-hint" class="hint warn" hidden></p>
+          </div>
+        </section>
+
+        <!-- What Record records from: ↻, the menu of the inputs, the level. -->
+        <section id="input-card" class="rpanel input-card" data-tab="record" aria-labelledby="tab-record" hidden>
+          <div class="rpanel-head"><h2 id="input-label">Recording input</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div class="rgroup input-group">
+              <h3 class="rgroup-title">Input</h3>
+              <div class="input-row">
+                <button id="input-refresh" type="button" class="small input-refresh" aria-label="Look for the inputs again">↻</button>
+                <span class="select-wrap"><select id="input-select" aria-labelledby="input-label"></select></span>
+              </div>
+            </div>
+            <div class="rgroup level-group">
+              <h3 class="rgroup-title">Level of the input (dB)</h3>
+              <span id="input-meter" class="input-meter" aria-hidden="true"
+                title="Level of the input, in dB (0 dB: the loudest a take can be). Green, then yellow; red is too loud, the take may distort. It lights up for a few seconds after an input is chosen, and while recording.">
+                <span class="meter-bar"><span id="input-unlit" class="meter-unlit"></span><span id="input-peak" class="meter-peak"></span></span>
+                <span id="input-scale" class="meter-scale"></span><span class="meter-unit">dB</span>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section id="project-card" class="rpanel project-card" data-tab="export" aria-labelledby="tab-export">
+          <div class="rpanel-head"><h2>File export and sharing</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div class="rgroup project-group">
+              <h3 class="rgroup-title">Project</h3>
+              <div class="row">
+                <button id="share-song" type="button" class="primary rbig">Share project…</button>
+                <button id="save-as" type="button" class="rbig">Save as new project…</button>
+              </div>
+              <p id="project-hint" class="hint rtip">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
+              <p id="project-status" class="status" role="status" aria-live="polite"></p>
+            </div>
+            <!-- The bars and chords as a chord chart for MuseScore (MusicXML, src/musicxml.js). -->
+            <div class="rgroup chart-group">
+              <h3 class="rgroup-title">Chord chart</h3>
+              <p class="hint top rtip">The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now.</p>
+              <div class="row chart-row">
+                <button id="export-chart" type="button" class="rbig">Export for MuseScore</button>
+                <span class="chart-lines"><span class="mini-label">Bars per line</span><span id="chart-lines-box"></span></span>
+              </div>
+              <p id="chart-status" class="status rtip" role="status" aria-live="polite"></p>
+            </div>
+            <div class="rgroup mp3-group">
+              <h3 class="rgroup-title">Export MP3</h3>
+              <p id="export-hint" class="hint top rtip">The stems and the takes that are on, as they sound now (volumes, tempo, key); with no stem on, the Original Track. The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.</p>
+              <div class="row mp3-row">
+                <button id="export" type="button" class="rbig">Export MP3</button>
+                <!-- The MP3 files exported: listed here (phone), or in a small window under their
+                     button (a computer). -->
+                <div class="exports-wrap">
+                  <button id="exports-toggle" type="button" class="exports-toggle computer-only" aria-expanded="false" aria-controls="exports-pop" hidden></button>
+                  <div id="exports-pop" class="exports-pop">
+                    <div id="exports-head" class="exports-head" hidden>
+                      <span id="exports-count"></span>
+                      <button id="exports-clear" type="button" class="ghost danger small">Delete all</button>
+                    </div>
+                    <div id="exports" class="exports"></div>
+                    <div id="export-actions" class="row" hidden>
+                      <button id="download" type="button" class="primary">Download</button>
+                      <button id="share" type="button" class="primary" hidden>Share…</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rpanel-foot">
+            <p id="export-status" class="status"></p>
+          </div>
+        </section>
+      </div>
+    </div>
 
     <section class="card timeline-card">
       <!-- Over the tracks, in one row (more on the phone): the bars and chords shown or hidden
@@ -264,173 +484,6 @@
       <p id="tracks-note" class="hint" hidden></p>
     </section>
 
-    <!-- Song analysis: the instruments separated (a computer), the tempo and the chords
-         found, the grid of the bars (its tempo, meter and first beat) and the chords of
-         the bars selected in the timeline. -->
-    <section id="analysis-card" class="card analysis-card">
-      <h2>Song analysis</h2>
-      <div class="analysis-find">
-        <button id="separate" type="button" class="small find-btn" hidden>Separate instruments</button>
-        <button id="find-bpm" type="button" class="small find-btn" title="Find the tempo of the song and make the grid of its bars" hidden>Detect tempo</button>
-        <button id="find-chords" type="button" class="small find-btn" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
-      </div>
-      <!-- Separating the instruments (computer) -->
-      <div id="sep-panel" class="sep-panel computer-only" hidden>
-        <div id="sep-bar" class="sep-bar"><div id="sep-fill" class="sep-fill"></div></div>
-        <p id="sep-text" class="sep-text" role="status" aria-live="polite"></p>
-        <button id="sep-stop" type="button" class="small ghost danger">Stop</button>
-        <button id="sep-close" type="button" class="small ghost" aria-label="Close this message" hidden>✕</button>
-      </div>
-      <!-- The grid: tempo, meter and first beat -->
-      <div id="grid-edit" class="edit-panel grid-edit" hidden>
-        <div class="edit-row grid-row">
-          <div class="edit-item bpm-item">
-            <div id="bpm-box"></div>
-            <div class="bpm-scale" role="group" aria-label="Double or halve the tempo of the grid">
-              <button id="bpm-double" type="button" class="small" title="Double the tempo of the grid: bars half as long"><span translate="no">×2</span></button>
-              <button id="bpm-half" type="button" class="small" title="Halve the tempo of the grid: bars twice as long"><span translate="no">÷2</span></button>
-            </div>
-            <p id="tempo-bpm" class="tempo-bpm" hidden></p>
-          </div>
-          <div id="meter-box" class="edit-item"></div>
-          <div class="edit-item anchor-item">
-            <button id="set-anchor" type="button" class="small" title="A bar starts at the playhead: the first beat of the grid">Set first beat</button>
-            <div id="anchor-box"></div>
-          </div>
-        </div>
-      </div>
-      <p id="edit-status" class="edit-status" role="status" aria-live="polite"></p>
-    </section>
-
-    <div class="panels">
-      <!-- The metronome, on the beats of the grid or at a tempo of its own
-           (src/metronome.js): on and off, its tempo, its volume, each beat of the bar a
-           beat, an accent or silent; the bars of count-in before playback; bars with the
-           clicks, then silent bars (the metronome, the tracks or both), or silent bars at
-           random. -->
-      <section class="card metro-card">
-        <h2>Metronome</h2>
-        <div id="metro" class="metro">
-          <div class="metro-row">
-            <button id="metro-on" type="button" class="metro-on" aria-pressed="false" aria-label="Metronome" title="Turns the metronome on or off"><span class="dot" aria-hidden="true"></span><span id="metro-state">Off</span></button>
-            <div class="metro-item">
-              <div id="metro-bpm-box" class="metro-bpm-box"></div>
-              <button id="metro-follow" type="button" class="small ghost metro-follow" hidden>Follow the song</button>
-            </div>
-            <div class="metro-item metro-volume">
-              <span class="mini-label">Volume</span>
-              <div id="metro-volume-box" class="metro-volume-box"></div>
-            </div>
-            <div class="metro-item">
-              <span class="mini-label">Beats</span>
-              <div id="metro-beats" class="metro-beats" role="group" aria-label="The beats of the bar: a click goes from beat to accent to silent"></div>
-            </div>
-          </div>
-          <div class="metro-row metro-cycle-row">
-            <div class="metro-item metro-count-item">
-              <span class="mini-label">Count-in</span>
-              <div class="num metro-count"><div class="value"><select id="metro-count" aria-label="Count-in"></select></div></div>
-            </div>
-            <div class="metro-item metro-mode-item">
-              <label class="mini-label" for="metro-mode">Plays</label>
-              <div class="num metro-mode"><div class="value"><select id="metro-mode"></select></div></div>
-            </div>
-          </div>
-          <p id="metro-mode-hint" class="hint" hidden></p>
-          <p id="metro-hint" class="hint" hidden></p>
-          <!-- Silent bars, a mode of the metronome as Speed training is: off with every song;
-               on, the bars with the clicks and the silent ones alternate as set here (or come
-               at random), silencing the metronome, the tracks or both. -->
-          <div class="metro-sub metro-mute-sub">
-            <h3 class="card-sub">Silent bars</h3>
-            <div class="metro-row metro-cycle-row">
-              <div class="metro-cycle">
-                <button id="metro-mute-on" type="button" class="metro-on" aria-pressed="false" aria-label="Silent bars on or off" title="Silent bars: the metronome clicks for some bars, then is silent for some, to check that you keep the time"><span class="dot" aria-hidden="true"></span><span id="metro-mute-state">Off</span></button>
-                <span class="metro-group"><span class="mini-label">Clicks for</span><span class="metro-pair"><span id="metro-play-box"></span><span id="metro-play-unit" class="mini-label">bars,</span></span></span>
-                <span class="metro-group"><span class="mini-label">then mute for</span><span class="metro-pair"><span id="metro-mute-box"></span><span id="metro-mute-unit" class="mini-label">bars</span></span></span>
-                <button id="metro-random" type="button" class="small toggle-pill" aria-pressed="false" title="Muted bars at random, as many on the whole">Random 💀</button>
-                <div class="metro-stack">
-                  <label class="stack-label" for="metro-silence">What to mute</label>
-                  <div class="num metro-silence"><div class="value"><select id="metro-silence"></select></div></div>
-                </div>
-              </div>
-            </div>
-            <p id="metro-random-hint" class="hint" hidden></p>
-          </div>
-        </div>
-        <!-- Speed training: with the loop on, the speed goes up by a step every few passes
-             of the loop, up to a target. -->
-        <div class="metro-sub">
-          <h3 class="card-sub">Speed training</h3>
-          <div id="trainer" class="trainer">
-            <button id="trainer-on" type="button" class="metro-on" aria-pressed="false" aria-label="Speed training" title="Turns the speed training on or off"><span class="dot" aria-hidden="true"></span><span id="trainer-state">Off</span></button>
-            <span class="trainer-item"><span class="mini-label">Step</span><span id="trainer-step-box"></span></span>
-            <span class="trainer-item"><span class="mini-label">Passes per step</span><span id="trainer-every-box"></span></span>
-            <span class="trainer-item"><span class="mini-label">Up to</span><span id="trainer-target-box"></span></span>
-          </div>
-          <p class="hint">With the loop on, the speed goes up by the step at every pass of the loop, or every few passes, up to the speed to reach. Start from a slower speed, set in Tempo and key (for example 70%).</p>
-          <p id="trainer-hint" class="hint warn" hidden></p>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Tempo and key</h2>
-        <div class="card-cols">
-          <div class="card-col">
-            <div class="field">
-              <span class="label">Tempo</span>
-              <div id="tempo-box" class="control-box"></div>
-            </div>
-          </div>
-          <div class="card-col">
-            <div class="field">
-              <span class="label">Key</span>
-              <div id="key-box" class="control-box"></div>
-            </div>
-            <p id="key-hint" class="hint">The key moves every instrument except the drums.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="card project-card">
-        <h2>File export and sharing</h2>
-        <div class="card-cols">
-          <div class="card-col">
-            <h3 class="sub computer-only">Project</h3>
-            <div class="row">
-              <button id="share-song" type="button" class="primary">Share project…</button>
-              <button id="save-as" type="button">Save as new project…</button>
-            </div>
-            <p id="project-hint" class="hint">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
-            <p id="project-status" class="status" role="status" aria-live="polite"></p>
-            <!-- The bars and chords as a chord chart for MuseScore (MusicXML, src/musicxml.js). -->
-            <h3 class="sub">Chord chart</h3>
-            <p class="hint top">The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now.</p>
-            <div class="row chart-row">
-              <span class="mini-label">Bars per line</span>
-              <div id="chart-lines-box"></div>
-              <button id="export-chart" type="button">Export for MuseScore</button>
-            </div>
-            <p id="chart-status" class="status" role="status" aria-live="polite"></p>
-          </div>
-          <div class="card-col">
-            <h3 class="sub">Export MP3</h3>
-            <p id="export-hint" class="hint top">The stems and the takes that are on, as they sound now (volumes, tempo, key); with no stem on, the Original Track. The MP3 files of this song stay here until EUTERIA closes: they are not saved in the project.</p>
-            <button id="export" type="button">Export MP3</button>
-            <p id="export-status" class="status"></p>
-            <div id="exports-head" class="exports-head" hidden>
-              <span id="exports-count"></span>
-              <button id="exports-clear" type="button" class="ghost danger small">Delete all</button>
-            </div>
-            <div id="exports" class="exports"></div>
-            <div id="export-actions" class="row" hidden>
-              <button id="download" type="button" class="primary">Download</button>
-              <button id="share" type="button" class="primary" hidden>Share…</button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
   </section>
 </main>
 

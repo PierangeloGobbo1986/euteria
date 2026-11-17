@@ -34,6 +34,7 @@ import { gridFromBeats } from "../src/tempo.js";
 import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { History } from "./history.js";
+import { Ribbon } from "./ribbon.js";
 import { clipsToManifest, scaleClips, sameClips, clipsOf, clipAt, cut as cutClip, remove as removeClips } from "../src/clips.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
@@ -109,6 +110,7 @@ const app = {
   projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
 let editor = null; // app/editor.js, made with the timeline
+let ribbon = null; // app/ribbon.js: the tabs of the song's tools and their panels
 let sectionMenu = null; // app/sectionmenu.js
 let separation = null; // app/separate.js
 let detection = null; // app/detect.js
@@ -650,6 +652,8 @@ async function openSong(file, origin) {
   app.current = null;
   recording.reset();
   setExportStatus("");
+  if (phone) ribbon.close(); // the panel that came up from the bottom goes down
+  showExports(false);
   window.scrollTo(0, 0);
   notice(tr("Opening {name}…", { name: file.name }));
   try {
@@ -1723,8 +1727,12 @@ function buildControls() {
     steps.forget(() => player.stashBytes <= enough);
   };
   if (phone) {
-    // The transport joins the app bar: one banner at the top, always in view.
+    // The transport joins the app bar: one banner at the top, always in view;
+    // the tabs of the song's tools go under it, and their panels into the
+    // player, where the one open comes up from the bottom of the screen.
     document.querySelector(".appbar").append($("transport"));
+    $("transport").append($("ribbon-tabs"));
+    $("player-view").append($("ribbon"));
   } else {
     // On a computer the tracks are the rows of the timeline; at the top of the
     // column of the tracks, beside the bars and the time scale, All stems and
@@ -2114,6 +2122,7 @@ async function exportMp3() {
     }, "ok");
     app.exportShown = app.exports[0].id;
     renderExports();
+    showExports(true);
     countEvent("mp3-exported");
   } catch (error) {
     setExportStatus(error.notice ? error.message : tr("The export failed: {error}", { error: (error && error.message) || error }), "error");
@@ -2189,6 +2198,11 @@ function updateExportActions() {
     $("exports-count").textContent = trn(count, "{n} file · {size}", "{n} files · {size}", { size: fmtSize(size) });
   }
   $("export-actions").hidden = !count;
+  const toggle = $("exports-toggle");
+  toggle.hidden = !count;
+  const listed = count ? $("exports-count").textContent : "";
+  if (toggle.textContent !== listed) toggle.textContent = listed;
+  if (!count) showExports(false);
   const n = chosen.length;
   $("download").disabled = !n;
   $("download").textContent = n > 1 ? tr("Download {n} files", { n }) : tr("Download");
@@ -3483,6 +3497,58 @@ function updateUi() {
     $("now-play").setAttribute("aria-label", player.playing ? tr("Pause") : tr("Play"));
     $("now-play").disabled = !ready;
   }
+  renderRibbon();
+}
+
+// ----- the ribbon: the tabs of the song's tools ------------------------------------------
+//
+// Over the song's name (app/ribbon.js): Song analysis, Tempo and key,
+// Metronome, Recording, File export and sharing. Each tab says what its
+// panel is doing: the tempo and the key changed, the metronome on, a take
+// being recorded, a detection, a separation or an export running.
+
+function renderRibbon() {
+  if (!ribbon) return;
+  ribbon.sync();
+  const song = player.song;
+  const badge = (tab, text, dot = "") => {
+    const el = $(`tab-${tab}`).querySelector(".rtab-badge");
+    const hide = !text && !dot;
+    if (el.hidden !== hide) el.hidden = hide;
+    if (el.textContent !== text) el.textContent = text;
+    const name = `rtab-badge${dot ? ` dot ${dot}` : ""}`;
+    if (el.className !== name) el.className = name;
+  };
+  const separating = !!separation && separation.running;
+  const pct = separating && isFinite(separation.fraction) ? `${Math.round(separation.fraction * 100)}%` : "";
+  badge("analysis", pct, !pct && (separating || (!!detection && detection.running)) ? "busy" : "");
+  const changed = [];
+  if (song && Math.abs(player.rate - 1) > 1e-6) changed.push(`${Math.round(player.rate * 100)}%`);
+  if (song && player.semitones) changed.push(fmtSigned(player.semitones));
+  badge("tempo", changed.join(" · "));
+  badge("metro", "", song && metro.on ? "on" : "");
+  badge("record", "", player.recording ? "rec" : "");
+  badge("export", "", player.busy === "exporting" ? "busy" : "");
+  // On a computer the help texts of a group are its tooltip.
+  if (!phone) {
+    for (const g of document.querySelectorAll("#ribbon .rgroup")) {
+      const tips = [...g.querySelectorAll(".rtip")].map((e) => e.textContent.trim()).filter(Boolean);
+      setAttr(g, "title", tips.join("\n\n"));
+    }
+  }
+}
+
+// Keys (a computer): the keys of the player, in a small window under the button.
+function showKeys(on) {
+  $("keys-pop").hidden = !on;
+  setAttr($("keys-btn"), "aria-expanded", String(on));
+}
+
+// The MP3 files exported (a computer): in a small window under their button.
+function showExports(on) {
+  if (phone) return;
+  $("exports-pop").classList.toggle("open", on);
+  setAttr($("exports-toggle"), "aria-expanded", String(on));
 }
 
 // ----- wiring ---------------------------------------------------------------------------------
@@ -3535,6 +3601,21 @@ function wire() {
     e.target.value = "";
     if (file && (await confirmLeave())) openSong(file, { source: "file" });
   });
+
+  // The tools of the song (the ribbon); Keys; the MP3 files exported. A click
+  // elsewhere closes the small windows, as Escape does.
+  ribbon = new Ribbon({ tabs: $("ribbon-tabs"), panels: $("ribbon"), remember: !phone, onchange: scheduleUi });
+  $("keys-btn").addEventListener("click", () => showKeys($("keys-pop").hidden));
+  $("exports-toggle").addEventListener("click", () => showExports(!$("exports-pop").classList.contains("open")));
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      const at = (sel) => e.target instanceof Element && !!e.target.closest(sel);
+      if (!$("keys-pop").hidden && !at("#keys-pop, #keys-btn")) showKeys(false);
+      if ($("exports-pop").classList.contains("open") && !at(".exports-wrap")) showExports(false);
+    },
+    true
+  );
 
   // The clips (a computer)
   setIcon($("clip-cut"), "scissors");
@@ -3626,6 +3707,11 @@ function wire() {
 
 function onKey(e) {
   if (e.defaultPrevented) return;
+  if (e.key === "Escape" && (!$("keys-pop").hidden || $("exports-pop").classList.contains("open"))) {
+    showKeys(false);
+    showExports(false);
+    return;
+  }
   if (document.querySelector("dialog[open]")) return; // the keys belong to the window open over the song
 
   const target = e.target || {};
@@ -3949,6 +4035,9 @@ window.euteria = {
   },
   get recording() {
     return recording;
+  },
+  get ribbon() {
+    return ribbon;
   },
   steps,
   metro,
