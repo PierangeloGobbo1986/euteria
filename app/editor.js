@@ -63,8 +63,8 @@ const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAt
 export class Editor {
   // ctx: {app, player, phone, timeline, changed() (the edits are to be kept),
   // refreshPage(), locked() (the tempo detection is running), notice(text,
-  // kind, ms) (the band of the messages, app.js)}. Saving is in the Project
-  // files card (app.js).
+  // kind, ms) (the band of the messages, app.js), step(back) (undo, or redo,
+  // app.js)}. Saving is in the Project files card (app.js).
   constructor(ctx) {
     this.ctx = ctx;
     this.on = false;
@@ -252,7 +252,8 @@ export class Editor {
   // last one beat 1 of the next bar (Shift: back). ← → at an end of the text:
   // the beat beside. Escape: the chord as it was. Ctrl+C and Ctrl+V (⌘ on a
   // Mac) copy and paste the chords of the bars, unless part of the text is
-  // selected (copy) or nothing was copied (paste).
+  // selected (copy) or nothing was copied (paste). Ctrl+Z undoes the last
+  // change to the song while nothing is typed in the field.
   _inputKey(e, k) {
     const input = this.slots[k];
     const mod = e.metaKey || e.ctrlKey;
@@ -296,6 +297,12 @@ export class Editor {
       this.paste();
       this.focusSlot(k);
       this.chord.select();
+    } else if (mod && !e.altKey && (e.key === "z" || e.key === "Z" || (e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === "y" || e.key === "Y")))) {
+      // Ctrl+Z, ⌘Z (Shift, or Ctrl+Y: redo): nothing typed in the field, the
+      // song's undo and redo (app.js); else the field's own.
+      if (input.value !== (this.shown[k] || "") || !this.ctx.step) return;
+      e.preventDefault();
+      this.ctx.step((e.key === "z" || e.key === "Z") && !e.shiftKey);
     }
   }
 
@@ -348,6 +355,24 @@ export class Editor {
       this.differs = false;
       this.built = false;
     }
+  }
+
+  // Undo and redo (app/history.js): the grid of a step, as it was then
+  // (edits not saved, the grid not the file's, rebuilt here). The bars
+  // selected stay selected while the grid has them.
+  restore(grid, { dirty, differs, built }) {
+    this.target = null; // what the fields show is not written over the grid put back
+    this.ctx.app.grid = grid;
+    this.dirty = dirty;
+    this.differs = differs;
+    this.built = built;
+    if (this.sel && this.sel.hi >= grid.bars.length) this.sel = null;
+    this.ctx.timeline.setGrid(grid);
+    this.ctx.timeline.setSelection(this.sel);
+    this._labelSlots();
+    this.loadInput();
+    this._showSlot();
+    this.ctx.refreshPage();
   }
 
   get locked() {

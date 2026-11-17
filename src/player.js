@@ -117,6 +117,9 @@ export class Player {
     this.recordingSeek = false; // Stop's jump, allowed while the take ends
     this.recordId = 0;
     this.lost = []; // tracks a failed export could not give back
+    // Takes out of the song that an undo may bring back (stashTake()): key ->
+    // {track, index, pcm (a promise of {channels, length}, or of null)}.
+    this.stash = new Map();
     this.onupdate = null;
     this.onsettings = null;
     this.wakeLock = null;
@@ -272,6 +275,7 @@ export class Player {
       alignment: song.alignment || null,
     };
     this.lost = [];
+    this.stash.clear();
     this.position = 0;
     this.playing = false;
     this.rate = 1;
@@ -310,6 +314,7 @@ export class Player {
     await this.engine.sync();
     this.song = null;
     this.tracks = [];
+    this.stash.clear();
     this.position = 0;
     this.playing = false;
     this._wake(false);
@@ -371,6 +376,13 @@ export class Player {
     return true;
   }
 
+  // The tracks in the order of `keys` (undo and redo); those it does not name
+  // after them.
+  setOrder(keys) {
+    if (!this.song || this.busy) return;
+    this.tracks = inTrackOrder(this.tracks, keys);
+    this._changed();
+  }
 
   setTrackOn(key, on) {
     const t = this.track(key);
@@ -432,6 +444,64 @@ export class Player {
     this._updateDuration();
     this._changed();
     return t;
+  }
+
+  // ----- takes kept aside, for undo -------------------------------------------------
+  //
+  // A take deleted, or a recording undone, leaves the song but stays in
+  // memory: its audio comes back from the audio thread (as for the export) and
+  // waits in `stash`, so that an undo puts it back as it was, where it was
+  // (unstashTake()). The page lets go of what no undo or redo can bring back
+  // any more (dropStash()); a song that closes, of all of it.
+
+  // Takes take `key` out of the song, into the stash. Returns its track, or
+  // null.
+  stashTake(key) {
+    const t = this.track(key);
+    if (!t || !t.take || this.busy || !this.engine) return null;
+    const index = this.tracks.indexOf(t);
+    this.tracks.splice(index, 1);
+    const entry = { track: t, index, pcm: null };
+    entry.pcm = this.engine.takeTracks([key]).then(
+      ([back]) => (back && back.channels.length ? { channels: back.channels, length: back.length } : null),
+      () => null
+    );
+    this.stash.set(key, entry);
+    this._updateDuration();
+    this._changed();
+    return t;
+  }
+
+  // Puts take `key` back from the stash, at `index` in the tracks (else where
+  // it was), as it was. before(track, channels): called with its audio before
+  // the audio thread takes it. Resolves with its track, or null if it cannot
+  // come back (not in the stash, its audio lost).
+  async unstashTake(key, { index = null, before = null } = {}) {
+    const entry = this.stash.get(key);
+    if (!entry || !this.song || this.track(key)) return null;
+    const pcm = await entry.pcm;
+    if (this.stash.get(key) !== entry || !this.song || this.track(key)) return null;
+    this.stash.delete(key);
+    if (!pcm) return null;
+    const t = entry.track;
+    if (before) before(t, pcm.channels);
+    this.engine.addTrack({ key, bus: t.bus, channels: pcm.channels, length: pcm.length, gain: t.gain, on: t.on, start: t.start });
+    this.tracks.splice(clamp(index ?? entry.index, 0, this.tracks.length), 0, t);
+    this._updateDuration();
+    this._changed();
+    return t;
+  }
+
+  // Lets go of the takes in the stash but those of `keep` (a Set of keys).
+  dropStash(keep = new Set()) {
+    for (const key of [...this.stash.keys()]) if (!keep.has(key)) this.stash.delete(key);
+  }
+
+  // The memory the stash holds (bytes).
+  get stashBytes() {
+    let sum = 0;
+    for (const { track } of this.stash.values()) sum += track.length * ((track.take && track.take.channels) || 2) * 2;
+    return sum;
   }
 
   // Moves a take earlier (ms < 0) or later, against where it was recorded.

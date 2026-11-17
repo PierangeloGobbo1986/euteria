@@ -47,7 +47,8 @@ open, the keys of the player do nothing and the page under it stays still.
   never copied twice, and a file that is neither a project nor readable audio is refused
   before it takes any space. Volumes, tempo, key and the playhead are numbers with − and
   + buttons: a tap on the number brings up the keypad, holding a button repeats it. In a
-  song, its name (with its tracks and length on the same line), play, stop, −5 s, +5 s,
+  song, its name (with its tracks and length on the same line, *Undo* and *Redo* at its
+  right), play, stop, −5 s, +5 s,
   the loop, Record and the position join the bar at the top, with *Library* and *Save*:
   one banner that stays in view as the page scrolls. Under it come *Recording input*
   (see below), then the card of the timeline, the tracks, *Song analysis* (below), *Metronome*,
@@ -58,8 +59,8 @@ open, the keys of the player do nothing and the page under it stays still.
   you are studying stays the only copy. In Chrome and Edge the Library lists the songs
   opened before, to open them again with one click (the browser asks once for
   permission). The transport stays in view as the page scrolls, the song's name at its
-  top (its tracks and length on the same line; a click on the name renames the project,
-  see Saving). Under it comes *Recording input* (see
+  top (its tracks and length on the same line, *Undo* and *Redo* at the right end of it; a
+  click on the name renames the project, see Saving). Under it comes *Recording input* (see
   below), then the card of the timeline, with the overview, the bars, the chords and the
   tracks as rows; the column of the tracks starts with *All stems*
   and *Original only*, beside the bars and the time scale. *Song analysis*,
@@ -68,7 +69,7 @@ open, the keys of the player do nothing and the page under it stays still.
   export). Volumes and tempo also have sliders; keyboard (listed in the transport, under its buttons): Space play or pause, ← → 5 seconds, Home back to the start, L loop
   on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
   stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
-  a Mac) save.
+  a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac).
 
 **Messages** (a song opening, the progress of a detection, of a separation or of a
 download, a save, an error) open in a band under the bar at the top: with a song open,
@@ -76,6 +77,27 @@ under the transport, on the phone as on a computer, so they stay in view whereve
 is scrolled. The band lies over the page, which does not move, and has a bar for the
 progress of the work it tells; it closes by itself when the work ends or after a few
 seconds, an error when its ✕ is tapped.
+
+**Undo and Redo** (2.9.0), at the right end of the line of the song's name (in the
+transport on a computer, in the banner at the top on the phone), and on a computer Ctrl+Z
+(⌘Z) and Ctrl+Shift+Z or Ctrl+Y (⇧⌘Z), go back and forth through what changed in the song
+since it was opened: the bars, the chords, the sections and the bar numbers (*Detect
+tempo* and *Detect chords* included), the name of the project, the takes (recorded,
+deleted, their *Sync*, *Align*), the tracks (on or off, volume, order), tempo, key, loop,
+the metronome and the speed training. Not what is only looked at or played: the zoom, the
+part in view, the eye of the bars and chords, the notation of the chords, the playhead,
+play and pause. A drag (a slider, the loop, a track moved by its grip) is one step, from
+where it started to where it ended, and so are − or + pressed again and again on the same
+value; the speed the speed training sets is not a step, and an undo leaves it. A message
+says what was undone or redone. In a field where something is being typed (a chord, a
+number, the name) Ctrl+Z is the field's own; in a chord field with nothing typed in it,
+the song's, so that chords typed one after the other are undone from where the cursor
+is. Undo and Redo wait while a take is recorded, and while the song is opened, exported
+or saved. The steps (up to 200) last while the song stays open: opening another one, or
+*Don't save* when leaving it, starts again. A take deleted stays in memory meanwhile, so
+that *Undo* brings it back as it was, even after a *Save* took it out of the file (it is
+then encoded again, and goes back in at the next *Save*); a take being recorded that needs
+that memory takes it back, and the oldest steps go with it.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB, − and + by 5%, as the tempo), tempo 50-200%, key ±12 semitones (drums
@@ -371,7 +393,7 @@ at 100%, free to change (`src/level.js`).
 Every take is a track at the bottom of the tracks (a row of its own in the timeline on a
 computer, drawn in red; its grip moves it elsewhere), with its switch, its volume, a red
 ✕ that deletes it (a second tap confirms; on the phone it sits between the grip and the
-name) and **Sync**. The take is lined up with the
+name; *Undo* brings it back) and **Sync**. The take is lined up with the
 song from what the engine was playing while each sample came in, minus the delay of the
 devices that the browser reports (the sound on its way to the ears, the input on its way
 to the page). What it does not report, as the delay of Bluetooth headphones or speakers
@@ -408,8 +430,9 @@ own tempo and key, so that it follows tempo and key afterwards as the stems do, 
 stays with them (with the light colouring of a stretched sound). Takes recorded, deleted
 or moved are changes to the song, as the bars and chords: *Save* writes them in the
 project, *Share project* sends them, and leaving the song asks first. A phone keeps
-about 15 minutes of takes per song in memory, a computer much more; when there is no
-more room the take ends and the app says so.
+about 15 minutes of takes per song in memory, a computer much more, the takes deleted
+that *Undo* can bring back included (a take being recorded takes their room first); when
+there is no more room the take ends and the app says so.
 
 On an iPhone the audio session plays and records while the input is open, and plays only
 once it is closed (some seconds after the last take). Chrome and the other browsers of
@@ -938,10 +961,26 @@ share sheet has taken the file (at the latest after 15 seconds, should the share
 stay open). Edits not saved yet are kept with the song's settings as the tempo, meter,
 anchor, bar number offset and chords: the beats and bars are rebuilt from them.
 
+Undo and redo (`app/history.js`) see the song as a state: the grid (an object that every
+edit replaces, never changes), the analysis, the name, the tracks (keys, on, volume,
+*Sync*), tempo, key, loop, the metronome and the speed training. A step is the state before
+it and the names of what it changed; the step is made once the action is over, at the end
+of the event that made it and not before a press of the pointer is let go, and changes of
+the same continuous value less than 0.9 s apart make one step. Undo puts back only what
+the step changed, so what changed by itself since (the speed training) stays; what follows
+on the page in the next two frames is taken in, not a step. A take out of the song (deleted,
+or its recording undone) keeps its audio: the audio thread gives it back, as for the
+export, and it waits in `player.stash` while a step can bring it back; the steps that
+nobody can reach any more let go of it. A *Save* tells every state kept whether it differs
+from what is saved now, so that each says rightly whether there are changes to save once
+it is back; a take of the file that a *Save* took out of it is encoded again from that
+audio when it comes back.
+
 ## Repository layout
 
 - `index.html`, `app/`: the app (page, styles, `app.js`, the timeline in `timeline.js`,
-  the editor of the grid and the chords in `editor.js`, the separation in `separate.js`,
+  the editor of the grid and the chords in `editor.js`, undo and redo in `history.js`,
+  the separation in `separate.js`,
   the tempo and chord detection, on request, in `detect.js`,
   the recording of takes in `recording.js`, the number fields and the icons in
   `controls.js`, the cards dragged to another place in `sortable.js`, the events of the
@@ -998,10 +1037,10 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   all, that do not keep a mathematical tempo.
 - **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
   saving them in a project (online, being tested). Step 2: recording takes over a song,
-  on every device, saved in the project (version 0.5, online, being tested). Step 3,
-  on a computer: the chords beat by beat (2.7), then the chord chart exported for
-  MuseScore (MusicXML), undo and redo, cutting, moving and fading the tracks, and
-  copying tracks from one project to another (planned).
+  on every device, saved in the project (version 0.5, online, being tested). Step 3: the
+  chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8), undo
+  and redo (2.9); then, on a computer, cutting, moving and fading the tracks, and copying
+  tracks from one project to another (planned).
 - **Phase 3**: band features.
 
 ## Licence

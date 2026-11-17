@@ -140,13 +140,17 @@
   <!-- The player -->
   <section id="player-view" class="view" hidden>
     <!-- The transport stays in view; at its top, the song's name (a click turns it into a
-         field to rename the project), its tracks and length; on a computer, the keys under
-         the buttons. -->
+         field to rename the project), its tracks and length, and at the right Undo and Redo
+         (app/history.js); on a computer, the keys under the buttons. -->
     <div id="transport" class="transport">
       <div class="song-head">
         <h1 id="song-title-h"><button id="song-title" type="button" class="title-btn" title="Click to rename the project" disabled></button></h1>
         <input id="song-title-input" class="title-input" type="text" maxlength="120" aria-label="Name of the project" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done" hidden>
         <p id="song-meta" class="meta"></p>
+        <div class="steps" role="group" aria-label="Undo and redo">
+          <button id="undo" type="button" class="small step-btn" disabled></button>
+          <button id="redo" type="button" class="small step-btn" disabled></button>
+        </div>
       </div>
       <div class="transport-inner">
         <span id="time-now" class="times-now">0:00.0</span>
@@ -162,7 +166,7 @@
           <button id="record" type="button" class="round rec" aria-pressed="false" aria-label="Record a take" title="Record a take over the song (R)" hidden><span class="rec-dot" aria-hidden="true"></span></button>
         </div>
       </div>
-      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save. Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
+      <p class="hint keys computer-only">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save · Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac). Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
     </div>
 
     <!-- What Record records from -->

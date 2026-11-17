@@ -33,6 +33,7 @@ import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
 import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
+import { History } from "./history.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
 
@@ -282,6 +283,7 @@ async function discardEdits() {
   }
   if (takes) await recording.revert();
   rememberSettings();
+  steps.reset(); // the song as its file has it: nothing to undo
   notice(
     takes || named ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
     "",
@@ -320,12 +322,288 @@ function rememberSettings() {
 function settingsChanged() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(rememberSettings, 500);
+  steps.note();
 }
 player.onsettings = settingsChanged;
 window.addEventListener("pagehide", rememberSettings);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") rememberSettings();
 });
+
+// ----- undo and redo -------------------------------------------------------------------
+//
+// Undo and Redo, at the right of the song's name (Ctrl+Z, ⌘Z; Ctrl+Shift+Z,
+// ⇧⌘Z, Ctrl+Y), go back and forth through what changed in the song open
+// since it opened (app/history.js): its bars, chords and sections, its name,
+// its takes (recorded, deleted, their Sync), its tracks (on or off, volume,
+// order), the tempo, the key, the loop, the metronome and the speed training.
+// Not the view (zoom, scroll, the eye), the playhead or the notation of the
+// chords. A take deleted stays in memory meanwhile (player.stash); a take
+// being recorded takes that memory back when it needs it, and the oldest
+// steps go with it.
+
+const sameList = (a, b) => a === b || (a.length === b.length && a.every((v, i) => v === b[i]));
+// The tempo, anchor and meter of a grid, which the metronome follows ("": no bars).
+const gridTempoKey = (g) => (g.bars.length > 0 && g.bpm > 0 ? `${g.bpm}|${g.bars[0]}|${g.meter}` : "");
+const GRID_FIELDS = ["chords", "sections", "grid", "numbers", "analysis"];
+const METRO_FIELD = /^metro(\.|$)/;
+const TRAINER_FIELD = /^trainer(\.|$)/;
+const METRO_SWITCHES = ["on", "muteOn", "mode", "silence", "random", "countIn"];
+// Values whose changes close together make one step (− and + pressed again and again).
+const CONTINUOUS = /^(gain:|sync:|metro\.|trainer\.)|^(rate|key|grid)$/;
+const MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || ua);
+
+const steps = new History({
+  capture: songState,
+  changes: stateChanges,
+  restore: restoreState,
+  continuous: (f) => CONTINUOUS.test(f),
+  onchange: () => scheduleUi(),
+  onkeep: keepTakes,
+});
+
+// The song as undo and redo see it, or null without one.
+function songState() {
+  const song = player.song;
+  if (!song || !editor || !recording) return null;
+  const g = app.grid;
+  const m = metro;
+  return {
+    grid: g,
+    edit: { dirty: editor.dirty, differs: editor.differs, built: editor.built },
+    analysis: app.analysis,
+    analysisInFile: app.analysisInFile,
+    title: song.title,
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null })),
+    takesDirty: recording.dirty,
+    rate: player.rate,
+    semitones: player.semitones,
+    loop: { ...player.loop },
+    metro: {
+      on: m.on,
+      volume: m.volume,
+      bpm: m.bpm,
+      patterns: { ...m.patterns },
+      muteOn: m.muteOn,
+      play: m.play,
+      mute: m.mute,
+      mode: m.mode,
+      silence: m.silence,
+      random: m.random,
+      countIn: m.countIn,
+      // A grid whose tempo changed is followed again (updateUi()).
+      follow: gridTempoKey(g) !== metroTempoKey || metroFollow,
+    },
+    trainer: { on: trainer.on, step: trainer.step, every: trainer.every, target: trainer.target },
+  };
+}
+
+function sameChords(a, b) {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const [i, slots] of a) {
+    const other = b.get(i);
+    if (!other || !sameList(slots, other)) return false;
+  }
+  return true;
+}
+
+// What differs between two grids: the chords, the sections, the grid itself
+// (tempo, meter, first beat, its beats and bars), the numbers of the bars.
+function gridChanges(x, y) {
+  if (x === y) return [];
+  const out = [];
+  if (!sameChords(x.chords, y.chords)) out.push("chords");
+  if (JSON.stringify(x.sections) !== JSON.stringify(y.sections)) out.push("sections");
+  if (x.bpm !== y.bpm || x.meter !== y.meter || x.firstBeat !== y.firstBeat || !sameList(x.beats, y.beats) || !sameList(x.bars, y.bars)) out.push("grid");
+  if (x.offset !== y.offset) out.push("numbers");
+  return out;
+}
+
+// What differs from state a to state b, by name.
+function stateChanges(a, b) {
+  const out = gridChanges(a.grid, b.grid);
+  if (a.analysis !== b.analysis) out.push("analysis");
+  if (a.title !== b.title) out.push("title");
+  const keysA = a.tracks.map((t) => t.key);
+  const keysB = b.tracks.map((t) => t.key);
+  const inA = new Set(keysA);
+  const inB = new Set(keysB);
+  if (keysA.some((k) => !inB.has(k)) || keysB.some((k) => !inA.has(k))) out.push("takes");
+  if (!sameList(keysA.filter((k) => inB.has(k)), keysB.filter((k) => inA.has(k)))) out.push("order");
+  const after = new Map(b.tracks.map((t) => [t.key, t]));
+  let on = false;
+  for (const t of a.tracks) {
+    const u = after.get(t.key);
+    if (!u) continue;
+    if (t.on !== u.on) on = true;
+    if (t.gain !== u.gain) out.push(`gain:${t.key}`);
+    if (t.sync !== u.sync) out.push(`sync:${t.key}`);
+  }
+  if (on) out.push("on");
+  if (a.rate !== b.rate) out.push("rate");
+  if (a.semitones !== b.semitones) out.push("key");
+  if (a.loop.on !== b.loop.on || a.loop.start !== b.loop.start || a.loop.end !== b.loop.end) out.push("loop");
+  const m = a.metro;
+  const n = b.metro;
+  if (m.volume !== n.volume) out.push("metro.volume");
+  if (m.bpm !== n.bpm || m.follow !== n.follow) out.push("metro.bpm");
+  if (m.play !== n.play) out.push("metro.play");
+  if (m.mute !== n.mute) out.push("metro.mute");
+  if (METRO_SWITCHES.some((k) => m[k] !== n[k]) || Object.keys(m.patterns).some((k) => !sameList(m.patterns[k], n.patterns[k] || []))) out.push("metro");
+  for (const k of ["step", "every", "target"]) if (a.trainer[k] !== b.trainer[k]) out.push(`trainer.${k}`);
+  if (a.trainer.on !== b.trainer.on) out.push("trainer");
+  return out;
+}
+
+// Puts back the parts `fields` of state s (a step undone or redone).
+async function restoreState(s, fields) {
+  const song = player.song;
+  if (!song) return;
+  const has = (f) => fields.includes(f);
+  if (GRID_FIELDS.some(has)) {
+    app.analysis = s.analysis;
+    app.analysisInFile = s.analysisInFile;
+    if (sectionMenu) sectionMenu.close(); // it was open for bars of the grid that goes
+    editor.restore(s.grid, s.edit);
+  }
+  if (has("title")) {
+    song.title = s.title;
+    showTitle();
+  }
+  // The takes that leave the song or come back first; then the order of the
+  // tracks, their switches, volumes and Syncs.
+  const back = has("takes") ? await recording.restore(s.tracks) : [];
+  if (has("takes") || has("order")) player.setOrder(s.tracks.map((t) => t.key));
+  const was = new Map(s.tracks.map((t) => [t.key, t]));
+  for (const t of [...player.tracks]) {
+    const v = was.get(t.key);
+    if (!v) continue;
+    const returned = back.includes(t.key);
+    if ((returned || has("on")) && t.on !== v.on) player.setTrackOn(t.key, v.on);
+    if ((returned || has(`gain:${t.key}`)) && t.gain !== v.gain) player.setTrackGain(t.key, v.gain);
+    if (t.take && (returned || has(`sync:${t.key}`)) && t.take.syncMs !== v.sync) {
+      player.setTakeSync(t.key, v.sync);
+      if (!returned) recording.recorder.rememberSync(t.take.input, v.sync); // the next takes from its input
+    }
+  }
+  if (has("takes") || fields.some((f) => f.startsWith("sync:"))) recording.dirty = s.takesDirty;
+  if (has("rate")) player.setRate(s.rate, true);
+  if (has("key")) player.setSemitones(s.semitones, true);
+  if (has("loop")) player.setLoop(s.loop, true);
+  if (fields.some((f) => METRO_FIELD.test(f))) {
+    const m = s.metro;
+    for (const k of ["on", "volume", "bpm", "muteOn", "play", "mute", "mode", "silence", "random", "countIn"]) metro[k] = m[k];
+    metro.patterns = { ...m.patterns };
+    metroFollow = m.follow;
+    metroTempoKey = gridTempoKey(app.grid);
+    metroChanged(true);
+  }
+  if (fields.some((f) => TRAINER_FIELD.test(f))) {
+    Object.assign(trainer, s.trainer);
+    trainerPasses = 0;
+    saveTrainer();
+  }
+  renderPlayer(app.timeline.getView());
+  rememberSettings();
+}
+
+// The takes kept for undo that no step can bring back any more leave memory.
+function keepTakes(states) {
+  const keep = new Set();
+  for (const s of states) for (const t of s.tracks) if (isTake(t.key)) keep.add(t.key);
+  for (const t of player.tracks) keep.delete(t.key);
+  player.dropStash(keep);
+}
+
+// The song saved, in its own file or as a copy: each state kept says again
+// whether it has changes not saved (and, saved in the file, how it differs
+// from the file).
+function stepsSaved(inPlace) {
+  steps.flush();
+  const saved = songState();
+  if (!saved) return;
+  const takes = (s) =>
+    s.tracks
+      .filter((t) => isTake(t.key))
+      .map((t) => `${t.key}:${t.sync}`)
+      .sort()
+      .join("|");
+  for (const s of steps.states()) {
+    const grid = gridChanges(s.grid, saved.grid).length > 0;
+    s.edit = inPlace ? { dirty: grid, differs: grid, built: grid && !(sameList(s.grid.beats, saved.grid.beats) && sameList(s.grid.bars, saved.grid.bars)) } : { ...s.edit, dirty: grid };
+    s.takesDirty = takes(s) !== takes(saved);
+    if (inPlace) s.analysisInFile = !!s.analysis && s.analysis === saved.analysis;
+  }
+}
+
+// What a step changed, in a few words, for the message after undo and redo.
+function stepLabel(fields, a, b) {
+  const has = (f) => fields.includes(f);
+  const named = (prefix) => fields.find((f) => f.startsWith(prefix));
+  const title = (key) => {
+    const t = player.track(key) || (player.stash.get(key) || {}).track;
+    return t ? tr(t.title) : "";
+  };
+  if (has("takes")) {
+    const inA = new Set(a.tracks.map((t) => t.key));
+    const inB = new Set(b.tracks.map((t) => t.key));
+    const moved = [...a.tracks.filter((t) => !inB.has(t.key)), ...b.tracks.filter((t) => !inA.has(t.key))];
+    return moved.length === 1 && title(moved[0].key) ? title(moved[0].key) : tr("the takes");
+  }
+  if (has("grid")) return tr("the grid"); // its chords may move with it
+  if (has("chords")) return tr("the chords");
+  if (has("sections")) return tr("the sections");
+  if (has("numbers")) return tr("the bar numbers");
+  if (has("analysis")) return tr("the tempo and chord detection");
+  if (has("title")) return tr("the name of the project");
+  const sync = named("sync:");
+  if (sync) return tr("the Sync of {take}", { take: title(sync.slice(5)) });
+  if (has("order")) return tr("the order of the tracks");
+  if (has("on")) return tr("the tracks on and off");
+  const gain = named("gain:");
+  if (gain) return tr("the volume of {track}", { track: title(gain.slice(5)) });
+  if (has("rate")) return tr("the tempo");
+  if (has("key")) return tr("the key");
+  if (has("loop")) return tr("the loop");
+  if (fields.some((f) => METRO_FIELD.test(f))) return tr("the metronome");
+  if (fields.some((f) => TRAINER_FIELD.test(f))) return tr("the speed training");
+  return "";
+}
+
+// Undo (back) or redo, from the buttons and the keys. What is being typed
+// (a chord, the name) is a change first.
+async function stepBack(back) {
+  if (!player.song || player.busy || app.saving || recording.busy) return;
+  endRename(true);
+  editor.commitInput();
+  let done = null;
+  try {
+    done = await (back ? steps.undo() : steps.redo());
+  } catch (error) {
+    notice(tr("The change could not be undone or redone: {error}", { error: (error && error.message) || error }), "error");
+    return;
+  }
+  if (!done) return;
+  const what = stepLabel(done.fields, done.state, done.left);
+  const text = back ? (what ? tr("Undone: {what}.", { what }) : tr("Undone.")) : what ? tr("Redone: {what}.", { what }) : tr("Redone.");
+  notice(text, "", 2500);
+}
+
+// Ctrl+Z, ⌘Z (undo); Ctrl+Shift+Z, ⇧⌘Z, Ctrl+Y (redo).
+const isStepKey = (e) => (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "z" || e.key === "Z" || (e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === "y" || e.key === "Y")));
+// A field text is typed in, which has an undo of its own.
+const TEXT_TYPES = ["text", "search", "email", "url", "tel", "password", "number"];
+const textEntry = (el) => !!el && (el.tagName === "TEXTAREA" || el.isContentEditable || (el.tagName === "INPUT" && TEXT_TYPES.includes((el.type || "text").toLowerCase())));
+
+function labelSteps() {
+  const undo = $("undo");
+  const redo = $("redo");
+  setAttr(undo, "aria-label", tr("Undo"));
+  setAttr(redo, "aria-label", tr("Redo"));
+  setAttr(undo, "title", phone ? tr("Undo") : tr("Undo ({keys})", { keys: MAC ? "⌘Z" : "Ctrl+Z" }));
+  setAttr(redo, "title", phone ? tr("Redo") : tr("Redo ({keys})", { keys: MAC ? "⇧⌘Z" : "Ctrl+Y" }));
+}
 
 // ----- opening songs ------------------------------------------------------------------
 
@@ -382,6 +660,7 @@ async function openSong(file, origin) {
     renderPlayer(saved && saved.view);
     if (sectionMenu) sectionMenu.close();
     editor.songOpened({ differs: !!edits, built: !!(edits && edits.built), dirty: !!(saved && saved.dirty) });
+    steps.reset(); // undo goes back as far as the song as it opened
     prepareSoon();
     window.scrollTo(0, 0);
     const warning = trackWarning();
@@ -390,6 +669,7 @@ async function openSong(file, origin) {
     return song;
   } catch (error) {
     renderPlayer();
+    steps.reset();
     showView(homeView());
     notice(tr("{name} could not be opened. {error}", { name: file.name, error: (error && error.message) || error }), "error");
     return null;
@@ -459,6 +739,7 @@ function metroChanged(clicks = false) {
   saveMetronome(metro);
   pushMetronome(clicks);
   renderMetronome();
+  steps.note();
 }
 
 function toggleMetronome() {
@@ -725,9 +1006,10 @@ function saveTrainer() {
 function trainerChanged() {
   saveTrainer();
   renderTrainer();
+  steps.note();
 }
 
-// The loop went round `count` times.
+// The loop went round `count` times. The speed it sets is not a step to undo.
 function trainerPass(count) {
   if (!trainer.on || !player.song || !player.loop.on) return;
   trainerPasses += count;
@@ -736,7 +1018,7 @@ function trainerPass(count) {
   const rate = Math.round(player.rate * 100);
   if (rate === trainer.target) return;
   const next = rate < trainer.target ? Math.min(trainer.target, rate + trainer.step) : Math.max(trainer.target, rate - trainer.step);
-  player.setRate(next / 100);
+  steps.absorb(() => player.setRate(next / 100));
   if (next === trainer.target) notice(tr("Speed {n}%: target reached.", { n: next }), "ok", 4000);
 }
 
@@ -965,6 +1247,7 @@ async function closeSong() {
   recording.reset();
   await player.close();
   renderPlayer();
+  steps.reset();
 }
 
 // ----- library (phone) ------------------------------------------------------------------
@@ -1386,6 +1669,7 @@ function buildControls() {
     refreshPage: scheduleUi,
     locked: () => detection.running,
     notice,
+    step: stepBack,
   });
   recording = new RecordingFlow({
     app,
@@ -1396,9 +1680,16 @@ function buildControls() {
     takesChanged: () => {
       renderPlayer(app.timeline.getView());
       rememberSettings();
+      steps.note();
     },
     liveRow: { color: WAVE_COLORS.take, height: phone ? LIVE_LANE : TAKE_ROW },
   });
+  // A take being recorded that needs memory takes back that of the takes
+  // kept for undo, with the steps that needed them.
+  recording.recorder.onroom = (bytes) => {
+    const enough = Math.max(0, player.stashBytes - bytes);
+    steps.forget(() => player.stashBytes <= enough);
+  };
   if (phone) {
     // The transport joins the app bar: one banner at the top, always in view.
     document.querySelector(".appbar").append($("transport"));
@@ -1919,6 +2210,7 @@ function savedInPlace(file, manifest) {
   prepareSoon();
   editor.saved(true);
   recording.saved(true);
+  stepsSaved(true);
   rememberSettings();
   if (cur.source === "library") {
     if (cur.key !== oldKey) forgetSettings(oldKey);
@@ -2131,6 +2423,7 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
       downloadBlob(blob, name);
       editor.saved(false);
       recording.saved(false);
+      stepsSaved(false);
       rememberSettings();
       say(tr("Downloaded: {name}.", { name }), "ok");
       return "copy";
@@ -2199,6 +2492,7 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
         downloadBlob(blob, name);
         editor.saved(false);
         recording.saved(false);
+        stepsSaved(false);
         rememberSettings();
         say(tr("Downloaded a copy with the changes: {name}.", { name }), "ok");
       }
@@ -2230,6 +2524,7 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
       downloadBlob(composeEdited(file, await zipLayout(zip), { manifestBytes: bytes }), name);
       editor.saved(false);
       recording.saved(false);
+      stepsSaved(false);
       rememberSettings();
       say(tr("Downloaded a copy with the changes: {name}.", { name }), "ok");
     }
@@ -2452,7 +2747,7 @@ async function saveAsNew() {
       const entry = await library.add(new File([made.blob], fileName, { type: "application/zip" }), "project");
       const saved = await library.file(entry);
       await checkSaved(saved, made.manifest.project_id);
-      song.title = name;
+      steps.absorb(() => (song.title = name)); // the new project's name, not a step
       cur.source = "library";
       cur.entryId = entry.id;
       cur.created = false;
@@ -2468,7 +2763,7 @@ async function saveAsNew() {
       }
       const saved = await target.getFile();
       await checkSaved(saved, made.manifest.project_id);
-      song.title = name;
+      steps.absorb(() => (song.title = name));
       cur.handle = target;
       cur.source = "file";
       cur.created = false;
@@ -2890,7 +3185,7 @@ function updateUi() {
     trainer.on = false;
     trainerPasses = 0;
   }
-  const tempoKey = songGrid() ? `${app.grid.bpm}|${app.grid.bars[0]}|${app.grid.meter}` : "";
+  const tempoKey = song ? gridTempoKey(app.grid) : "";
   if (tempoKey !== metroTempoKey) {
     metroTempoKey = tempoKey;
     metroFollow = true;
@@ -2929,6 +3224,12 @@ function updateUi() {
   const exportHint = EXPORT_HINT();
   if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
   $("key-hint").hidden = !!song && !player.hasStems;
+
+  // Undo and Redo: not while the song opens, is exported or saved, or a take
+  // is recorded.
+  const stepsOff = !song || busy || app.saving || takesBusy;
+  $("undo").disabled = stepsOff || !steps.canUndo;
+  $("redo").disabled = stepsOff || !steps.canRedo;
 
   // Save, at the top right, and Share project.
   const save = $("save-top");
@@ -3031,6 +3332,13 @@ function wire() {
     if (file && (await confirmLeave())) openSong(file, { source: "file" });
   });
 
+  // Undo and Redo
+  setIcon($("undo"), "undo");
+  setIcon($("redo"), "redo");
+  labelSteps();
+  $("undo").addEventListener("click", () => stepBack(true));
+  $("redo").addEventListener("click", () => stepBack(false));
+
   // Transport
   setIcon($("play"), "play");
   setIcon($("now-play"), "play");
@@ -3116,6 +3424,13 @@ function onKey(e) {
     e.preventDefault();
     if (typing && target.blur) target.blur();
     saveSong();
+    return;
+  }
+  if (isStepKey(e)) {
+    // Undo and redo; in a field text is typed in, the field's own.
+    if (!open || textEntry(target)) return;
+    e.preventDefault();
+    stepBack((e.key === "z" || e.key === "Z") && !e.shiftKey);
     return;
   }
   if (typing || !open) return;
@@ -3281,6 +3596,7 @@ function endRename(keep) {
   showTitle();
   rememberSettings();
   scheduleUi();
+  steps.note();
 }
 
 function wireTitle() {
@@ -3302,6 +3618,7 @@ function relabel() {
   relabelMetronome();
   relabelTrainer();
   if (chartField) chartField.relabel(tr("Bars per line"));
+  labelSteps();
   labelLayoutSwitch();
   showCounting();
   showUpdate(shownLatest);
@@ -3386,6 +3703,9 @@ window.euteria = {
   get recording() {
     return recording;
   },
+  steps,
+  metro,
+  trainer,
   openSong,
   renderRecent,
   saveMode,

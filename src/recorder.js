@@ -143,6 +143,9 @@ export class Recorder {
     this.onmessage = null; // (text, kind)
     this.ontakes = null; // (tracks, reason, raisedDb) takes added
     this.onlevel = null;
+    // (bytes): frees that much of the memory of the takes kept for undo
+    // (player.stash), as far as it can, for a take that needs it.
+    this.onroom = null;
     this.live = null; // the waveform of the take being recorded
     this.onlive = null; // live changed
     // Tests: an AudioNode factory used instead of the microphone, and the
@@ -359,9 +362,16 @@ export class Recorder {
 
   // ----- recording --------------------------------------------------------------------
 
-  // Bytes the takes of the open song take in memory.
+  // Bytes the takes of the open song take in memory: those in it, and those
+  // kept for undo.
   usedBytes() {
-    return this.player.takes.reduce((sum, t) => sum + t.length * (t.take.channels || 2) * 2, 0);
+    return this.player.takes.reduce((sum, t) => sum + t.length * (t.take.channels || 2) * 2, 0) + this.player.stashBytes;
+  }
+
+  // Room for `bytes` more: the takes kept for undo make it, if they must.
+  room(bytes) {
+    const over = this.usedBytes() + bytes - this.budget;
+    if (over > 0 && this.onroom && this.player.stashBytes > 0) this.onroom(over);
   }
 
   // No room left for a take of a second (stereo).
@@ -384,6 +394,7 @@ export class Recorder {
   async start() {
     const player = this.player;
     if (this.busy || !player.song || player.busy || player.recording) return false;
+    this.room((player.context ? player.context.sampleRate : 48000) * 4 * MIN_TAKE_SECONDS);
     if (this.full) {
       this.say(tr("There is no more room for takes in this song: delete one with its ✕ first."), "error");
       return false;
@@ -449,6 +460,7 @@ export class Recorder {
       cur.frames += m.frames;
       cur.bytes += m.frames * 2 * m.channels.length;
       this.addLive(chunk, m.frames);
+      if (!cur.full && this.usedBytes() + cur.bytes >= this.budget) this.room(cur.bytes + 4 * this.player.context.sampleRate); // a second more, stereo
       if (!cur.full && this.usedBytes() + cur.bytes >= this.budget) {
         cur.full = true;
         this.player.stopRecording();
@@ -656,6 +668,8 @@ export class Recorder {
 
   // The take as MP3 (320 kbps stereo, 160 kbps mono), in the background.
   encode(take, channels, sampleRate) {
+    take.encoding = true;
+    take.error = null;
     const work = (async () => {
       let data = channels;
       let rate = sampleRate;
@@ -675,6 +689,7 @@ export class Recorder {
         take.error = (error && error.message) || String(error);
       })
       .finally(() => {
+        take.encoding = false;
         this.encoding.delete(work);
         this.changed();
       });

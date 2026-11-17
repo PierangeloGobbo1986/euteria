@@ -335,6 +335,11 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 }
 .song-head .meta { flex: none; margin: 0; white-space: nowrap; }
 [data-layout=phone] .song-head { max-width: 648px; margin: 6px auto 0; }
+/* Undo and Redo, at the right end of the line of the song's name. */
+.song-head .steps { display: flex; gap: 6px; flex: none; margin-left: auto; align-self: center; }
+button.step-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 32px; min-height: 0; padding: 0; }
+button.step-btn .icon { width: 18px; height: 18px; }
+[data-layout=phone] button.step-btn { width: 44px; height: 36px; }
 
 .transport-inner {
   display: grid;
