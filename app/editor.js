@@ -206,6 +206,7 @@ export class Editor {
   // The field of beat k, with the cursor in it.
   focusSlot(k) {
     this.slot = clamp(k, 0, this.slotCount - 1);
+    if (this.ctx.showTools) this.ctx.showTools(); // a computer: the fields are in the tab Bars and chords
     const input = this.chord;
     if (!input.disabled) input.focus();
     this._showSlot();
@@ -435,6 +436,7 @@ export class Editor {
     if (!this.on) return;
     if (Number.isInteger(info.slot)) this.slot = info.slot;
     this.select(sel);
+    if (sel && this.ctx.showTools) this.ctx.showTools(); // a computer: the tab Bars and chords
     if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone && info.lane !== "sections") this.focusSlot(this.slot);
   }
 
@@ -450,6 +452,7 @@ export class Editor {
     if (!this.on) return;
     this.slot = Number.isInteger(slot) ? slot : 0;
     this.select({ anchor: index, lo: index, hi: index });
+    if (this.ctx.showTools) this.ctx.showTools(); // a computer: the tab Bars and chords
     const shift = host.getBoundingClientRect().top - before;
     if (shift) window.scrollBy(0, shift);
     if (pointerType === "mouse" && !this.ctx.phone) this.chord.focus({ preventScroll: true });

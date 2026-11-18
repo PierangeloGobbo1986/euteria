@@ -54,27 +54,51 @@ const TAKE_ROW = 84; // the height of a take's row in the timeline (computer): i
 const LIVE_LANE = 30; // the phone's lane under the waveform, for the take being recorded
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const setAttr = (el, name, value) => el.getAttribute(name) !== value && el.setAttribute(name, value);
-// The hint under the timeline, in the language in use.
-const HINTS = phone
-  ? {
-      view: () =>
-        tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (both by the eighth note, as along the bar numbers). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
-      noGrid: () => tr("No bars in this song yet: Detect tempo finds them on a computer (Song analysis), and the project saved there brings them here; or put the playhead on the first beat of a bar and tap Set first beat."),
-      hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
-      clips: () => "",
-      edit: () =>
-        tr("Tap a chord, or a beat, to select its bar; drag along the chords to select several. The boxes are the beats of the bar: type each chord in the box of its beat; next goes on to the following bar, an empty box removes its chord. Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. Bar renumbers the bars from the one selected. Bar numbers: a tap takes a bar, dragging along them a stretch by the eighth note; Loop loops it, and with the loop on the loop goes there at once. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
-    }
-  : {
-      view: () =>
-        tr("Click or drag on the waveforms to place the playhead; drag inside the loop to move it, its edges to change it (both by the eighth note, as along the bar numbers; Alt: freely). Click a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop (L) loops it. Drag the time scale to scroll, pinch or ctrl+wheel to zoom. In the overview, drag the frame of the view or of the loop to move it."),
-      noGrid: () => tr("No bars in this song yet: Detect tempo, in Song analysis, finds them; or put the playhead on the first beat of a bar and press Set first beat."),
-      hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
-      clips: () =>
-        tr("The strip at the top of each track holds its clips: click one to select it (shift-click: more), drag it to move it by the eighth note (Alt: freely), its edges to shorten or lengthen it, the knobs at its corners to fade it in and out. C cuts the clips selected at the playhead, X deletes them, Escape lets them go. Ctrl+C (⌘C on a Mac) copies them; Ctrl+V pastes them at the playhead, in this song or in another opened next, as takes."),
-      edit: () =>
-        tr("Click a chord, or a beat, and type its chord: the boxes over the timeline are the beats of the bar (Tab: the next beat; Return: the next bar). Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. Shift-click or drag along the chords to select several bars. ← → move the selection (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste chords. Bar renumbers the bars from the one selected. Bar numbers: a click takes a bar, dragging along them a stretch by the eighth note, shift-click takes in more bars; Loop (L) loops it, and with the loop on the loop goes there at once. Sections, the top row: click a section or a bar to select it, click the bars selected to name them; with the loop on, a section clicked is looped, shift-click takes in more. Shift-click on the time scale moves an edge of the loop to the nearest beat. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
-    };
+// How to use the timeline, under it on the phone. A computer has it in
+// Shortcuts and in the tabs Bars and chords and Tracks (2.14): renderShortcuts().
+const HINTS = {
+  view: () =>
+    tr("Tap or drag on the waveform to place the playhead; drag inside the loop to move it, its handles on the time scale to change it (both by the eighth note, as along the bar numbers). Tap a chord to write it. Drag along the bar numbers to choose a stretch, by the eighth note: Loop loops it. Pinch to zoom, drag the time scale to scroll. In the overview, drag the frame of the view or of the loop to move it."),
+  noGrid: () => tr("No bars in this song yet: Detect tempo finds them on a computer (Song analysis), and the project saved there brings them here; or put the playhead on the first beat of a bar and tap Set first beat."),
+  hidden: () => tr("The sections, the chords and the bars are hidden: the eye beside Bars and chords, over the timeline, shows them."),
+  edit: () =>
+    tr("Tap a chord, or a beat, to select its bar; drag along the chords to select several. The boxes are the beats of the bar: type each chord in the box of its beat; next goes on to the following bar, an empty box removes its chord. Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. Bar renumbers the bars from the one selected. Bar numbers: a tap takes a bar, dragging along them a stretch by the eighth note; Loop loops it, and with the loop on the loop goes there at once. Sections, the top row: tap a section or a bar to select it, tap the bars selected to name them; with the loop on, a section tapped is looped. Set first beat makes a bar start at the playhead; BPM and the meter rebuild the grid from there."),
+};
+
+// Shortcuts (a computer, 2.14): the keys, and what the mouse does in the
+// timeline. How to edit the chords and the clips is in their tabs.
+function renderShortcuts() {
+  const mod = MAC ? "⌘" : "Ctrl+";
+  const keyboard = [
+    [tr("Space"), tr("Play or pause")],
+    ["← →", tr("5 seconds back or forward")],
+    [tr("Home"), tr("Back to the start")],
+    ["L", tr("Loop on or off")],
+    ["[ ]", tr("Start and end of the loop at the playhead")],
+    ["M", tr("Metronome on or off")],
+    ["R", tr("Record a take (again: stop)")],
+    ["1 … 9", tr("A track on or off")],
+    ["+ − 0", tr("Zoom in, out, the whole song")],
+    [`${mod}S`, tr("Save")],
+    [`${mod}Z`, tr("Undo")],
+    [MAC ? "⇧⌘Z" : "Ctrl+Y", tr("Redo")],
+    ["Esc", tr("Lets go of what is selected")],
+  ];
+  const mouse = [
+    [tr("Click, drag"), tr("On the waveforms: the playhead there")],
+    [tr("Drag the loop"), tr("Inside: moves it; its edges: change it (by the eighth note; Alt: freely)")],
+    [tr("Bar numbers"), tr("Drag along them: a stretch, by the eighth note (shift-click: more bars); Loop loops it")],
+    [tr("Time scale"), tr("Drag it: scrolls. Shift-click: the nearest edge of the loop moves to the nearest beat")],
+    [tr("Zoom"), tr("Pinch, or Ctrl+wheel; in the overview, drag the frame of the view or of the loop")],
+    [tr("Tracks"), tr("Click a name: on or off; drag ⠿ (or ↑ ↓ on it): moves the track; double-click a volume: 100%")],
+  ];
+  const fill = (dl, rows) => {
+    dl.textContent = "";
+    for (const [k, v] of rows) dl.append(h("dt", { text: k }), h("dd", { text: v }));
+  };
+  fill($("keys-keyboard"), keyboard);
+  fill($("keys-mouse"), mouse);
+}
 
 const player = new Player();
 // The phone draws the Original Track only; a computer every track.
@@ -899,7 +923,7 @@ function relabelMetronome() {
   mode.value = metro.mode;
   const silence = $("metro-silence");
   silence.textContent = "";
-  const said = { metronome: tr("Metronome only"), all: tr("Metronome and tracks"), tracks: tr("Tracks only") };
+  const said = { metronome: tr("Mute metronome only"), all: tr("Mute metronome and tracks"), tracks: tr("Mute tracks only") };
   for (const k of ["all", "metronome", "tracks"]) silence.append(new Option(said[k], k));
   silence.value = metro.silence;
   if (metroFields.play) {
@@ -1729,6 +1753,7 @@ function buildControls() {
     notice,
     step: stepBack,
     barsSelected: () => app.timeline.clipSel.length && app.timeline.setClipSelection([]),
+    showTools: showBarTools,
   });
   recording = new RecordingFlow({
     app,
@@ -1944,10 +1969,12 @@ function clipboardName() {
   return clip.tracks.length === 1 ? clip.tracks[0].title : tr("{n} tracks from {song}", { n: clip.tracks.length, song: clip.song });
 }
 
+// The tools of the clips (the tab Tracks), with their keys.
 function labelClipTools() {
   const copy = $("clip-copy");
-  setAttr(copy, "aria-label", tr("Copy the clips selected"));
   setAttr(copy, "title", tr("Copy the clips selected ({keys})", { keys: MAC ? "⌘C" : "Ctrl+C" }));
+  $("clip-copy-key").textContent = MAC ? "⌘C" : "Ctrl+C";
+  $("clip-paste-key").textContent = MAC ? "⌘V" : "Ctrl+V";
 }
 
 // Python's toggle_loop(): a loop switched on appears where the user is
@@ -3488,11 +3515,19 @@ function updateUi() {
   setIcon(eye, app.gridVisible ? "eye" : "eyeClosed");
   eye.setAttribute("aria-pressed", String(app.gridVisible));
   eye.title = app.gridVisible ? tr("The grid is shown: click to hide it") : tr("The grid is hidden: click to show it");
-  // Nothing over the waveforms: why, first (no bars yet, or hidden).
-  const state = !song ? "" : !hasGrid ? HINTS.noGrid() : !app.gridVisible ? HINTS.hidden() : "";
-  const clipsHint = song && !phone ? ` ${HINTS.clips()}` : "";
-  const hint = (state ? `${state} ${HINTS.view()}` : (editor.on && song ? HINTS.edit : HINTS.view)()) + clipsHint;
-  if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
+  const bigEye = $("bars-eye");
+  setAttr(bigEye, "aria-pressed", String(app.gridVisible));
+  setAttr(bigEye, "title", eye.title);
+  bigEye.disabled = detection.running;
+  $("bars-view-group").hidden = !hasGrid;
+  // Under the timeline (the phone): nothing over the waveforms, and why first
+  // (no bars yet, or hidden); how to use it. A computer has them in Shortcuts
+  // and in the tabs (2.14).
+  if (phone) {
+    const state = !song ? "" : !hasGrid ? HINTS.noGrid() : !app.gridVisible ? HINTS.hidden() : "";
+    const hint = state ? `${state} ${HINTS.view()}` : (editor.on && song ? HINTS.edit : HINTS.view)();
+    if ($("tl-hint").textContent !== hint) $("tl-hint").textContent = hint;
+  }
   editor.refresh();
   // Separating the instruments (a song without stems, on a computer); once the
   // song has its stems, the button stays, grey.
@@ -3591,8 +3626,7 @@ function updateUi() {
   if ($("export-hint").textContent !== exportHint) $("export-hint").textContent = exportHint;
   $("key-hint").hidden = !!song && !player.hasStems;
 
-  // The clips: their tools over the timeline, on a computer.
-  $("clip-tools").hidden = phone || !song;
+  // The clips: their tools in the tab Tracks, on a computer.
   const clipsOff = !ready || locked || !app.timeline.clipSel.length;
   $("clip-cut").disabled = clipsOff;
   $("clip-copy").disabled = clipsOff || app.copying;
@@ -3601,7 +3635,6 @@ function updateUi() {
   const paste = $("clip-paste");
   paste.disabled = !ready || locked || takesBusy || app.saving || !app.clipboard;
   const pasteKeys = MAC ? "⌘V" : "Ctrl+V";
-  setAttr(paste, "aria-label", app.clipboard ? tr("Paste {what} at the playhead", { what: clipboardName() }) : tr("Paste at the playhead"));
   setAttr(paste, "title", app.clipboard ? tr("Paste {what} at the playhead ({keys})", { what: clipboardName(), keys: pasteKeys }) : tr("Paste at the playhead ({keys}): copy clips first", { keys: pasteKeys }));
 
   // Undo and Redo: not while the song opens, is exported or saved, or a take
@@ -3685,11 +3718,14 @@ function renderRibbon() {
   badge("analysis", pct, !pct && (separating || (!!detection && detection.running)) ? "busy" : "");
   const changed = [];
   if (song && Math.abs(player.rate - 1) > 1e-6) changed.push(`${Math.round(player.rate * 100)}%`);
-  if (song && player.semitones) changed.push(fmtSigned(player.semitones));
+  if (song && player.semitones) changed.push(`${fmtSigned(player.semitones)}st`); // semitones
   badge("tempo", changed.join(" · "));
   badge("metro", "", song && metro.on ? "on" : "");
   badge("record", "", player.recording ? "rec" : "");
   badge("export", "", player.busy === "exporting" ? "busy" : "");
+  // The bars and the chords hidden: a closed eye (a computer).
+  if (!phone) badge("bars", "", song && app.grid.bars.length && !app.gridVisible ? "eye-off" : "");
+  fitTabs();
   // On a computer the help texts of a group are its tooltip.
   if (!phone) {
     for (const g of document.querySelectorAll("#ribbon .rgroup")) {
@@ -3778,11 +3814,10 @@ function wire() {
     true
   );
 
-  // The clips (a computer)
-  setIcon($("clip-cut"), "scissors");
-  setIcon($("clip-copy"), "copy");
-  setIcon($("clip-paste"), "paste");
+  // The clips (a computer: the tab Tracks); Shortcuts.
   labelClipTools();
+  renderShortcuts();
+  window.addEventListener("resize", fitTabs);
   $("clip-cut").addEventListener("click", cutClips);
   $("clip-copy").addEventListener("click", copyClips);
   $("clip-paste").addEventListener("click", pasteClips);
@@ -3839,15 +3874,18 @@ function wire() {
   });
   for (const b of document.querySelectorAll(".notation-btn")) b.addEventListener("click", toggleNotation);
   renderNotation();
-  // The eye: the bars and the chords shown, and editable, or hidden.
-  $("grid-eye").addEventListener("click", () => {
+  // The eye: the bars and the chords shown, and editable, or hidden (over the
+  // timeline on the phone, in Bars and chords on a computer).
+  const toggleGrid = () => {
     app.gridVisible = !app.gridVisible;
     app.timeline.setGridVisible(app.gridVisible);
     editor.setOn(app.gridVisible);
     sectionMenu.close();
     settingsChanged();
     scheduleUi();
-  });
+  };
+  $("grid-eye").addEventListener("click", toggleGrid);
+  $("bars-eye").addEventListener("click", toggleGrid);
   $("export").addEventListener("click", exportMp3);
   wireChart();
   $("download").addEventListener("click", downloadSelected);
@@ -4027,13 +4065,16 @@ function showLanguage() {
 // bar plays and pauses instead of opening the window again.
 
 function wireHelp() {
-  const button = $("help");
   const dialog = $("help-dialog");
+  let button = $("help"); // the button that opened it: Instructions at the top right, or in the tab Help (2.14)
   let pointer = "";
   let downBeside = false; // pressed beside the window, not in its text (selecting it)
-  button.addEventListener("click", () => {
-    if (!dialog.open) dialog.showModal();
-  });
+  for (const b of [$("help"), $("guide-open")]) {
+    b.addEventListener("click", () => {
+      button = b;
+      if (!dialog.open) dialog.showModal();
+    });
+  }
   $("help-close").addEventListener("click", () => dialog.close());
   dialog.addEventListener("pointerdown", (e) => {
     pointer = e.pointerType;
@@ -4113,6 +4154,7 @@ function relabel() {
   if (chartField) chartField.relabel(tr("Bars per line"));
   labelSteps();
   labelClipTools();
+  renderShortcuts();
   labelLayoutSwitch();
   showCounting();
   showUpdate(shownLatest);
@@ -4146,7 +4188,60 @@ function registerServiceWorker() {
   else window.addEventListener("load", register);
 }
 
+// ----- the layout of a computer (2.14) -------------------------------------------------------
+//
+// The chords of the bars selected, the bar, copy and paste and Clear chords
+// go in the tab Bars and chords, the zoom beside the overview. The phone keeps
+// them over the timeline, and has not the tabs Bars and chords, Tracks (the
+// clips are edited on a computer) and Help (its ? at the top right).
+function placeForLayout() {
+  if (phone) {
+    for (const id of ["bars-card", "clips-card", "guide-card"]) $(id).hidden = true;
+    return;
+  }
+  $("bars-chords-slot").append($("chord-slots"));
+  $("bars-bar-slot").append(document.querySelector("#chord-edit .bar-nav"));
+  $("bars-copy-slot").append($("chord-copy"), $("chord-paste"));
+  const clear = $("clear-chords");
+  clear.classList.remove("small", "ghost");
+  clear.classList.add("rbig");
+  $("bars-clear-slot").append(clear);
+  $("tl-zoom-slot").append(document.querySelector(".zoom-group"));
+}
+
+// Chords or a section selected in the timeline (a computer): the tab Bars
+// and chords opens, to write them. The timeline stays where it was under the
+// mouse: the page scrolls by as much as the tab pushed it down.
+function showBarTools() {
+  if (phone || !ribbon || ribbon.current === "bars") return;
+  const host = app.timeline.main;
+  const before = host.getBoundingClientRect().top;
+  ribbon.open("bars", false);
+  const shift = host.getBoundingClientRect().top - before;
+  if (shift) window.scrollBy(0, shift);
+}
+
+// The tabs at their full names, or at their short ones when those do not fit
+// in the window (a computer); in the panel open, the groups that the width
+// sends to a new row start it as the first one does (no line at their left).
+function fitTabs() {
+  const tabs = $("ribbon-tabs");
+  if (phone || !tabs.offsetParent) return;
+  tabs.classList.remove("compact");
+  if (tabs.scrollWidth > tabs.clientWidth + 1) tabs.classList.add("compact");
+  const panel = document.querySelector("#ribbon .rpanel.open");
+  if (!panel) return;
+  let top = null;
+  for (const g of panel.querySelectorAll(".rgroups > .rgroup")) {
+    if (!g.offsetParent) continue;
+    const at = g.offsetTop;
+    g.classList.toggle("row-start", top !== null && at > top + 4);
+    top = at;
+  }
+}
+
 async function init() {
+  placeForLayout();
   translatePage(); // the texts of index.html in the language in use, before the code changes any
   wireLanguage();
   wireHelp();

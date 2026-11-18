@@ -32,14 +32,14 @@ keeps the choice. On a computer it reads *Language:* with its menu, on the phone
 *EN ▾* (or *IT ▾*). In Italian too, *Take*, *Stem*, *Sync*, *Loop* and *Zoom* keep their
 English names, and so does the tagline.
 
-**Instructions**: the button at the top right, between the language menu and *Update* in
-the Library and under the language menu in a song (on the phone a small *?* under the
-language, on both screens), opens a window with how to use EUTERIA, in the language in
-use. Its text scrolls under its title; ✕, Esc or a click beside it closes it. While it is
+**Instructions**: the button at the top right of the Library, between the language menu
+and *Update*; in a song, on a computer, the big button of the tab *Help* (2.14); on the
+phone a small *?* under the language, on both screens. It opens a window with how to use
+EUTERIA, in the language in use. Its text scrolls under its title; ✕, Esc or a click beside it closes it. While it is
 open, the keys of the player do nothing and the page under it stays still.
 
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
-  *Open MP3 / audio* and *Open EUTERIA project* copy an audio file or a `.euteria`
+  *Open audio file* and *Open EUTERIA project* copy an audio file or a `.euteria`
   project from the Files app, a download or a chat into the app's private storage and
   open it. The library lists every song with its length, number of tracks and size,
   shows the space they take and the space still available, and deletes songs one at a
@@ -56,33 +56,42 @@ open, the keys of the player do nothing and the page under it stays still.
   banner; its ✕, or its tab again, takes it down, and so does another song opened. Under
   the banner come the card of the timeline and the tracks. Deleting a song frees the space of the app's copy; the file it was added from
   (in Files, in a chat) is not touched, as a web app cannot reach it.
-- **Computer layout**: songs are opened from any folder (*Open MP3 / audio*, *Open
-  EUTERIA project*, or dropped on the window), so the folder where you keep the songs
-  you are studying stays the only copy. In Chrome and Edge the Library lists the songs
+- **Computer layout**: songs are opened from any folder, so the folder where you keep the
+  songs you are studying stays the only copy. The Library has a box (2.14) that says a file
+  may be dropped on it (or anywhere on the window), with the three ways to open one in it:
+  *Open audio file* (the types it opens under its name), *Open EUTERIA project* and *New
+  empty project*. In Chrome and Edge the Library lists the songs
   opened before, to open them again with one click (the browser asks once for
   permission). The transport stays in view as the page scrolls, the song's name at its
   top (its tracks and length on the same line, *Undo* and *Redo* at the right end of it; a
   click on the name renames the project, see Saving). Over the name are the tabs of the
-  song's tools (2.12), as the ribbon of a word processor: *Song analysis*, *Tempo and key*,
-  *Metronome*, *Recording* and *File export and sharing*. A click opens the panel of a tab
+  song's tools (2.12), as the ribbon of a word processor: *Song analysis*, *Bars and
+  chords*, *Tracks*, *Tempo and key*, *Metronome*, *Recording*, *File export and sharing*
+  and *Help* (2.14). A click opens the panel of a tab
   under the transport, a click again closes it; one at a time, and the one open stays open
   from one visit to the next (in that browser). Each panel is one band, as high as the
   others: its groups side by side with their names over them, the numbers small, with ▲▼
   (they are typed, or changed with the arrow keys), the main actions as big buttons with an
   icon, the help texts as the tooltips of their groups; the MP3 files exported open in a
-  small window under their button. In a narrow window the groups go on more rows. The tabs
-  say what their panels are doing: the tempo and the key changed (*80% · +2*), the
-  metronome on, a take being recorded, a detection, a separation (its percentage) or an
-  export running. *Keys*, at the right of the tabs, shows the keys in a small window
-  (Escape, or a click elsewhere, closes it). Under the transport comes the card of the
-  timeline, with the overview, the bars, the chords and the tracks as rows; the column of
-  the tracks starts with *All stems* and *Original only*, beside the bars and the time
-  scale. The page is up to 1280 pixels wide. Volumes and tempo also have sliders; keyboard (listed under *Keys*): Space play or pause, ← → 5 seconds, Home back to the start, L loop
-  on or off, M metronome on or off, [ and ] loop start and end at the current position, R record a take (again:
-  stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song, Ctrl+S (⌘S on
-  a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac), C cut the
-  clips selected at the playhead, X delete them, Ctrl+C copy them, Ctrl+V paste them at
-  the playhead, in this song or another (⌘C and ⌘V on a Mac).
+  small window under their button. In a narrow window the tabs show their short names
+  and the groups go on more rows, a row starting as the first one does. The tabs say what
+  their panels are doing: the tempo and the key changed (*80% · +2st*, in semitones), bars
+  and chords hidden (a closed eye), the metronome on, a take being recorded, a detection, a
+  separation (its percentage) or an export running. *Shortcuts*, at the right of the tabs
+  (2.14, *Keys* before), shows in a small window the keys and what the mouse does in the
+  timeline, in two lists (Escape, or a click elsewhere, closes it); how to edit the chords
+  and the clips is beside their tools, in their tabs, and nothing is said twice. At the top
+  right, *Language*, *Library* and *Save* are in one row. Under the transport comes the card
+  of the timeline, with the overview, the bars, the chords and the tracks as rows (no line
+  of help under them any more, 2.14); the column of the tracks starts with the zoom, beside
+  the overview, then *All stems* and *Original only*, beside the bars and the time scale.
+  The page is up to 1360 pixels wide (1280 before 2.14). Volumes and tempo also have
+  sliders. Keys: Space play or pause, ← → 5 seconds, Home back to the start, L loop on or
+  off, M metronome on or off, [ and ] loop start and end at the current position, R record
+  a take (again: stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song,
+  Ctrl+S (⌘S on a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a
+  Mac), Escape lets go of what is selected; for the clips, C cut at the playhead, X delete,
+  Ctrl+C copy, Ctrl+V paste (⌘C and ⌘V on a Mac).
 
 **Messages** (a song opening, the progress of a detection, of a separation or of a
 download, a save, an error) open in a band under the bar at the top: with a song open,
@@ -179,12 +188,12 @@ view there.
 and takes alike, is played as its clips: at first one, the track whole. The strip at the
 top of its row has a block for each clip, over the part of the waveform it plays. A click
 on a block selects that clip (shift-click: more of them, on any track; *Escape* lets them
-go; clips and bars selected for their chords never go together). **C**, or the scissors
-of *Clips* (beside the overview, at the top of the column of the tracks), cuts the clips
-selected at the playhead: place it with a
+go; clips and bars selected for their chords never go together). **C**, or *Cut* in the
+tab *Tracks* (2.14: the tools of the clips there, each with its key under its name, and
+how to use them beside them), cuts the clips selected at the playhead: place it with a
 click in the waveform, which keeps the clip selected, then C; the part after the playhead
-stays selected, to cut it again further on. **X**, *Delete* or *Backspace*, or ✕ beside
-the scissors, deletes them: the track is silent there. Dragging a block moves the clips
+stays selected, to cut it again further on. **X**, *Delete* or *Backspace*, or *Delete*
+in *Tracks*, deletes them: the track is silent there. Dragging a block moves the clips
 selected together, by the eighth note as the loop's edges (Alt: freely), kept where they
 were against the beats (a take played a little behind the beat stays as far behind it);
 never before the song, and past its end the song grows. A clip moved, or lengthened,
@@ -233,18 +242,21 @@ beat; Alt or Option moves them freely): with a finger by their handles at the fo
 time scale, with a mouse also anywhere along them; on a computer [ and ] put the start or
 the end of the loop at the playhead. While the song plays, the view follows the playhead,
 except for a few seconds after it was moved by hand.
-The eye beside *Bars and chords*, over the timeline at the left of the chord fields, shows
-or hides the sections, the grid lines and the chords
-(open: shown and editable, closed: hidden; the choice is kept with the song, in this browser,
-and saved in the project). When nothing is over the waveforms, the line under the timeline
-says why first: the song has no bars yet (*Detect tempo* finds them, on a computer; *Set first
-beat* makes them by hand), or they are hidden, and where the eye is. Bar numbers start from the number saved by
+The eye (*Show*, in the tab *Bars and chords* on a computer; on the phone over the
+timeline, beside *Bars and chords*) shows or hides the sections, the grid lines and the
+chords (open: shown and editable, closed: hidden, a closed eye on the tab; the choice is
+kept with the song, in this browser, and saved in the project). On the phone, when nothing
+is over the waveforms, the line under the timeline says why first: the song has no bars
+yet (*Detect tempo* finds them, on a computer; *Set first beat* makes them by hand), or
+they are hidden, and where the eye is. Bar numbers start from the number saved by
 EUTERIA (Python). Each chord is written where its beat is (2.7: a short mark under one that
 starts inside its bar), and a name too long for its room uses the following empty bars.
 
-**Editing the grid and the chords.** The editor of EUTERIA (Python) is in two places,
-the same on the computer and on the phone: the grid in the *Song analysis* tab, the chords
-over the timeline, in the row of their tools.
+**Editing the grid and the chords.** The editor of EUTERIA (Python) is in two places: the
+grid in the *Song analysis* tab (*Tempo and grid*, beside *Detect tempo*, 2.14), the chords
+in the tab *Bars and chords* on a computer (2.14; chords or a section clicked in the
+timeline open it, the timeline staying where it was under the mouse) and over the timeline
+on the phone.
 Both are always at hand, with the chords selectable in the timeline as long as the eye is
 open:
 
@@ -287,10 +299,11 @@ open:
   4/4 to 6/8, beat 3 goes on beat 4 of 6/8; two landing on the same beat share it). A
   project saved before 2.7 has one text a bar (*C G*): it opens with its chords spread
   over the bar, the same way.
-- **The tools of the chords** (2.5: over the timeline, where the loop's own buttons were):
-  *Bars and chords* with its eye, the fields of the beats, ‹ Bar n ›, *Copy* and *Paste*,
-  *Clear chords* (it removes every chord and keeps the grid, *Undo* brings them back; a grid
-  not wanted is hidden with the eye), then *Zoom*; on the phone the eye and *Zoom*, then the fields of the
+- **The tools of the chords**: on a computer the tab *Bars and chords* (2.14): *View* (the
+  eye), *Chords of the bar* (the fields of the beats), *Bar* (‹ n ›), *Edit* (*Copy* and
+  *Paste*, *Clear chords*: it removes every chord and keeps the grid, *Undo* brings them
+  back; a grid not wanted is hidden with the eye) and *How to*; on the phone (over the
+  timeline, 2.5) the eye and *Zoom*, then the fields of the
   beats in a row of their own, then the bar with *Copy* and *Paste*, then the notation and
   *Clear chords*. What they do (chords copied, pasted, cleared, bars renumbered) is said in
   the band of the messages. A button beside *Chords*, in the column of the timeline (on the
@@ -564,8 +577,9 @@ chords* (2.6.0; from 2.3.0 to 2.5.2 it ran the small model): Safari on iPhone ca
 give ONNX Runtime the WebAssembly memory it asks for (`RangeError: Out of memory`, then
 `no available backend found`), so the project is prepared on a computer and played
 there with its grid, chords and sections, which can still be edited by hand.
-**Detect tempo**, in the *Song analysis* tab (the buttons are *Separate instruments*, on a
-computer, *Detect tempo* and *Detect chords*, in the order they are pressed), finds the beats and the
+**Detect tempo**, in the *Song analysis* tab (2.14: its three parts are *Stem separation*,
+with *Separate instruments*, on a computer, *Tempo and grid*, with *Detect tempo* beside the
+grid it makes, and *Chords*, with *Detect chords*, in the order they are used), finds the beats and the
 downbeats of the song with Beat This! (see *How the tempo detection works*) and makes
 the grid from them: the tempo, the meter (4/4 or 3/4; two beats a bar become a 6/8) and
 the first beat, the first downbeat. Under the buttons come the tempo of the grid and its
@@ -605,8 +619,9 @@ in, then goes quiet) or *Whole song*. *Silent bars* is a group of its own in the
 a mode of the metronome as *Speed training* under it is (2.5.1), for the whole song only
 (dimmed with the count-in only): its switch *On*/*Off* (2.5; *Off* with every song, the rest
 of its row dimmed), then *Clicks for* N *bars, then mute for* M *bars* (*bar* for 1),
-*Random 💀*, and *What to mute* over its menu: *Metronome and tracks* (the default: the band
-drops out, to keep the time alone), *Metronome only* or *Tracks only* (the click goes on).
+*Random 💀*, and *What to mute* over its menu: *Mute metronome and tracks* (the default: the
+band drops out, to keep the time alone), *Mute metronome only* or *Mute tracks only* (the
+click goes on; 2.14, the names before were without *Mute*).
 *Random* makes the muted bars come unannounced, as many on the whole, the first N bars
 always on; while it is on, a line under the row says so with the numbers set. The bars
 are counted from where the song starts (those of the count-in are not). The count-in is on
@@ -626,7 +641,7 @@ metronome *Off*, a count-in of 1 bar, *Count-in only* (2.7.1; *Whole song* from 
 and the silent bars *Off* (when switched
 on: *Clicks for* 4 *bars, then mute for* 2, *Random* off), whatever was set before (2.1.2: a
 *Random* left on from an earlier session no longer silences bars unannounced). (The settings kept before 2.0
-go back to *Metronome and tracks*, the new default.)
+go back to *Mute metronome and tracks*, the new default.)
 
 **Speed training**, the last group of the metronome's tab, under its own title: *On*/*Off*
 (as the metronome's), then, with the loop on, the speed changes by its *Step* (5% to

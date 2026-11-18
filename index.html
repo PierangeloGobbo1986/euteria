@@ -103,7 +103,7 @@
   <section id="library-view" class="view" hidden>
     <h1 class="home-title">Library</h1>
     <div class="open-buttons">
-      <label id="add-label" class="button primary" for="add-input">Open MP3 / audio</label>
+      <label id="add-label" class="button primary" for="add-input">Open audio file</label>
       <label id="add-project-label" class="button primary" for="add-project-input">Open EUTERIA project</label>
       <button id="new-project-phone" class="new-project" type="button">New empty project</button>
       <input id="add-input" type="file" hidden accept="audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.caf">
@@ -112,7 +112,7 @@
     <ul id="lib-list" class="lib-list"></ul>
     <div id="lib-empty" class="empty" hidden>
       <p>No songs yet.</p>
-      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open MP3 / audio</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords. <b>New empty project</b> makes a project with no audio, to record into.</p>
+      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open audio file</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords. <b>New empty project</b> makes a project with no audio, to record into.</p>
     </div>
     <div id="lib-foot" class="lib-foot" hidden>
       <span id="lib-usage"></span>
@@ -122,15 +122,19 @@
     <p id="lib-unsupported" class="hint" hidden>This browser cannot keep songs inside the app: each song is opened from its file and stays open until the next one.</p>
   </section>
 
-  <!-- Computer layout: the library, the songs opened before -->
+  <!-- Computer layout: the library, the songs opened before. A file dropped anywhere on the
+       window opens; the box says so (2.14), with the three ways to open one in it. -->
   <section id="welcome-view" class="view" hidden>
     <h1 class="home-title">Library</h1>
-    <div class="open-buttons">
-      <button id="open-audio" class="primary big" type="button">Open MP3 / audio</button>
-      <button id="open-project" class="primary big" type="button">Open EUTERIA project</button>
-      <button id="new-project" class="big new-project" type="button">New empty project</button>
+    <div id="drop-zone" class="drop-zone">
+      <span class="drop-plus" aria-hidden="true"></span>
+      <p class="drop-text">Drop an audio file or a .euteria project here</p>
+      <div class="open-buttons">
+        <button id="open-audio" class="primary big" type="button"><span>Open audio file</span><span class="btn-sub" translate="no">*.mp3, *.m4a, *.aac, *.wav, *.aiff, *.flac, *.ogg…</span></button>
+        <button id="open-project" class="primary big" type="button">Open EUTERIA project</button>
+        <button id="new-project" class="big new-project" type="button">New empty project</button>
+      </div>
     </div>
-    <p class="hint" data-i18n-html>Or drop a file on this window. <b>Open MP3 / audio</b> opens WAV, M4A, FLAC and the other audio files too, and in Chrome and Edge EUTERIA separates their instruments. <b>Open EUTERIA project</b> opens a <b>.euteria</b> project, or a <b>.musicproj</b> of EUTERIA (Python). <b>New empty project</b> makes a project with no audio, to record into.</p>
     <h2 class="recent-title">Recent</h2>
     <ul id="recent-list" class="recent-list"></ul>
     <p id="recent-empty" class="hint" hidden>The songs you open are listed here, to open them again with one click.</p>
@@ -148,11 +152,14 @@
     <div id="transport" class="transport">
       <nav id="ribbon-tabs" class="ribbon-tabs" aria-label="Song tools">
         <button id="tab-analysis" type="button" class="rtab" data-tab="analysis" aria-controls="analysis-card" aria-expanded="false"><span class="rtab-name">Song analysis</span><span class="rtab-short" aria-hidden="true">Analysis</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="tab-bars" type="button" class="rtab computer-only" data-tab="bars" aria-controls="bars-card" aria-expanded="false"><span class="rtab-name">Bars and chords</span><span class="rtab-short" aria-hidden="true">Bars</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="tab-tracks" type="button" class="rtab computer-only" data-tab="tracks" aria-controls="clips-card" aria-expanded="false"><span class="rtab-name">Tracks</span><span class="rtab-short" aria-hidden="true">Tracks</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
         <button id="tab-tempo" type="button" class="rtab" data-tab="tempo" aria-controls="tempo-card" aria-expanded="false"><span class="rtab-name">Tempo and key</span><span class="rtab-short" aria-hidden="true">Tempo</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
         <button id="tab-metro" type="button" class="rtab" data-tab="metro" aria-controls="metro-card" aria-expanded="false"><span class="rtab-name">Metronome</span><span class="rtab-short" aria-hidden="true">Metronome</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
         <button id="tab-record" type="button" class="rtab" data-tab="record" aria-controls="input-card" aria-expanded="false"><span class="rtab-name">Recording</span><span class="rtab-short" aria-hidden="true">Record</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
         <button id="tab-export" type="button" class="rtab" data-tab="export" aria-controls="project-card" aria-expanded="false"><span class="rtab-name">File export and sharing</span><span class="rtab-short" aria-hidden="true">Export</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
-        <button id="keys-btn" type="button" class="keys-btn computer-only" aria-expanded="false" aria-controls="keys-pop">Keys</button>
+        <button id="tab-help" type="button" class="rtab computer-only" data-tab="help" aria-controls="guide-card" aria-expanded="false"><span class="rtab-name">Help</span><span class="rtab-short" aria-hidden="true">Help</span><span class="rtab-badge" aria-hidden="true" hidden></span></button>
+        <button id="keys-btn" type="button" class="keys-btn computer-only" aria-expanded="false" aria-controls="keys-pop">Shortcuts</button>
       </nav>
       <div class="song-head">
         <h1 id="song-title-h"><button id="song-title" type="button" class="title-btn" title="Click to rename the project" disabled></button></h1>
@@ -177,30 +184,36 @@
           <button id="record" type="button" class="round rec" aria-pressed="false" aria-label="Record a take" title="Record a take over the song (R)" hidden><span class="rec-dot" aria-hidden="true"></span></button>
         </div>
       </div>
-      <!-- Keys (a computer): the keys of the player, in a small window under the button. -->
-      <div id="keys-pop" class="keys-pop computer-only" role="dialog" aria-label="Keys" hidden>
-        <p class="hint keys">Keys: Space play or pause · ← → 5 seconds · Home back to the start · L loop on or off · M metronome on or off · [ ] loop start and end at the playhead · R record a take (again: stop) · 1 to 9 switch a track on or off · + and − zoom, 0 the whole song · Ctrl+S (⌘S on a Mac) save · Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a Mac) · C cut the clips selected at the playhead, X delete them · Ctrl+C copy them, Ctrl+V paste them at the playhead, in this song or another (⌘C and ⌘V on a Mac). Double-click a slider to bring it back to 100%. Drag a track by its grip ⠿ to move it (or ↑ ↓ on the grip).</p>
+      <!-- Shortcuts (a computer): the keys and what the mouse does in the timeline, in a small
+           window under the button (app.js writes the lists). How to edit the chords and the clips
+           is in their tabs. -->
+      <div id="keys-pop" class="keys-pop computer-only" role="dialog" aria-label="Shortcuts" hidden>
+        <div class="keys-cols">
+          <section><h3 class="keys-head">Keyboard</h3><dl id="keys-keyboard" class="keys-list"></dl></section>
+          <section><h3 class="keys-head">Mouse</h3><dl id="keys-mouse" class="keys-list"></dl></section>
+        </div>
       </div>
       <!-- The panels of the tabs, each in groups with their name over them (the ribbon). On the
            phone app.js moves them into the player, where the one open comes up from the bottom.
            A help text (.rtip) is the tooltip of its group on a computer. -->
       <div id="ribbon" class="ribbon">
-        <!-- Song analysis: the instruments separated (a computer), the tempo and the chords found,
-             the grid of the bars (its tempo, meter and first beat). -->
+        <!-- Song analysis (2.14: three parts): the instruments separated (a computer); the tempo
+             found and the grid of the bars it makes (its tempo, meter and first beat); the chords
+             found. A part with nothing to show (a phone, a song being separated) is hidden. -->
         <section id="analysis-card" class="rpanel analysis-card" data-tab="analysis" aria-labelledby="tab-analysis">
           <div class="rpanel-head"><h2>Song analysis</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
           <div class="rgroups">
-            <div class="rgroup find-group">
-              <h3 class="rgroup-title">Detect</h3>
+            <div class="rgroup find-group sep-group">
+              <h3 class="rgroup-title">Stem separation</h3>
               <div class="analysis-find">
                 <button id="separate" type="button" class="small find-btn rbig" hidden>Separate instruments</button>
-                <button id="find-bpm" type="button" class="small find-btn rbig" title="Find the tempo of the song and make the grid of its bars" hidden>Detect tempo</button>
-                <button id="find-chords" type="button" class="small find-btn rbig" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
               </div>
             </div>
-            <!-- The grid: tempo, meter and first beat -->
+            <!-- The tempo found, and the grid: tempo, meter and first beat -->
             <div class="rgroup grid-group">
-              <h3 class="rgroup-title">Bar grid</h3>
+              <h3 class="rgroup-title">Tempo and grid</h3>
+              <div class="tempo-grid">
+              <button id="find-bpm" type="button" class="small find-btn rbig" title="Find the tempo of the song and make the grid of its bars" hidden>Detect tempo</button>
               <div id="grid-edit" class="edit-panel grid-edit" hidden>
                 <div class="edit-row grid-row">
                   <div class="edit-item bpm-item">
@@ -220,6 +233,13 @@
                   <p id="tempo-bpm" class="tempo-bpm" hidden></p>
                 </div>
               </div>
+              </div>
+            </div>
+            <div class="rgroup find-group chords-find-group">
+              <h3 class="rgroup-title">Chords</h3>
+              <div class="analysis-find">
+                <button id="find-chords" type="button" class="small find-btn rbig" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
+              </div>
             </div>
           </div>
           <div class="rpanel-foot">
@@ -231,6 +251,83 @@
               <button id="sep-close" type="button" class="small ghost" aria-label="Close this message" hidden>✕</button>
             </div>
             <p id="edit-status" class="edit-status" role="status" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <!-- Bars and chords (2.14, a computer): the bars and chords shown or hidden, the chords of
+             the bars selected beat by beat, the bar, copy and paste, Clear chords (app.js moves them
+             here from over the timeline, where the phone keeps them), and how to edit them. -->
+        <section id="bars-card" class="rpanel bars-card" data-tab="bars" aria-labelledby="tab-bars">
+          <div class="rpanel-head"><h2>Bars and chords</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div id="bars-view-group" class="rgroup">
+              <h3 class="rgroup-title">View</h3>
+              <button id="bars-eye" type="button" class="rbig" aria-pressed="true">Show</button>
+            </div>
+            <div class="rgroup bars-chords-group">
+              <h3 class="rgroup-title">Chords of the bar</h3>
+              <div id="bars-chords-slot" class="rgroup-row"></div>
+              <p class="hint rtip">The boxes are the beats of the bar. Chords typed one after the other in a box spread over the rest of the bar: two in the first box go on beats 1 and 3. An empty box removes its chord.</p>
+            </div>
+            <div class="rgroup">
+              <h3 class="rgroup-title">Bar</h3>
+              <div id="bars-bar-slot" class="rgroup-row"></div>
+              <p class="hint rtip">The bar selected: ‹ › go to the bar before or after. A number typed here renumbers the bars from the one selected.</p>
+            </div>
+            <div class="rgroup">
+              <h3 class="rgroup-title">Edit</h3>
+              <div class="rgroup-row">
+                <div id="bars-copy-slot" class="bars-copy"></div>
+                <div id="bars-clear-slot"></div>
+              </div>
+            </div>
+            <div class="rgroup howto-group">
+              <h3 class="rgroup-title">How to</h3>
+              <ul class="howto">
+                <li data-i18n-html><b>Select</b>: click a chord (shift-click or drag: more bars).</li>
+                <li data-i18n-html><b>Write</b>: a chord per box; Tab: next beat, Return: next bar.</li>
+                <li data-i18n-html><b>Sections</b>: click the top row; again on the bars to name them.</li>
+                <li data-i18n-html><b>Keys</b>: ← → other bars (Shift: more); Delete clears them.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tracks (2.14, a computer): the clips of the tracks, cut at the playhead, copied, pasted
+             and deleted, with their keys, and how to select, move, shorten and fade them. -->
+        <section id="clips-card" class="rpanel clips-card" data-tab="tracks" aria-labelledby="tab-tracks">
+          <div class="rpanel-head"><h2>Tracks</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div class="rgroup">
+              <h3 class="rgroup-title">Clips</h3>
+              <div id="clip-tools" class="clip-tools" role="group" aria-label="Clips">
+                <button id="clip-cut" type="button" class="rbig" title="Cut the clips selected at the playhead (C)" disabled><span>Cut</span><span class="rkey" translate="no">C</span></button>
+                <button id="clip-copy" type="button" class="rbig" disabled><span>Copy</span><span id="clip-copy-key" class="rkey" translate="no">Ctrl+C</span></button>
+                <button id="clip-paste" type="button" class="rbig" disabled><span>Paste</span><span id="clip-paste-key" class="rkey" translate="no">Ctrl+V</span></button>
+                <button id="clip-delete" type="button" class="rbig" title="Delete the clips selected (X)" disabled><span>Delete</span><span class="rkey" translate="no">X</span></button>
+              </div>
+            </div>
+            <div class="rgroup howto-group">
+              <h3 class="rgroup-title">How to</h3>
+              <ul class="howto howto-wide">
+                <li data-i18n-html><b>Select</b>: click the strip at the top of a track (shift-click: more clips; Esc: none).</li>
+                <li data-i18n-html><b>Move</b>: drag a clip, by the eighth note (Alt: freely).</li>
+                <li data-i18n-html><b>Shorten or lengthen</b>: drag its edges.</li>
+                <li data-i18n-html><b>Fade in and out</b>: drag the knobs at its corners.</li>
+                <li data-i18n-html><b>Paste</b>: at the playhead, as takes, in this song or another.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- Help (2.14, a computer): the instructions. -->
+        <section id="guide-card" class="rpanel guide-card" data-tab="help" aria-labelledby="tab-help">
+          <div class="rpanel-head"><h2>Help</h2><button type="button" class="ghost rpanel-close" aria-label="Close">✕</button></div>
+          <div class="rgroups">
+            <div class="rgroup">
+              <h3 class="rgroup-title">Guide</h3>
+              <button id="guide-open" type="button" class="rbig" aria-haspopup="dialog">Instructions</button>
+            </div>
           </div>
         </section>
 
@@ -313,7 +410,7 @@
                   <span class="trainer-item"><span class="mini-label">Step</span><span id="trainer-step-box"></span></span>
                 </div>
                 <div class="metro-row">
-                  <span class="trainer-item" title="Passes per step"><span class="mini-label"><span class="phone-only">Passes per step</span><span class="computer-only">Passes</span></span><span id="trainer-every-box"></span></span>
+                  <span class="trainer-item"><span class="mini-label two-lines">Passes per step</span><span id="trainer-every-box"></span></span>
                   <span class="trainer-item"><span class="mini-label">Up to</span><span id="trainer-target-box"></span></span>
                 </div>
               </div>
@@ -448,15 +545,9 @@
       <p id="chord-key" class="hint chord-key" hidden></p>
       <div id="tl-wrap" class="tl-wrap">
         <div id="tl-heads" class="tl-heads computer-only">
-          <!-- Beside the overview, at the top of the column of the tracks: the tools of their clips
-               (cut at the playhead, deleted: app/app.js). -->
-          <div id="clip-tools" class="clip-tools" role="group" aria-label="Clips" hidden>
-            <span class="lane-name">Clips</span>
-            <button id="clip-cut" type="button" title="Cut the clips selected at the playhead (C)" aria-label="Cut the clips selected at the playhead" disabled></button>
-            <button id="clip-copy" type="button" disabled></button>
-            <button id="clip-paste" type="button" disabled></button>
-            <button id="clip-delete" type="button" title="Delete the clips selected (X)" aria-label="Delete the clips selected" disabled>✕</button>
-          </div>
+          <!-- Beside the overview, at the top of the column of the tracks: the zoom (2.14; app.js
+               moves it here from over the timeline, where the phone keeps it). -->
+          <div id="tl-zoom-slot" class="tl-zoom-slot"></div>
           <!-- Beside the lanes over the tracks: their names (the sections, the chords, the bars), then,
                beside the time scale, the buttons of the tracks. -->
           <div id="tl-side" class="tl-side">

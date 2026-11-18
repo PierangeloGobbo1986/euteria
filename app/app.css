@@ -46,7 +46,8 @@ b { font-weight: 650; }
   padding-right: max(16px, env(safe-area-inset-right));
 }
 [data-layout=phone] .appbar-inner, [data-layout=phone] main, [data-layout=phone] .foot { max-width: 680px; }
-[data-layout=computer] .appbar-inner, [data-layout=computer] main, [data-layout=computer] .foot { max-width: 1280px; }
+/* 2.14: wider (1280 before), for the tabs of the ribbon and the timeline. */
+[data-layout=computer] .appbar-inner, [data-layout=computer] main, [data-layout=computer] .foot { max-width: 1360px; }
 
 /* ----- app bar ----- */
 /* Opaque and without a backdrop blur: Safari (iOS 26) then extends its colour
@@ -84,7 +85,10 @@ b { font-weight: 650; }
 .appbar-actions #update { grid-column: 3; grid-row: 1; }
 .appbar-actions #back { grid-column: 2; grid-row: 1; }
 .appbar-actions #save-top { grid-column: 2; grid-row: 2; }
-[data-layout=computer] body[data-view=player] .appbar-actions #help { grid-column: 1; grid-row: 2; justify-self: end; min-width: 104px; min-height: 32px; padding: 5px 16px; font-size: 14px; }
+/* A computer, a song open (2.14): Language, Library and Save in one row; the instructions are in
+   the tab Help. */
+[data-layout=computer] body[data-view=player] .appbar-actions #help { display: none; }
+[data-layout=computer] body[data-view=player] .appbar-actions #save-top { grid-column: 3; grid-row: 1; }
 [data-layout=phone] .appbar-actions #help { grid-column: 1; grid-row: 2; justify-self: stretch; min-width: 0; min-height: 32px; height: 32px; padding: 0; background: var(--field); border-radius: 9px; font-size: 15px; font-weight: 750; }
 [data-layout=phone] .appbar-actions #update { grid-column: 2; grid-row: 1 / span 2; }
 .update-btn { flex: none; position: relative; }
@@ -191,7 +195,7 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .notice-band.open { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows .2s ease; }
 .notice-band[data-kind=error] { background: #241718; border-bottom-color: #6b3a3a; }
 .notice-inner { min-height: 0; overflow: hidden; }
-.notice-body { max-width: 1280px; margin: 0 auto; padding: 8px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); }
+.notice-body { max-width: 1360px; margin: 0 auto; padding: 8px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); }
 [data-layout=phone] .notice-body { max-width: 680px; }
 .notice-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .notice-band .notice { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; font-size: 14px; line-height: 1.4; }
@@ -285,6 +289,14 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 [data-layout=phone] .open-buttons .button, [data-layout=phone] .open-buttons .new-project { width: 100%; }
 [data-layout=phone] .lib-list { margin-top: 14px; }
 .open-buttons + .hint { max-width: 70ch; }
+/* The home of a computer (2.14): a box to drop a file in, with the three ways to open one. */
+.drop-zone { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 24px 30px; border: 2px dashed #3a4348; border-radius: 18px; background: rgba(255, 255, 255, .015); text-align: center; }
+.drop-plus { width: 56px; height: 56px; background: var(--dim); -webkit-mask: var(--plus) center / contain no-repeat; mask: var(--plus) center / contain no-repeat; --plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v16M4 12h16' stroke-width='1.6'/%3E%3C/svg%3E"); }
+.drop-text { margin: 0; color: var(--muted); font-size: 17px; font-weight: 600; }
+.drop-zone .open-buttons { justify-content: center; margin-top: 8px; }
+.drop-zone .open-buttons button { height: 66px; }
+#open-audio { flex-direction: column; gap: 3px; padding-top: 8px; padding-bottom: 8px; }
+.btn-sub { font-size: 11px; font-weight: 500; letter-spacing: .01em; opacity: .75; }
 .recent-title { margin: 26px 0 10px; }
 .recent-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .recent-item { display: flex; align-items: stretch; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -425,13 +437,24 @@ button.step-btn .icon { width: 18px; height: 18px; }
 .rtab-badge.dot { width: 7px; height: 7px; padding: 0; border-radius: 50%; font-size: 0; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 .rtab-badge.dot.rec { background: #e85d5d; box-shadow: 0 0 6px #e85d5d; animation: live-blink 1s ease-in-out infinite alternate; }
 .rtab-badge.dot.busy { background: var(--gold); box-shadow: 0 0 6px var(--gold); animation: live-blink .8s ease-in-out infinite alternate; }
+/* Bars and chords hidden: a closed eye on their tab. */
+.rtab-badge.dot.eye-off { width: 17px; height: 17px; border-radius: 0; background: var(--gold); box-shadow: none; -webkit-mask: var(--eye-off) center / contain no-repeat; mask: var(--eye-off) center / contain no-repeat; }
 @media (prefers-reduced-motion: reduce) { .rtab-badge.dot { animation: none !important; } }
+/* Tabs that do not fit at their full names (a narrow window, app.js): their short names. */
+[data-layout=computer] .ribbon-tabs.compact .rtab-name { display: none; }
+[data-layout=computer] .ribbon-tabs.compact .rtab-short { display: inline; }
+[data-layout=computer] .ribbon-tabs.compact .rtab { padding-left: 9px; padding-right: 9px; }
 .keys-btn { margin-left: auto; background: none; border: 0; min-height: 0; height: auto; padding: 6px 4px 8px 12px; color: var(--dim); font-size: 13px; font-weight: 600; }
 .keys-btn::before { content: ""; width: 17px; height: 17px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2.5' y='6' width='19' height='12' rx='2'/%3E%3Cpath d='M6 10h.01M9 10h.01M12 10h.01M15 10h.01M18 10h.01M7 14h10'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2.5' y='6' width='19' height='12' rx='2'/%3E%3Cpath d='M6 10h.01M9 10h.01M12 10h.01M15 10h.01M18 10h.01M7 14h10'/%3E%3C/svg%3E") center / contain no-repeat; }
 .keys-btn:hover, .keys-btn[aria-expanded=true] { color: var(--text); }
-/* Keys: the keys of the player, in a small window under the button. */
-.keys-pop { position: absolute; z-index: 40; top: 40px; right: 12px; width: min(620px, calc(100% - 24px)); padding: 12px 14px; background: var(--panel-alt); border: 1px solid var(--border-hi); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .55); }
-.keys-pop .hint.keys { margin: 0; color: var(--text); font-size: 13px; line-height: 1.55; }
+/* Shortcuts: the keys, and what the mouse does in the timeline, in a small window under the
+   button: two columns, each a list of what to press and what it does. */
+.keys-pop { position: absolute; z-index: 40; top: 40px; right: 12px; width: min(820px, calc(100% - 24px)); padding: 14px 16px; background: var(--panel-alt); border: 1px solid var(--border-hi); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .55); }
+.keys-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; }
+.keys-head { margin: 0 0 8px; font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--dim); }
+.keys-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 12px; margin: 0; font-size: 13px; line-height: 1.35; }
+.keys-list dt { color: var(--text); font-weight: 650; white-space: nowrap; }
+.keys-list dd { margin: 0; color: var(--muted); }
 
 .rpanel:not(.open) { display: none !important; }
 .rgroup-title { margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
@@ -458,6 +481,15 @@ button.step-btn .icon { width: 18px; height: 18px; }
 #tab-metro { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.6 3h4.8l3.4 18H6.2z'/%3E%3Cpath d='M7.4 15.2h9.2'/%3E%3Cpath d='M12 15.2l4.6-8.6'/%3E%3C/svg%3E"); }
 #tab-record { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Ccircle cx='12' cy='12' r='4.2' fill='black' stroke='none'/%3E%3C/svg%3E"); }
 #tab-export { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7.5 7.5 12 3l4.5 4.5'/%3E%3Cpath d='M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7'/%3E%3C/svg%3E"); }
+/* 2.14: the icons of Bars and chords, Tracks and Help. */
+.ribbon-tabs, #bars-eye { --eye-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 10.5C5.5 16 18.5 16 22 10.5M5.6 13.9 4 16.4M12 15.2V18M18.4 13.9 20 16.4' stroke-width='2'/%3E%3C/svg%3E"); }
+#bars-eye { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12C5.5 6.4 18.5 6.4 22 12C18.5 17.6 5.5 17.6 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3.2' fill='black' stroke='none'/%3E%3C/svg%3E"); }
+#bars-eye[aria-pressed=false] { --icon: var(--eye-off); }
+#clip-cut { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6.5' cy='6.5' r='3'/%3E%3Ccircle cx='6.5' cy='17.5' r='3'/%3E%3Cpath d='M9 8.2 20 18M9 15.8 20 6'/%3E%3C/svg%3E"); }
+#clip-copy { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='11' height='11' rx='2'/%3E%3Cpath d='M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3'/%3E%3C/svg%3E"); }
+#clip-paste { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2'/%3E%3Crect x='9' y='3' width='6' height='3.5' rx='1'/%3E%3C/svg%3E"); }
+#clip-delete, #clear-chords { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3'/%3E%3C/svg%3E"); }
+#guide-open { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5v13'/%3E%3C/svg%3E"); }
 
 /* A computer: the band under the transport. */
 [data-layout=computer] .ribbon-tabs { margin: -4px -6px 8px; border-bottom: 1px solid var(--border); }
@@ -467,7 +499,9 @@ button.step-btn .icon { width: 18px; height: 18px; }
 [data-layout=computer] .rgroups { display: flex; flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 12px 0; min-height: 100px; }
 [data-layout=computer] .rgroup { flex: none; }
 [data-layout=computer] .rgroup { padding: 0 13px; border-left: 1px solid var(--border); }
-[data-layout=computer] .rgroup:first-child, [data-layout=computer] .find-group:not(:has(.find-btn:not([hidden]))) + .rgroup { padding-left: 0; border-left: 0; }
+[data-layout=computer] .rgroup:first-child, [data-layout=computer] .find-group:not(:has(.find-btn:not([hidden]))) + .rgroup, [data-layout=computer] #bars-view-group[hidden] + .rgroup { padding-left: 0; border-left: 0; }
+/* A group that the window's width sends to a new row starts it as the first does (app.js). */
+[data-layout=computer] .rgroup.row-start { border-left-color: transparent; transform: translateX(-13px); }
 [data-layout=computer] #ribbon .rtip { display: none !important; }
 [data-layout=computer] #ribbon .metro-row, [data-layout=computer] #ribbon .edit-row, [data-layout=computer] #ribbon .row, [data-layout=computer] #ribbon .metro-item, [data-layout=computer] #ribbon .metro-group, [data-layout=computer] #ribbon .grid-row { flex-wrap: nowrap; gap: 8px; }
 [data-layout=computer] #ribbon button { white-space: nowrap; }
@@ -509,6 +543,37 @@ button.step-btn .icon { width: 18px; height: 18px; }
 [data-layout=computer] #ribbon .input-row { flex: none; }
 [data-layout=computer] #ribbon #input-select { max-width: 340px; }
 [data-layout=computer] #ribbon .input-meter { flex: none; width: 420px; margin: 0; }
+/* Recording (2.14): the level in the middle of the room it has. */
+[data-layout=computer] #ribbon .level-group { flex: 1 1 auto; }
+[data-layout=computer] #ribbon .level-group .input-meter { margin: auto; }
+/* Song analysis (2.14): Detect tempo beside the grid it makes. */
+.tempo-grid { display: flex; align-items: flex-start; gap: 14px; }
+[data-layout=phone] .tempo-grid { display: block; }
+/* Bars and chords (2.14): the boxes of the beats; the bar (the group says its name); copy and
+   paste one over the other; Clear chords red. */
+[data-layout=computer] #ribbon .bars-chords-group .rgroup-row, [data-layout=computer] #ribbon #bars-bar-slot { min-height: 76px; }
+[data-layout=computer] #ribbon .bar-nav .mini-label { display: none; }
+[data-layout=computer] #ribbon .bars-copy { display: flex; flex-direction: column; justify-content: center; gap: 8px; min-height: 76px; }
+/* The metronome (2.14): its options in one band, the names of the speed training's passes on
+   two lines, the menu of the silent bars a little smaller. */
+[data-layout=computer] #ribbon .trainer .mini-label.two-lines { max-width: 5.6em; white-space: normal; font-size: 12px; line-height: 1.1; }
+[data-layout=computer] #ribbon .metro-silence select { font-size: 13px; }
+[data-layout=computer] #ribbon .bars-copy button { min-width: 84px; }
+[data-layout=computer] #ribbon #clear-chords { color: #e85d5d; }
+[data-layout=computer] #ribbon #bars-eye[aria-pressed=true] { color: var(--text); border-color: #3f6d63; background: var(--accent-bg); }
+/* Tracks (2.14): the tools of the clips, each with its key under its name. */
+[data-layout=computer] #ribbon .clip-tools { display: flex; gap: 8px; }
+[data-layout=computer] #ribbon .clip-tools .rbig { gap: 3px; min-width: 84px; }
+.rkey { font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--dim); }
+/* How to (2.14): what the mouse and the keys do, beside the tools of Bars and chords and of
+   Tracks. */
+.howto { margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.35; color: var(--muted); }
+.howto li + li { margin-top: 3px; }
+.howto b { color: var(--text); font-weight: 650; }
+[data-layout=computer] #ribbon .howto-group { flex: 1 1 260px; min-width: 240px; }
+[data-layout=computer] #ribbon .howto { max-width: 400px; }
+[data-layout=computer] #ribbon .howto-wide { max-width: 760px; columns: 2 300px; column-gap: 26px; }
+[data-layout=computer] #ribbon .howto-wide li { break-inside: avoid; }
 /* What is not saved yet is said by Save, at the top: not here too. */
 [data-layout=computer] #ribbon #project-status, [data-layout=computer] #ribbon .edit-status.dirty { display: none; }
 /* The MP3 files exported, in a small window under their button. */
@@ -688,11 +753,16 @@ button.eye .icon { width: 18px; height: 18px; }
 .notation-btn { min-height: 0; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0; color: #c9b48a; white-space: nowrap; }
 [data-layout=phone] .notation-btn { height: 44px; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .tl-side-tools { flex: none; height: var(--tl-ruler, 28px); display: flex; flex-direction: column; justify-content: center; }
-/* Beside the overview: the tools of the clips (cut, delete), named as the lanes. */
-.clip-tools { position: absolute; top: 0; left: 0; right: 10px; height: var(--tl-over, 26px); display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-.clip-tools .lane-name { margin-right: 2px; font-size: 11px; font-weight: 650; letter-spacing: .02em; color: var(--muted); white-space: nowrap; }
-.clip-tools button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 26px; min-height: 0; padding: 0; border-radius: 7px; font-size: 13px; font-weight: 700; }
-.clip-tools .icon { width: 16px; height: 16px; }
+/* Beside the overview (2.14): the zoom, named as the lanes. */
+.tl-zoom-slot { position: absolute; top: 0; left: 0; right: 10px; height: var(--tl-over, 26px); display: flex; align-items: center; justify-content: flex-end; }
+.tl-zoom-slot .tool-group { flex-direction: row; align-items: center; gap: 6px; }
+.tl-zoom-slot .tool-label { padding: 0; font-size: 11px; font-weight: 650; letter-spacing: .02em; color: var(--muted); }
+.tl-zoom-slot .zoom button { min-height: 0; height: 26px; min-width: 30px; padding: 0 6px; font-size: 15px; }
+.tl-zoom-slot .zoom #zoom-level { min-width: 50px; font-size: 12px; }
+@media (max-width: 640px) { .tl-zoom-slot .tool-label { display: none; } }
+/* Over the timeline there is nothing left on a computer (2.14): the chords are edited in their
+   tab, the zoom is beside the overview, and the help texts are in Shortcuts and in the tabs. */
+[data-layout=computer] .tl-toolbar, [data-layout=computer] .tl-hint { display: none; }
 .tl-side-tools > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
 .tl-heads .track {
