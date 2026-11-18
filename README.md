@@ -96,7 +96,8 @@ transport on a computer, in the banner at the top on the phone), and on a comput
 (⌘Z) and Ctrl+Shift+Z or Ctrl+Y (⇧⌘Z), go back and forth through what changed in the song
 since it was opened: the bars, the chords, the sections and the bar numbers (*Detect
 tempo* and *Detect chords* included), the name of the project, the takes (recorded,
-deleted, their *Sync*, *Align*), the tracks (on or off, volume, order), tempo, key, loop,
+deleted, their *Sync*, *Align*), the stems and the Original Track deleted, the tracks (on
+or off, volume, order), tempo, key, loop,
 the metronome and the speed training. Not what is only looked at or played: the zoom, the
 part in view, the eye of the bars and chords, the notation of the chords, the playhead,
 play and pause. A drag (a slider, the loop, a track moved by its grip) is one step, from
@@ -107,10 +108,11 @@ number, the name) Ctrl+Z is the field's own; in a chord field with nothing typed
 the song's, so that chords typed one after the other are undone from where the cursor
 is. Undo and Redo wait while a take is recorded, and while the song is opened, exported
 or saved. The steps (up to 200) last while the song stays open: opening another one, or
-*Don't save* when leaving it, starts again. A take deleted stays in memory meanwhile, so
-that *Undo* brings it back as it was, even after a *Save* took it out of the file (it is
-then encoded again, and goes back in at the next *Save*); a take being recorded that needs
-that memory takes it back, and the oldest steps go with it.
+*Don't save* when leaving it, starts again. A take, a stem or the Original Track deleted
+stays in memory meanwhile, so that *Undo* brings it back as it was, even after a *Save*
+took it out of the file (a take is then encoded again, a stem or the Original Track keeps
+the MP3 its file had; it goes back in at the next *Save*); a take being recorded that
+needs that memory takes it back, and the oldest steps go with it.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB, − and + by 5%, as the tempo), tempo 50-200%, key ±12 semitones (drums
@@ -118,7 +120,20 @@ excluded), a loop with its start and end. Every track card has a grip (⠿) at i
 dragging it puts the track elsewhere, the Original Track and the takes as the stems, and
 on a computer the row of the track in the timeline follows (on the grip, the arrow keys
 ↑ ↓ move the track too; the keys 1 to 9 follow the order). The order is kept with the
-song and written in the project by *Save*. The tab *File export and sharing* has *Share
+song and written in the project by *Save*.
+
+**Deleting stems and the Original Track** (2.13). To tidy a project and make its file
+smaller, every stem and the Original Track have a red ✕ as the takes do (beside the name on
+a computer, between the grip and the name on the phone), as long as another of them stays:
+the last one has none. ✕ takes the track out of the song at once and says that *Save*
+takes it out of the file too; *Undo* brings it back, even after that *Save*. With the
+Original Track on alone, deleting it switches the stems on, so the song keeps playing;
+without it *Original only* goes. *Save* (and *Save as new project*, and *Share project*)
+writes the project without its audio, so a stem the song does not need no longer takes
+room; *Don't save* when leaving the song brings back what was deleted. On the phone, which
+draws the waveform of the Original Track only, the first stem is drawn in its place.
+
+The tab *File export and sharing* has *Share
 project*, for smartphones: with one tap it sends the song's file, with its bars, chords
 and practice settings, with the share sheet (email, WhatsApp, Files, AirDrop), and saves
 the song in the library, so the library and the file sent are the same project. Chrome
@@ -504,10 +519,14 @@ run on its own is saved when it ends. The first time, it downloads the separatio
 (336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
 browser. A bar in the *Song analysis* panel shows the progress, the speed and the time left
 (the band of the messages, under the transport, shows them too, and the tab its percentage);
-*Stop* ends it and saves nothing. The six stems are written as MP3 at 320 kbps, with the
+*Stop* ends it and saves nothing. The stems are written as MP3 at 320 kbps, with the
 Original Track (kept as it is if it is an MP3 or AAC file, else written as MP3 too), the
 grid, the chords, the practice settings and the takes recorded over the song, and the
-project opens in the player with every stem on. The song keeps playing while it is
+project opens in the player with every stem on. A stem that comes out empty, because its
+instrument is not in the song (louder than −40 dB, 1% of full scale, for half a second at
+most in all, in windows of 50 ms: the faint leftovers of the other instruments), is left
+out, and the message at the end names it; an instrument that plays, even softly or for a
+moment, stays (`src/silence.js`). The song keeps playing while it is
 separated; another song opens once the separation is over. A 4-minute song makes a
 project of about 70 MB, light enough to send over WhatsApp and to keep on a phone. On a
 phone, and in browsers that cannot separate, a note under the tracks says what is
@@ -667,6 +686,11 @@ travel as files (for example over WhatsApp).
   start: a take's Sync moves its clips with it), `fade_in` and `fade_out` (seconds). A
   track whole is not listed; an empty list is a track that plays nothing. The audio
   members stay as they are.
+- **Stems and the Original Track deleted** (2.13): a stem deleted with ✕, or left out by
+  the separation as empty, is `null` in `audio.stems`; the Original Track deleted leaves
+  `audio.original_member` `null`. Their audio members, their entries in `audio.tracks`
+  and their volume and switch in `practice` go with them. A project without the Original
+  Track opens with its stems on, unless `practice.track_enabled` says otherwise.
 - **The order of the tracks**: `practice.stem_order` keeps the order of the six stems,
   as EUTERIA (Python) reads it; `practice.track_order`, written by EUTERIA Web, lists
   every track in its order, the Original Track and the takes too. A project without
@@ -1011,14 +1035,15 @@ redrawn as the song plays; only the part of the song in view is drawn. The grid
 beats and of the bars, the bar number offset and the chords, keyed by bar.
 
 Saving (`src/zipwrite.js`, `src/manifest.js`) rewrites only `manifest.json`, unless
-takes were recorded or deleted: the audio is never read into memory. In place (the
+takes were recorded or deleted, or stems or the Original Track deleted; it never reads
+the audio into memory to write it. In place (the
 library, or a file Chrome and Edge may write), the new manifest and a new zip directory
 replace the end of the file, a few kilobytes: the manifest saved before as well when it
 is the last member, so that saving again and again does not make the file grow (the
 first time, the manifest written by EUTERIA (Python) at the start of the file stays
 there, unlisted). A copy, or a song whose takes changed, is assembled by the browser
 from slices of the file (and the MP3 files of the new takes) as it is written, so the
-file shrinks again when a take is deleted. The file written is read back before the app
+file shrinks again when a take, a stem or the Original Track is deleted. The file written is read back before the app
 says it is saved. Chrome, Edge and the other Chromium browsers answer yes to
 `navigator.canShare()` for any file but then refuse to share a project
 (`NotAllowedError`): the app recognises them and offers *Download project* instead.
@@ -1043,7 +1068,9 @@ export, and it waits in `player.stash` while a step can bring it back; the steps
 nobody can reach any more let go of it. A *Save* tells every state kept whether it differs
 from what is saved now, so that each says rightly whether there are changes to save once
 it is back; a take of the file that a *Save* took out of it is encoded again from that
-audio when it comes back.
+audio when it comes back. A stem or the Original Track deleted waits in `player.stash` the
+same way; before a *Save* takes it out of the file, the bytes of its MP3 are read from the
+file and kept (`app.baseFiles`), and they go back in as they were if it comes back.
 
 ## Repository layout
 
@@ -1070,7 +1097,7 @@ audio when it comes back.
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
-  `onnx-rewrite.js`), the tempo and chord detection (`beats.js`, `beats-worker.js`,
+  `onnx-rewrite.js`; the stems left empty found by `silence.js`), the tempo and chord detection (`beats.js`, `beats-worker.js`,
   `melspec.js`, `tempo.js`, `cqt.js`, `chords.js`; model files in the browser's
   storage: `model-store.js`),
   MP3 encoding of the stems and takes (`encode-worker.js`), device

@@ -252,8 +252,11 @@ export async function openProject(file, context, onProgress = () => {}) {
   tracks.sort((a, b) => (a.key === "original" ? -1 : b.key === "original" ? 1 : order.indexOf(a.key) - order.indexOf(b.key)));
   const enabled = practice.track_enabled || {};
   const volumes = practice.track_volumes || {};
+  // Without the Original Track (deleted, 2.13), the stems on unless the
+  // project says otherwise.
+  const hasOriginal = tracks.some((t) => t.key === "original");
   for (const t of tracks) {
-    t.on = t.key in enabled ? !!enabled[t.key] : t.key === "original";
+    t.on = t.key in enabled ? !!enabled[t.key] : t.key === "original" || !hasOriginal;
     t.gain = Math.min(BOOST_CEILING, Math.max(0, volumes[t.key] ?? 1));
   }
   // The takes after the song's own tracks, in the order they were recorded.

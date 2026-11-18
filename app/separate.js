@@ -18,6 +18,7 @@ import { openZip } from "../src/zip.js";
 import { buildProject } from "../src/zipwrite.js";
 import { newProjectManifest, newProjectId, savedManifest, manifestBytes, withTakes } from "../src/manifest.js";
 import { STEM_NAMES, TRACK_TITLES, checkAlignment } from "../src/project.js";
+import { isEmptyStem } from "../src/silence.js";
 import { detectBrowser, detectHandheld, webgpuInfo } from "../src/device.js";
 import { fmtTime, extensionOf, safeName } from "./controls.js";
 import { countEvent } from "./counter.js";
@@ -259,9 +260,14 @@ export class SeparationFlow {
       if (signal.stopped) throw stopped();
       const sepSeconds = (performance.now() - this.sepStart) / 1000;
 
-      // Encoded to MP3: the six stems, and the Original Track unless it is
+      // A stem left empty (the instrument is not in the song) is not kept
+      // (src/silence.js); all of them empty (a silent song), all are.
+      let kept = STEM_NAMES.filter((stem) => !isEmptyStem(result.stems[stem], rate));
+      if (!kept.length) kept = [...STEM_NAMES];
+      const empty = STEM_NAMES.filter((stem) => !kept.includes(stem));
+      // Encoded to MP3: the stems kept, and the Original Track unless it is
       // kept as it is.
-      const jobs = STEM_NAMES.map((stem) => ({ key: stem, title: tr(TRACK_TITLES[stem]).toLowerCase(), left: result.stems[stem][0], right: result.stems[stem][1], sampleRate: rate }));
+      const jobs = kept.map((stem) => ({ key: stem, title: tr(TRACK_TITLES[stem]).toLowerCase(), left: result.stems[stem][0], right: result.stems[stem][1], sampleRate: rate }));
       if (!keepOriginal) jobs.push({ key: "original", title: tr("Original Track"), left: result.input[0], right: result.input[1], sampleRate: rate });
       result.stems = null;
       this.say(tr("Saving the stems as MP3…"), "", 0);
@@ -290,7 +296,7 @@ export class SeparationFlow {
       const cutAsOriginal = cuts.get("original") || null;
       state.tracks = [
         { key: "original", on: false, gain: 1, clips: cutAsOriginal },
-        ...STEM_NAMES.map((k) => ({ key: k, on: true, gain: 1, clips: cutAsOriginal })),
+        ...kept.map((k) => ({ key: k, on: true, gain: 1, clips: cutAsOriginal })),
         ...player.takes.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: cuts.get(t.key) || null })),
       ];
       const grid = app.grid;
@@ -302,7 +308,7 @@ export class SeparationFlow {
         manifest.format_version = 4;
         manifest.variant = "web";
       }
-      manifest.audio = { ...(manifest.audio || {}), original_filename: originalName, original_member: originalMember, stems: Object.fromEntries(STEM_NAMES.map((k) => [k, stems[k]])), transposed_member: null, transposed_stems: {}, tracks };
+      manifest.audio = { ...(manifest.audio || {}), original_filename: originalName, original_member: originalMember, stems: Object.fromEntries(STEM_NAMES.map((k) => [k, stems[k] || null])), transposed_member: null, transposed_stems: {}, tracks };
       withTakes(manifest, carried.takes);
       manifest.separation = {
         status: "done",
@@ -339,11 +345,15 @@ export class SeparationFlow {
       const total = (performance.now() - t0) / 1000;
       const opened = await this.ctx.openFile(saved, target);
       const done = { time: fmtTime(sepSeconds), speed: (this.seconds / sepSeconds).toFixed(1), total: fmtTime(total), name: saved.name };
+      // The stems left out, by name.
+      const leftOut = () => empty.map((k) => tr(TRACK_TITLES[k])).join(", ");
       this.say(
         () =>
-          opened
-            ? tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}: the six stems are in the tracks.", done)
-            : tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}.", done),
+          !opened
+            ? tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}.", done)
+            : empty.length
+              ? tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}: the stems are in the tracks (left out, as empty: {left}).", { ...done, left: leftOut() })
+              : tr("Separated in {time} ({speed}× real time), {total} in all. Saved in {name}: the six stems are in the tracks.", done),
         "ok",
         1
       );

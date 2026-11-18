@@ -131,6 +131,7 @@ export class Player {
     // The tracks whose waveform the page draws (null: every track); their
     // envelope is computed when the song opens.
     this.peakKeys = null;
+    this.drawing = false; // drawFirstTrack() at work
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.playing) this._wake(true);
     });
@@ -413,7 +414,7 @@ export class Player {
   }
 
   originalOnly() {
-    this._only((t) => t.key === "original");
+    if (this.track("original")) this._only((t) => t.key === "original");
   }
 
   _only(test) {
@@ -424,6 +425,35 @@ export class Player {
       this.engine.setTrack(t.key, { on: t.on });
     }
     this._changed();
+  }
+
+  // The phone draws one track's waveform (peakKeys), the Original Track's.
+  // That deleted (✕, 2.13), the first stem left is drawn in its place, from
+  // its samples copied back from the audio thread about ten seconds at a
+  // time. Resolves with true once it has its waveform.
+  async drawFirstTrack() {
+    if (!this.peakKeys || !this.engine || this.drawing || this.tracks.some((t) => t.peaks)) return false;
+    const t = this.tracks.find((x) => !x.take);
+    if (!t) return false;
+    this.drawing = true;
+    try {
+      const n = Math.max(1, Math.ceil(t.length / PEAK_BUCKET));
+      const min = new Int8Array(n);
+      const max = new Int8Array(n);
+      const step = PEAK_BUCKET * 2048;
+      for (let at = 0; at < t.length; at += step) {
+        const len = Math.min(step, t.length - at);
+        const channels = await this.engine.copyTrack(t.key, at, at + len);
+        if (!channels || this.track(t.key) !== t) return false; // gone meanwhile
+        const part = int16Peaks(channels, len);
+        min.set(part.min, at / PEAK_BUCKET);
+        max.set(part.max, at / PEAK_BUCKET);
+      }
+      t.peaks = { min, max };
+      return true;
+    } finally {
+      this.drawing = false;
+    }
   }
 
   // ----- takes -------------------------------------------------------------------
@@ -454,19 +484,20 @@ export class Player {
     return t;
   }
 
-  // ----- takes kept aside, for undo -------------------------------------------------
+  // ----- tracks kept aside, for undo -------------------------------------------------
   //
-  // A take deleted, or a recording undone, leaves the song but stays in
-  // memory: its audio comes back from the audio thread (as for the export) and
-  // waits in `stash`, so that an undo puts it back as it was, where it was
-  // (unstashTake()). The page lets go of what no undo or redo can bring back
-  // any more (dropStash()); a song that closes, of all of it.
+  // A track deleted (a take, a stem, the Original Track: 2.13), or a
+  // recording undone, leaves the song but stays in memory: its audio comes
+  // back from the audio thread (as for the export) and waits in `stash`, so
+  // that an undo puts it back as it was, where it was (unstashTrack()). The
+  // page lets go of what no undo or redo can bring back any more
+  // (dropStash()); a song that closes, of all of it.
 
-  // Takes take `key` out of the song, into the stash. Returns its track, or
+  // Takes track `key` out of the song, into the stash. Returns its track, or
   // null.
-  stashTake(key) {
+  stashTrack(key) {
     const t = this.track(key);
-    if (!t || !t.take || this.busy || !this.engine) return null;
+    if (!t || this.busy || !this.engine) return null;
     const index = this.tracks.indexOf(t);
     this.tracks.splice(index, 1);
     const entry = { track: t, index, pcm: null };
@@ -480,11 +511,11 @@ export class Player {
     return t;
   }
 
-  // Puts take `key` back from the stash, at `index` in the tracks (else where
+  // Puts track `key` back from the stash, at `index` in the tracks (else where
   // it was), as it was. before(track, channels): called with its audio before
   // the audio thread takes it. Resolves with its track, or null if it cannot
   // come back (not in the stash, its audio lost).
-  async unstashTake(key, { index = null, before = null } = {}) {
+  async unstashTrack(key, { index = null, before = null } = {}) {
     const entry = this.stash.get(key);
     if (!entry || !this.song || this.track(key)) return null;
     const pcm = await entry.pcm;
@@ -500,7 +531,7 @@ export class Player {
     return t;
   }
 
-  // Lets go of the takes in the stash but those of `keep` (a Set of keys).
+  // Lets go of the tracks in the stash but those of `keep` (a Set of keys).
   dropStash(keep = new Set()) {
     for (const key of [...this.stash.keys()]) if (!keep.has(key)) this.stash.delete(key);
   }
@@ -508,7 +539,7 @@ export class Player {
   // The memory the stash holds (bytes).
   get stashBytes() {
     let sum = 0;
-    for (const { track } of this.stash.values()) sum += track.length * ((track.take && track.take.channels) || 2) * 2;
+    for (const { track } of this.stash.values()) sum += track.length * ((track.take && track.take.channels) || track.channels || 2) * 2;
     return sum;
   }
 

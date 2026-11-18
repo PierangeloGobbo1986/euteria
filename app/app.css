@@ -722,6 +722,11 @@ button.eye .icon { width: 18px; height: 18px; }
 .tl-heads .track.take .num:not(.sync) { grid-column: 3 / 5; grid-row: 2; }
 .tl-heads .track.take .take-del.confirm { width: auto; padding: 0 8px; font-size: 12px; }
 .tl-heads .track.take .sync-row { grid-column: 1 / -1; grid-row: 3; justify-content: flex-end; }
+/* A stem or the Original Track that ✕ may delete (2.13): its ✕ where a take's is. */
+.tl-heads .track.has-del { grid-template-columns: 16px minmax(0, 1fr) auto auto; }
+.tl-heads .track.has-del .toggle { grid-column: 2 / 4; grid-row: 1; padding: 0 6px; gap: 6px; } /* "Original Track" whole beside ✕ */
+.tl-heads .track.has-del .take-del { grid-column: 4; grid-row: 1; width: 28px; height: 28px; min-height: 0; border-radius: 8px; font-size: 13px; }
+.tl-heads .track.has-del .num:not(.sync) { grid-column: 3 / 5; grid-row: 2; }
 .tl-heads .track .sync-row .mini-label { font-size: 11px; }
 /* The take being recorded: beside its row, a card saying so. */
 .tl-heads .track.live-take { display: flex; align-items: center; gap: 8px; padding-left: 26px; color: #e85d5d; font-size: 13px; font-weight: 650; }
@@ -871,6 +876,9 @@ button.eye .icon { width: 18px; height: 18px; }
 [data-layout=phone] .track.take .num:not(.sync) { grid-column: 4; grid-row: 1; }
 [data-layout=phone] .track.take .sync-row { grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
 [data-layout=phone] .num.sync { height: 40px; }
+/* A stem or the Original Track that ✕ may delete (2.13): its ✕ there too. */
+[data-layout=phone] .track.has-del { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+[data-layout=phone] .track.has-del .take-del { min-width: 44px; height: 44px; border-radius: 10px; font-size: 16px; }
 
 /* ----- number fields ----- */
 .num {
@@ -1068,7 +1076,7 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=phone] .tracks-card { padding-left: 8px; padding-right: 8px; }
   [data-layout=phone] .track { column-gap: 4px; }
   [data-layout=phone] .track .num .step { width: 32px; }
-  [data-layout=phone] .track.take .take-del { min-width: 40px; }
+  [data-layout=phone] .track.take .take-del, [data-layout=phone] .track.has-del .take-del { min-width: 40px; }
 }
 @media (max-width: 340px) {
   [data-layout=phone] .transport .round { width: 36px; height: 36px; min-height: 36px; font-size: 12px; }
@@ -1076,8 +1084,8 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
   [data-layout=phone] .transport-row { gap: 4px; }
   [data-layout=phone] .transport .round.metro-quick .metro-icon { width: 18px; height: 18px; }
   /* A take's name, beside its ✕: its switch shows on and off by its color. */
-  [data-layout=phone] .track.take .take-del { min-width: 34px; }
-  [data-layout=phone] .track.take .toggle .dot { display: none; }
+  [data-layout=phone] .track.take .take-del, [data-layout=phone] .track.has-del .take-del { min-width: 34px; }
+  [data-layout=phone] .track.take .toggle .dot, [data-layout=phone] .track.has-del .toggle .dot { display: none; }
 }
 /* With the song transposed, under the chord field: the chords are in the new key. */
 .timeline-card .chord-key { margin: -2px 0 10px; }

@@ -14,7 +14,7 @@ import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
 import { openZip } from "../src/zip.js";
 import { manifestPatch, buildProject, zipLayout, composeEdited, composeProject, crc32Blob } from "../src/zipwrite.js";
-import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes } from "../src/manifest.js";
+import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes, withBaseTracks } from "../src/manifest.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile, recentId, recentWritable } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
@@ -104,6 +104,12 @@ const app = {
   analysisInFile: false, // it is in the song's file already
   saving: false,
   clipsSaved: new Map(), // key -> the clips of the track as last saved (null: whole)
+  // The files of the stems and of the Original Track in the project (2.13),
+  // to take out of it those deleted with ✕: key -> {member, info, crc,
+  // inFile, data (the file's bytes, kept while an undo may bring back a
+  // track that a Save took out of the file)}.
+  baseFiles: new Map(),
+  baseKept: new Set(), // those of them in the song when it was last saved (a copy too)
   clipboard: null, // what Copy took, for Paste in this song or another: copyClips()
   copying: false,
   sharing: false, // the share sheet is open
@@ -128,8 +134,9 @@ const unsavedNew = () => !!app.current && !!app.current.created && !app.current.
 // The clips of the tracks (src/clips.js) as the song's file has them
 // (app.clipsSaved), or not.
 const clipsDirty = () => !!player.song && player.tracks.some((t) => !sameClips(t.clips, app.clipsSaved.get(t.key) || null));
-// The tracks: takes recorded, deleted or moved, clips cut, moved or faded.
-const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty();
+// The tracks: takes recorded, deleted or moved, clips cut, moved or faded,
+// stems or the Original Track deleted (or brought back) since the last Save.
+const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty() || baseDirty();
 const songDirty = () => !!player.song && (editor.dirty || retitled() || tracksDirty() || unsavedNew());
 // The song has audio of its own (an empty project has only its takes, if any).
 const ownAudio = () => player.tracks.some((t) => !t.take);
@@ -280,7 +287,7 @@ async function confirmLeave() {
 
 async function discardEdits() {
   const song = player.song;
-  const takes = recording.dirty;
+  const takes = recording.dirty || baseChanged();
   const cuts = clipsDirty();
   const named = retitled();
   if (editor.dirty) {
@@ -296,12 +303,23 @@ async function discardEdits() {
     song.title = song.fileTitle;
     showTitle();
   }
-  if (takes) await recording.revert();
+  if (recording.dirty) await recording.revert();
+  if (baseChanged()) await revertBase();
   // The clips as the file has them (the takes brought back too).
   for (const t of player.tracks) player.setClips(t.key, app.clipsSaved.get(t.key) || null);
   if (takes || cuts) renderPlayer(app.timeline.getView());
   rememberSettings();
   steps.reset(); // the song as its file has it: nothing to undo
+  // A stem (or the Original Track) deleted whose audio memory could no longer
+  // keep (the takes recorded since needed the room): the song opened again
+  // from its file, which has it, with the settings saved in the file (those
+  // kept here would put it last, maybe off).
+  const cur = app.current;
+  if (baseChanged() && cur && cur.file) {
+    app.current = null; // not remembered again as it opens
+    forgetSettings(cur.key);
+    await openSong(cur.file, { source: cur.source, entryId: cur.entryId, handle: cur.handle, created: cur.created, again: true });
+  } else app.baseKept = baseNow();
   notice(
     takes || cuts || named ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
     "",
@@ -536,9 +554,11 @@ function clipsAreSaved() {
 // The takes kept for undo that no step can bring back any more leave memory.
 function keepTakes(states) {
   const keep = new Set();
-  for (const s of states) for (const t of s.tracks) if (isTake(t.key)) keep.add(t.key);
+  for (const s of states) for (const t of s.tracks) keep.add(t.key);
   for (const t of player.tracks) keep.delete(t.key);
   player.dropStash(keep);
+  // The audio of a stem that no undo can bring back any more.
+  for (const [key, f] of app.baseFiles) if (!f.inFile && !player.track(key) && !player.stash.has(key)) f.data = null;
 }
 
 // The song saved, in its own file or as a copy: each state kept says again
@@ -575,7 +595,8 @@ function stepLabel(fields, a, b) {
     const inA = new Set(a.tracks.map((t) => t.key));
     const inB = new Set(b.tracks.map((t) => t.key));
     const moved = [...a.tracks.filter((t) => !inB.has(t.key)), ...b.tracks.filter((t) => !inA.has(t.key))];
-    return moved.length === 1 && title(moved[0].key) ? title(moved[0].key) : tr("the takes");
+    if (moved.length === 1 && title(moved[0].key)) return title(moved[0].key);
+    return moved.every((t) => isTake(t.key)) ? tr("the takes") : tr("the tracks");
   }
   // Clips moved past the end make the song (and its grid) longer: the clips.
   const clips = fields.filter((f) => f.startsWith("clips:"));
@@ -671,6 +692,8 @@ async function openSong(file, origin) {
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
     clipsAreSaved();
+    app.baseFiles = baseFilesOf(song);
+    app.baseKept = baseNow();
     // The name the file gives, and a new one not saved in it yet.
     song.fileTitle = song.title;
     if (saved && typeof saved.title === "string" && saved.title.trim()) song.title = saved.title.trim();
@@ -688,7 +711,7 @@ async function openSong(file, origin) {
     app.analysisInFile = !kept && !!inFile;
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null, created: !!origin.created };
     app.current.owner = songOwner();
-    if (!origin.separated) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
+    if (!origin.separated && !origin.again) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
     showView("player");
     renderPlayer(saved && saved.view);
     if (sectionMenu) sectionMenu.close();
@@ -1713,11 +1736,7 @@ function buildControls() {
     phone,
     notice,
     refreshPage: scheduleUi,
-    takesChanged: () => {
-      renderPlayer(app.timeline.getView());
-      rememberSettings();
-      steps.note();
-    },
+    takesChanged,
     liveRow: { color: WAVE_COLORS.take, height: phone ? LIVE_LANE : TAKE_ROW },
   });
   // A take being recorded that needs memory takes back that of the takes
@@ -1998,7 +2017,9 @@ function trackRow(t) {
     h("span", { class: "dot", "aria-hidden": "true" }),
     h("span", { class: "name", text: title })
   );
-  if (t.take) toggle.title = title; // a take's name may be long (a take pasted: the song's too)
+  // A take's name may be long (a take pasted: the song's too); beside ✕, in
+  // a narrow window, so may a stem's: whole in the tip.
+  if (t.take || deletable(t)) toggle.title = title;
   toggle.addEventListener("click", () => {
     const track = player.track(key);
     if (track) player.setTrackOn(key, !track.on);
@@ -2014,11 +2035,12 @@ function trackRow(t) {
   let slider = null;
   let del = null;
   let sync = null;
-  if (t.take) {
-    // A take: ✕ deletes it (Undo brings it back), Sync moves it in time.
-    // On the phone ✕ comes between the grip and the name, on a computer after the name.
+  if (t.take || deletable(t)) {
+    // ✕ deletes a take, a stem or the Original Track (Undo brings it back);
+    // Sync moves a take in time. On the phone ✕ comes between the grip and
+    // the name, on a computer after the name.
     del = h("button", { type: "button", class: "take-del", title: tr("Delete {title}", { title }), "aria-label": tr("Delete {title}", { title }), text: "✕" });
-    del.addEventListener("click", () => recording.deleteTake(key));
+    del.addEventListener("click", () => (t.take ? recording.deleteTake(key) : deleteTrack(key)));
     if (phone) parts.splice(1, 0, del);
     else parts.push(del);
   }
@@ -2044,7 +2066,7 @@ function trackRow(t) {
     sync.el.title = tr("Sync: moves the take earlier (−) or later (+), in milliseconds, to put it in time with the song. The next takes from the same input get the same Sync.");
     parts.push(h("div", { class: "sync-row" }, h("span", { class: "mini-label", text: "Sync" }), sync.el));
   }
-  return { key, el: h("div", { class: `track${t.take ? " take" : ""}` }, ...parts), grip, toggle, volume, slider, del, sync };
+  return { key, el: h("div", { class: `track${t.take ? " take" : del ? " has-del" : ""}` }, ...parts), grip, toggle, volume, slider, del, sync };
 }
 
 // A track dragged to another place (or moved with the arrow keys on its
@@ -2057,6 +2079,118 @@ function moveTrack(from, to, byKey) {
   if (byKey) {
     const row = app.rows.find((r) => r.key === t.key);
     if (row) row.grip.focus();
+  }
+}
+
+// ----- the stems and the Original Track, deleted with ✕ (2.13) -------------------------------
+//
+// To tidy a project and make its file smaller: a stem, or the Original Track
+// of a song that has stems, leaves the song with its ✕ (Undo brings it back;
+// one of them always stays), and the next Save takes its audio out of the
+// file. Should an undo bring it back after that Save, its audio (read from
+// the file before the Save changed it) goes back in at the next Save.
+
+// The files of the stems and the Original Track that the project has.
+function baseFilesOf(song) {
+  const files = new Map();
+  if (isAudioSong(song)) return files; // the audio file is the song
+  const audio = song.manifest.audio || {};
+  const info = audio.tracks || {};
+  for (const t of player.tracks) {
+    if (t.take) continue;
+    const member = t.key === "original" ? audio.original_member : (audio.stems || {})[t.key];
+    if (member) files.set(t.key, { member, info: info[member] || null, crc: null, inFile: true, data: null });
+  }
+  return files;
+}
+
+// A stem, or the Original Track, that ✕ may delete: one of the project's
+// files, and not the last of them in the song.
+function deletable(t) {
+  return !t.take && app.baseFiles.has(t.key) && player.tracks.filter((x) => !x.take).length > 1;
+}
+
+// Stems or the Original Track deleted, or brought back, since the file
+// (what a Save changes in it).
+function baseChanged() {
+  for (const [key, f] of app.baseFiles) if (f.inFile !== !!player.track(key)) return true;
+  return false;
+}
+
+// Those of them in the song now; deleted or brought back since the last
+// Save (in the file, or a copy downloaded: changes to save).
+const baseNow = () => new Set([...app.baseFiles.keys()].filter((key) => player.track(key)));
+function baseDirty() {
+  for (const key of app.baseFiles.keys()) if (app.baseKept.has(key) !== !!player.track(key)) return true;
+  return false;
+}
+
+// The files to take out of the project, and those to put back in it
+// ([{name, data, crc}]; null if the audio of one is not at hand).
+function baseDrop() {
+  return [...app.baseFiles].filter(([key, f]) => f.inFile && !player.track(key)).map(([, f]) => f.member);
+}
+
+function baseAdd() {
+  const out = [];
+  for (const [key, f] of app.baseFiles) {
+    if (f.inFile || !player.track(key)) continue;
+    if (!f.data) return null;
+    out.push({ name: f.member, data: f.data, crc: f.crc });
+  }
+  return out;
+}
+
+// The project's manifest with the stems and the Original Track of the song
+// (src/manifest.js withBaseTracks()).
+const withBase = (manifest) => withBaseTracks(manifest, app.baseFiles, new Set(player.tracks.map((t) => t.key)));
+
+// Before a Save changes the file: the audio of the tracks deleted that an
+// undo can still bring back, read from it.
+async function keepBaseAudio(zip) {
+  for (const [key, f] of app.baseFiles) {
+    if (!f.inFile || player.track(key) || !player.stash.has(key) || f.data) continue;
+    const entry = zip.directory.entries.find((e) => e.name === f.member);
+    f.data = await zip.bytes(f.member);
+    f.crc = entry ? entry.crc : null;
+  }
+}
+
+// Saved in the song's file: it has the tracks of the song now.
+function baseSaved() {
+  for (const [key, f] of app.baseFiles) {
+    f.inFile = !!player.track(key);
+    if (f.inFile) f.data = null;
+  }
+  app.baseKept = baseNow();
+}
+
+// The tracks of the song changed (a take recorded, pasted or deleted, a stem
+// or the Original Track deleted, an undo): the rows and the cards again, the
+// settings kept, a step of History.
+function takesChanged() {
+  renderPlayer(app.timeline.getView());
+  rememberSettings();
+  steps.note();
+}
+
+// ✕ on a stem or on the Original Track. The Original Track on alone: the
+// stems on in its place, so that the song still plays.
+function deleteTrack(key) {
+  const t = player.track(key);
+  if (!t || !deletable(t) || player.busy || recording.busy) return;
+  const alone = key === "original" && t.on && !player.tracks.some((x) => x !== t && !x.take && x.on);
+  if (!recording.stash(key)) return;
+  if (alone) player.allStems();
+  takesChanged();
+  notice(tr("{track} deleted: Save takes it out of the file.", { track: tr(t.title) }), "ok", 4000);
+}
+
+// "Don't save": the stems and the Original Track as the file has them.
+async function revertBase() {
+  for (const [key, f] of app.baseFiles) {
+    if (f.inFile && !player.track(key) && player.stash.has(key)) await player.unstashTrack(key);
+    else if (!f.inFile && player.track(key)) recording.stash(key);
   }
 }
 
@@ -2087,6 +2221,7 @@ function renderPlayer(view = null) {
     box.append(row.el);
   }
   $("quick").hidden = !player.hasStems;
+  $("original-only").hidden = !player.track("original"); // deleted (✕)
   $("tracks-note").hidden = player.hasStems;
   // The grid goes on to the song's end when a take made it longer, and back
   // when it is shorter again (not when it opens: its grid is its own).
@@ -2099,6 +2234,15 @@ function renderPlayer(view = null) {
   if (recording) recording.drawLive(); // a take being recorded: its card again beside its row
   updateZoom();
   updateUi();
+  if (phone && !player.tracks.some((t) => t.peaks) && player.tracks.some((t) => !t.take)) drawAnotherWave();
+}
+
+// The phone draws the Original Track's waveform; with that deleted (✕), the
+// first stem left in its place, drawn once its samples are back from the
+// audio thread (a moment).
+async function drawAnotherWave() {
+  const song = player.song;
+  if ((await player.drawFirstTrack()) && player.song === song) renderPlayer(app.timeline.getView());
 }
 
 // ----- export -------------------------------------------------------------------------------
@@ -2414,6 +2558,7 @@ function savedInPlace(file, manifest) {
   prepareSoon();
   editor.saved(true);
   recording.saved(true);
+  baseSaved();
   stepsSaved(true);
   rememberSettings();
   if (cur.source === "library") {
@@ -2633,13 +2778,20 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
       return "copy";
     }
     // A project: its manifest.json rewritten; the whole file written again
-    // if takes were recorded or deleted.
-    const manifest = made ? made.manifest : savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, song.title);
+    // if takes were recorded or deleted, or stems or the Original Track
+    // deleted (or brought back).
+    const manifest = made ? made.manifest : withBase(savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, song.title));
     const bytes = manifestBytes(manifest);
     const zip = await openZip(file);
+    // What the Save takes out of the file and what it puts in; first, the
+    // audio of what it takes out that an undo may bring back.
+    if (mode !== "copy" && baseDrop().length) await keepBaseAudio(zip);
+    const base = baseAdd();
+    if (!base) throw new Error(tr("Its file could not be read: open the song again."));
+    const edits = { manifestBytes: bytes, drop: [...recording.dropMembers, ...baseDrop()], add: [...recording.membersToAdd(), ...base] };
     if (mode === "new-file") {
       // A project made here, saved for the first time where the user chooses.
-      const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), { manifestBytes: bytes, drop: recording.dropMembers, add: recording.membersToAdd() });
+      const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), edits);
       const w = await target.createWritable();
       try {
         await w.write(blob);
@@ -2672,8 +2824,8 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
       else reportSave(tr("Saved in {name}. The old file, {old}, could not be deleted: delete it in its folder if you like.", { name: saved.name, old: kept }), "", 12000);
       return mode;
     }
-    if (recording.rewrite) {
-      const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), { manifestBytes: bytes, drop: recording.dropMembers, add: recording.membersToAdd() });
+    if (recording.rewrite || baseChanged()) {
+      const blob = made ? made.blob : composeEdited(file, await zipLayout(zip), edits);
       if (mode === "library") {
         const entry = library.get(cur.entryId);
         await library.replace(entry, blob, wanted, "project");
@@ -2696,6 +2848,7 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
         downloadBlob(blob, name);
         editor.saved(false);
         recording.saved(false);
+        app.baseKept = baseNow(); // in the copy (the song's file still has them all)
         stepsSaved(false);
         rememberSettings();
         say(tr("Downloaded a copy with the changes: {name}.", { name }), "ok");
@@ -2728,6 +2881,7 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
       downloadBlob(composeEdited(file, await zipLayout(zip), { manifestBytes: bytes }), name);
       editor.saved(false);
       recording.saved(false);
+      app.baseKept = baseNow();
       stepsSaved(false);
       rememberSettings();
       say(tr("Downloaded a copy with the changes: {name}.", { name }), "ok");
@@ -2823,9 +2977,13 @@ function projectNow(as = null) {
     return { manifest, blob, file: new File([blob], `${safeName(title)}.euteria`, { type: "application/zip" }) };
   }
   if (!ready.layout) return null;
-  const manifest = savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, title);
+  // The stems or the Original Track brought back after a Save took them out
+  // of the file: their audio, kept since.
+  const base = baseAdd();
+  if (!base) return null;
+  const manifest = withBase(savedManifest(song.manifest, app.grid, practiceState(), takes, app.analysis, title));
   if (as) manifest.project_id = as.id;
-  const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: recording.dropMembers, add });
+  const blob = composeEdited(cur.file, ready.layout, { manifestBytes: manifestBytes(manifest), drop: [...recording.dropMembers, ...baseDrop()], add: [...add, ...base] });
   return { manifest, blob, file: new File([blob], `${safeName(title)}.euteria`, { type: "application/zip" }) };
 }
 
@@ -2942,6 +3100,9 @@ async function saveAsNew() {
     await recording.ready();
     const made = projectNow({ id: newProjectId(), title: name });
     if (!made) throw new Error(tr("Its file could not be read: open the song again."));
+    // The new project has not the stems or the Original Track deleted: their
+    // audio, from the project saved before, for an undo that brings them back.
+    if (baseDrop().length) await keepBaseAudio(await openZip(cur.file));
     const oldKey = cur.key;
     if (library) {
       const estimate = await storageEstimate();

@@ -559,4 +559,8 @@ export const IT = {
   "Passes": "Giri",
   "Input": "Ingresso",
   "Level of the input (dB)": "Livello dell'ingresso (dB)",
+  // Stems and the Original Track deleted; empty stems left out (2.13.0)
+  "Separated in {time} ({speed}× real time), {total} in all. Saved in {name}: the stems are in the tracks (left out, as empty: {left}).": "Separato in {time} ({speed}× tempo reale), {total} in tutto. Salvato in {name}: gli stem sono tra le tracce (tolti quelli vuoti: {left}).",
+  "the tracks": "le tracce",
+  "{track} deleted: Save takes it out of the file.": "Traccia {track} eliminata: con Salva esce anche dal file.",
 };

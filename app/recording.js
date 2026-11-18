@@ -7,7 +7,7 @@
 // the bars, Align offered to put it in time; and what Save, Share project and
 // the separation need to write the takes in the song's file. Takes recorded,
 // deleted or moved make the song "not saved", as edits to the bars and
-// chords do. A take deleted is kept aside (src/player.js stashTake()), for
+// chords do. A take deleted is kept aside (src/player.js stashTrack()), for
 // undo and redo (app/history.js) to bring it back: restore(). Tracks copied
 // (app.js) are pasted as takes: paste().
 
@@ -242,34 +242,35 @@ export class RecordingFlow {
     notice(tr("{take} deleted.", { take: t.title }), "ok", 3000);
   }
 
-  // A take out of the song, kept for undo: one of the song's file leaves the
-  // file at the next Save.
+  // A track out of the song, kept for undo (a take; a stem or the Original
+  // Track, 2.13, whose file app.js looks after): a take of the song's file
+  // leaves the file at the next Save.
   stash(key) {
-    const t = this.ctx.player.stashTake(key);
-    if (t && t.take.saved) this.dropped.set(t.take.member, t.take);
+    const t = this.ctx.player.stashTrack(key);
+    if (t && t.take && t.take.saved) this.dropped.set(t.take.member, t.take);
     return t;
   }
 
-  // Undo and redo (app.js): the takes of a step, among `list` (its tracks,
+  // Undo and redo (app.js): the tracks of a step, among `list` (its tracks,
   // [{key}]). Those not in it leave the song, those in it come back from
-  // where they were kept: one of the song's file stays in it then, one that a
-  // Save took out of the file is encoded again, to go back in at the next
-  // Save. Resolves with the keys of the takes that came back.
+  // where they were kept: a take of the song's file stays in it then, one
+  // that a Save took out of the file is encoded again, to go back in at the
+  // next Save. Resolves with the keys of the tracks that came back.
   async restore(list) {
     const { player } = this.ctx;
     const want = new Set(list.map((t) => t.key));
-    for (const t of [...player.takes]) if (!want.has(t.key)) this.stash(t.key);
+    for (const t of [...player.tracks]) if (!want.has(t.key)) this.stash(t.key);
     const back = [];
     for (const { key } of list) {
       if (player.track(key) || !player.stash.has(key)) continue;
-      const t = await player.unstashTake(key, {
+      const t = await player.unstashTrack(key, {
         before: (track, channels) => {
           const take = track.take;
-          if (!take.saved && !take.mp3 && !take.encoding) this.recorder.encode(take, channels.map((c) => c.slice()), player.context.sampleRate);
+          if (take && !take.saved && !take.mp3 && !take.encoding) this.recorder.encode(take, channels.map((c) => c.slice()), player.context.sampleRate);
         },
       });
       if (!t) continue;
-      if (t.take.saved) this.dropped.delete(t.take.member);
+      if (t.take && t.take.saved) this.dropped.delete(t.take.member);
       back.push(key);
     }
     return back;
@@ -368,7 +369,7 @@ export class RecordingFlow {
       take.mp3 = null; // in the file now
     }
     // The takes kept for undo are out of the file now (restore()).
-    for (const { track } of this.ctx.player.stash.values()) track.take.saved = false;
+    for (const { track } of this.ctx.player.stash.values()) if (track.take) track.take.saved = false;
     this.dropped.clear();
   }
 

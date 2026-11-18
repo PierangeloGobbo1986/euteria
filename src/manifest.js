@@ -81,6 +81,37 @@ function withClips(manifest, tracks) {
   return manifest;
 }
 
+// The stems and the Original Track the song has (2.13): one deleted (✕) is
+// null in audio.stems, or in audio.original_member, and its gapless
+// information and settings go; one brought back after a Save took it out
+// comes back. files: key -> {member, info} (the project's files, app.js);
+// present: the keys of the tracks of the song.
+export function withBaseTracks(manifest, files, present) {
+  const audio = (manifest.audio = { ...(manifest.audio || {}) });
+  const stems = { ...(audio.stems || {}) };
+  const had = !!audio.tracks;
+  const tracks = { ...(audio.tracks || {}) };
+  const practice = manifest.practice ? { ...manifest.practice } : null;
+  for (const [key, f] of files) {
+    const here = present.has(key);
+    if (key === "original") audio.original_member = here ? f.member : null;
+    else stems[key] = here ? f.member : null;
+    if (!here) delete tracks[f.member];
+    else if (f.info) tracks[f.member] = f.info;
+    if (!here && practice) {
+      for (const name of ["track_volumes", "track_enabled"]) {
+        if (!practice[name] || !(key in practice[name])) continue;
+        practice[name] = { ...practice[name] };
+        delete practice[name][key];
+      }
+    }
+  }
+  if (Object.keys(stems).length) audio.stems = stems;
+  if (had || Object.keys(tracks).length) audio.tracks = tracks;
+  if (practice) manifest.practice = practice;
+  return manifest;
+}
+
 // The tempo and chord detection of the song (app/detect.js) in
 // manifest.music, when there is one: beat_tracking, and its chords in
 // chord_recognition.
