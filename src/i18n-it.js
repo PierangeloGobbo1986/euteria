@@ -479,7 +479,7 @@ export const IT = {
   "Unsupported compression in {name}.": "Compressione non supportata in {name}.",
   // The chord chart for MuseScore (2.8.0)
   "Chord chart": "Spartito",
-  "The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now.": "Battute e accordi come spartito (MusicXML) da aprire, modificare e stampare in MuseScore: una barra per ogni tempo, ogni accordo sul suo tempo, le sezioni, una nuova riga dopo le battute per riga indicate qui e a ogni sezione, nella tonalità in cui il brano è ora.",
+  "The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now; at the top, the title and the other details typed here, saved with the song.": "Battute e accordi come spartito (MusicXML) da aprire, modificare e stampare in MuseScore: una barra per ogni tempo, ogni accordo sul suo tempo, le sezioni, una nuova riga dopo le battute per riga indicate qui e a ogni sezione, nella tonalità in cui il brano è ora; in alto, il titolo e gli altri dati scritti qui, salvati con il brano.",
   "Bars per line": "Battute per riga",
   "Export for MuseScore": "Esporta per MuseScore",
   "Chord chart exported in the key of now ({shift}): {name}. Open it in MuseScore.": "Spartito esportato nella tonalità di ora ({shift}): {name}. Aprilo in MuseScore.",
@@ -606,4 +606,12 @@ export const IT = {
   "Chords and sections of {n} bars copied.": "Accordi e sezioni di {n} battute copiati.",
   "Chords and sections pasted into {n} bar.": "Accordi e sezioni incollati in {n} battuta.",
   "Chords and sections pasted into {n} bars.": "Accordi e sezioni incollati in {n} battute.",
+  "Title": "Titolo",
+  "Subtitle": "Sottotitolo",
+  "Lyricist": "Paroliere",
+  "Composer": "Compositore",
+  "Arranger": "Arrangiatore",
+  "Copyright": "Copyright",
+  "The title of the chart: the song's name until another is typed": "Il titolo dello spartito: il nome del brano, finché non ne scrivi un altro",
+  "the details of the chord chart": "i dati dello spartito",
 };

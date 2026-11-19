@@ -169,6 +169,21 @@ library. Each has a red ✕ that deletes it, and *Delete all* above the list del
 all (after a second tap). An audio file opens as a single track: tempo, key and loop
 work on the whole song, and *Export MP3* gives it at the tempo and in the key chosen.
 
+*Export for MuseScore* (2.8), in the same tab, writes the bars and chords as a chord chart
+in MusicXML, in the key of now, with a new line after *Bars per line* and at each
+section. Beside them are the details of the chart (2.16): *Title* (the song's name until
+another is typed; emptied, the song's name again), *Subtitle* and *Lyricist* in one
+column, *Composer*, *Arranger* and *Copyright* in the other (on the phone the same two
+columns, each field named over it). The chart takes them where MuseScore reads them for
+the frame at the top of the score: the title (`work-title`), the subtitle (`work-number`,
+which MuseScore shows as the subtitle when no movement number is given), the composer, the
+arranger and the lyricist (`creator`), the copyright (`rights`, at the foot of the first
+page). MuseScore puts the title, the subtitle, the composer and the lyricist in that frame,
+and the arranger in the project's properties (*File › Project properties*), from where it
+can be added to the page. No layout or style is given, so MuseScore keeps its own. Each
+detail typed is a change to save and one step to undo, kept in the browser until it is
+saved in the project (`music.chart_credits`).
+
 **The timeline** shows, from the top: the sections, the chords, the bar numbers under
 them (each number in line with its chord), the time scale, then the waveform with the
 bar grid over it, the loop and the playhead; on a computer the lanes are named beside
@@ -737,6 +752,10 @@ travel as files (for example over WhatsApp).
 - **The names given to the tracks** (2.15): `practice.track_names`, written by EUTERIA
   Web, maps a track's key to the name given to it (one line, up to 40 characters); a
   track not listed shows its own name.
+- **The details of the chord chart** (2.16): `music.chart_credits`, written by EUTERIA Web,
+  holds those given of `title` (only when it is not the project's name), `subtitle`,
+  `composer`, `arranger`, `lyricist` and `copyright` (one line each, up to 120
+  characters); without it the chart is titled with the project's name.
 
 ## Phase 0 test page (`lab/`)
 
@@ -1177,9 +1196,10 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
 - **Phase 2**: full mode. Step 1: separating the instruments of a song in the app and
   saving them in a project (online, being tested). Step 2: recording takes over a song,
   on every device, saved in the project (version 0.5, online, being tested). Step 3: the
-  chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8), undo
-  and redo (2.9), cutting, moving and fading the tracks on a computer (2.10), copying and
-  pasting them from one project to another (2.11).
+  chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8; its
+  title, composer and other details, 2.16), undo and redo (2.9), cutting, moving and fading
+  the tracks on a computer (2.10), copying and pasting them from one project to another
+  (2.11).
 - **Phase 3**: band features.
 
 ## Licence

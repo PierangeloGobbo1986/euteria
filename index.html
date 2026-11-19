@@ -463,10 +463,21 @@
             <!-- The bars and chords as a chord chart for MuseScore (MusicXML, src/musicxml.js). -->
             <div class="rgroup chart-group">
               <h3 class="rgroup-title">Chord chart</h3>
-              <p class="hint top rtip">The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now.</p>
+              <p class="hint top rtip">The bars and chords as a chord chart (MusicXML) to open, edit and print in MuseScore: a slash for each beat, each chord on its beat, the sections, a new line after the bars per line set here and at each section, in the key the song is in now; at the top, the title and the other details typed here, saved with the song.</p>
               <div class="row chart-row">
                 <button id="export-chart" type="button" class="rbig">Export for MuseScore</button>
                 <span class="chart-lines"><span class="mini-label">Bars per line</span><span id="chart-lines-box"></span></span>
+                <!-- The details of the chart (2.16): the left column as the left of a score's first
+                     page (title, subtitle, lyricist), the right one as its right (composer,
+                     arranger), and the copyright at its foot. -->
+                <div id="chart-credits" class="chart-credits">
+                  <label class="credit"><span class="mini-label">Title</span><input id="credit-title" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="done" title="The title of the chart: the song's name until another is typed"></label>
+                  <label class="credit"><span class="mini-label">Subtitle</span><input id="credit-subtitle" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="done"></label>
+                  <label class="credit"><span class="mini-label">Lyricist</span><input id="credit-lyricist" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="done"></label>
+                  <label class="credit"><span class="mini-label">Composer</span><input id="credit-composer" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="done"></label>
+                  <label class="credit"><span class="mini-label">Arranger</span><input id="credit-arranger" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="done"></label>
+                  <label class="credit"><span class="mini-label">Copyright</span><input id="credit-copyright" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="done"></label>
+                </div>
               </div>
               <p id="chart-status" class="status rtip" role="status" aria-live="polite"></p>
             </div>

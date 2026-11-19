@@ -7,6 +7,7 @@
 
 import { STEM_NAMES, TAKES_DIR, isTake, takeToManifest } from "./project.js";
 import { musicFields } from "./grid.js";
+import { CREDIT_FIELDS } from "./musicxml.js";
 
 const EDITED_WITH = "EUTERIA Web";
 const WEB_FORMAT_VERSION = 4; // as the projects exported for the web app by EUTERIA (Python)
@@ -23,9 +24,10 @@ function stemOrder(tracks) {
 // The practice settings as EUTERIA (Python) saves them (_save_music_settings),
 // with the order of every track (track_order) that EUTERIA Web adds.
 // state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key,
-// on, gain, clips, name}]}, the tracks in their order (clips: as the manifest
-// has them, src/clips.js clipsToManifest(), or null; name: the one given to
-// the track in EUTERIA Web, track_names, or null).
+// on, gain, clips, name}], credits}, the tracks in their order (clips: as the
+// manifest has them, src/clips.js clipsToManifest(), or null; name: the one
+// given to the track in EUTERIA Web, track_names, or null; credits: the
+// details of the chord chart, music.chart_credits).
 // The key counts as "transposed": EUTERIA Web transposes live, and
 // EUTERIA (Python), without transposed tracks in the file, plays the
 // original key.
@@ -119,6 +121,18 @@ export function withBaseTracks(manifest, files, present) {
   return manifest;
 }
 
+// The details of the chord chart (2.16, src/musicxml.js) in
+// music.chart_credits: those given (the title only when it is not the
+// song's name). A state without them leaves the field as it is.
+function withCredits(music, credits) {
+  if (credits === undefined) return music;
+  const given = {};
+  for (const k of CREDIT_FIELDS) if (credits && credits[k]) given[k] = credits[k];
+  if (Object.keys(given).length) music.chart_credits = given;
+  else delete music.chart_credits;
+  return music;
+}
+
 // The tempo and chord detection of the song (app/detect.js) in
 // manifest.music, when there is one: beat_tracking, and its chords in
 // chord_recognition.
@@ -135,7 +149,7 @@ function withAnalysis(music, analysis) {
 export function savedManifest(manifest, grid, state, takes = [], analysis = null, title = null) {
   const out = JSON.parse(JSON.stringify(manifest));
   if (title) out.title = title;
-  out.music = withAnalysis({ ...(out.music || {}), ...musicFields(grid) }, analysis);
+  out.music = withCredits(withAnalysis({ ...(out.music || {}), ...musicFields(grid) }, analysis), state.credits);
   out.practice = practiceFields(out.practice || {}, grid, state);
   out.edited_with = EDITED_WITH;
   return withTakes(withClips(out, state.tracks), takes);
@@ -167,7 +181,7 @@ export function newProjectManifest({ id, title, fileName, member, grid, state, t
       transposed_stems: {},
     },
     separation: { status: "not_started", model: null, quality: "standard", error: null, job_id: null },
-    music: withAnalysis({ key: null, ...musicFields(grid) }, analysis),
+    music: withCredits(withAnalysis({ key: null, ...musicFields(grid) }, analysis), state.credits),
     practice: practiceFields({ track_volumes: volumes }, grid, state),
     markers: [],
     user_corrections: [],
@@ -197,7 +211,7 @@ export function emptyProjectManifest({ id, title, grid, state, length }) {
       length_seconds: Math.round(length * 1000) / 1000,
     },
     separation: { status: "not_started", model: null, quality: "standard", error: null, job_id: null },
-    music: { key: null, ...musicFields(grid) },
+    music: withCredits({ key: null, ...musicFields(grid) }, state.credits),
     practice: practiceFields({ track_volumes: volumes }, grid, state),
     markers: [],
     user_corrections: [],

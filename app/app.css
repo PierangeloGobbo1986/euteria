@@ -536,6 +536,19 @@ button.step-btn .icon { width: 18px; height: 18px; }
 [data-layout=computer] #ribbon .rbig.primary { background: var(--panel-alt); color: var(--gold); border-color: #6b5530; font-weight: 650; }
 [data-layout=computer] #ribbon .analysis-find { flex-wrap: nowrap; gap: 8px; margin: 0; }
 [data-layout=computer] #ribbon .chart-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+/* The details of the chart (2.16), right of Bars per line: two columns of three, each named at
+   its left, as high as the big buttons. */
+[data-layout=computer] #ribbon .chart-credits { display: grid; grid-template-columns: auto minmax(0, 150px) auto minmax(0, 150px); grid-template-rows: repeat(3, 22px); gap: 5px 8px; align-items: center; margin-left: 6px; }
+[data-layout=computer] #ribbon .credit { display: contents; }
+[data-layout=computer] #ribbon .credit .mini-label { font-size: 12px; text-align: right; }
+[data-layout=computer] #ribbon .credit:nth-child(-n+3) .mini-label { grid-column: 1; }
+[data-layout=computer] #ribbon .credit:nth-child(-n+3) input { grid-column: 2; }
+[data-layout=computer] #ribbon .credit:nth-child(n+4) .mini-label { grid-column: 3; padding-left: 6px; }
+[data-layout=computer] #ribbon .credit:nth-child(n+4) input { grid-column: 4; }
+[data-layout=computer] #ribbon .credit:nth-child(3n+1) > * { grid-row: 1; }
+[data-layout=computer] #ribbon .credit:nth-child(3n+2) > * { grid-row: 2; }
+[data-layout=computer] #ribbon .credit:nth-child(3n) > * { grid-row: 3; }
+[data-layout=computer] #ribbon .credit input { width: 100%; height: 22px; padding: 0 6px; font-size: 12px; border-radius: 6px; }
 [data-layout=computer] #ribbon .chart-row .num { height: 32px; }
 [data-layout=computer] #ribbon .chart-row .num input { width: 2em; font-size: 14px; }
 [data-layout=computer] #ribbon .key-group .rnote { max-width: 190px; }
@@ -1033,6 +1046,22 @@ button.eye .icon { width: 18px; height: 18px; }
 .chart-row .num { height: 36px; }
 .chart-row .num input { width: 2.2em; font-size: 15px; text-align: center; }
 [data-layout=phone] .chart-row .num { height: 44px; }
+/* The details of the chart (2.16): a text field each, named over it. */
+.chart-credits input {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  margin: 0;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font: inherit;
+}
+.chart-credits input:focus { border-color: var(--border-hi); outline: none; }
+.chart-credits input:disabled { opacity: .5; }
+[data-layout=phone] .chart-credits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 10px; flex-basis: 100%; margin-top: 4px; }
+[data-layout=phone] .credit { display: flex; flex-direction: column; gap: 4px; }
+[data-layout=phone] .credit input { height: 44px; padding: 0 12px; font-size: 16px; border-radius: 10px; }
 #project-status.dirty { color: var(--gold); }
 .leave-dialog { max-width: min(420px, calc(100vw - 32px)); padding: 20px; background: var(--panel); color: var(--text); border: 1px solid var(--border-hi); border-radius: 14px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 .leave-dialog::backdrop { background: rgba(0, 0, 0, .55); }

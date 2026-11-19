@@ -7,6 +7,14 @@
 // sections as rehearsal marks with a double bar line before them, a new line
 // every few bars and at each section (system breaks, which MuseScore keeps).
 //
+// The details of the chart (2.16, typed beside Export for MuseScore and saved
+// in the project as music.chart_credits): the title, a subtitle, the
+// composer, the arranger, the lyricist and the copyright, written where
+// MuseScore reads them for the frame at the top of the score: work-title,
+// work-number (its subtitle, with no movement number), the creators and the
+// rights (at the foot of the first page). No layout or style of the page is
+// given, so MuseScore keeps its own.
+//
 // The chords are written as the song shows them now: in the key it is moved
 // to (Key), in letters. A chord symbol is its root, its kind (major,
 // minor-seventh, dominant…) and its degrees added, altered or left out, as
@@ -28,6 +36,27 @@ const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
 const FIFTHS = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5];
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// ----- the details of the chart ---------------------------------------------------------------
+
+export const CREDIT_FIELDS = ["title", "subtitle", "composer", "arranger", "lyricist", "copyright"];
+export const CREDIT_MAX = 120; // characters of each
+
+// One detail as it may be: one line, at most CREDIT_MAX characters; null if none.
+export function creditOf(value) {
+  const text = typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, CREDIT_MAX).trim() : "";
+  return text || null;
+}
+
+// The details as kept with a song: every field, null where none is given
+// (the title: the song's name).
+export function readCredits(value) {
+  const v = value && typeof value === "object" ? value : {};
+  return Object.fromEntries(CREDIT_FIELDS.map((k) => [k, creditOf(v[k])]));
+}
+
+// Whether two sets of details say the same.
+export const sameCredits = (a, b) => CREDIT_FIELDS.every((k) => ((a && a[k]) || null) === ((b && b[k]) || null));
 
 // ----- the chords ---------------------------------------------------------------------------
 
@@ -240,9 +269,10 @@ function barSlots(grid, i, before) {
 }
 
 // The chart of a song: {title, grid (src/grid.js), shift (semitones: the key
-// of now), barsPerLine, software (who wrote it)} -> the text of a .musicxml
-// file. Every bar of the grid, from the first.
-export function chartXml({ title = "", grid, shift = 0, barsPerLine = 4, software = "EUTERIA Web", date = new Date() }) {
+// of now), barsPerLine, software (who wrote it), and the details: subtitle,
+// composer, arranger, lyricist, copyright} -> the text of a .musicxml file.
+// Every bar of the grid, from the first.
+export function chartXml({ title = "", subtitle = "", composer = "", arranger = "", lyricist = "", copyright = "", grid, shift = 0, barsPerLine = 4, software = "EUTERIA Web", date = new Date() }) {
   const meter = grid.meter || "4/4";
   const per = beatsPerBar(meter);
   const beatType = meter === "6/8" ? 8 : 4;
@@ -302,12 +332,20 @@ export function chartXml({ title = "", grid, shift = 0, barsPerLine = 4, softwar
     inLine++;
   }
   const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const creators = [
+    ["composer", composer],
+    ["arranger", arranger],
+    ["lyricist", lyricist],
+  ]
+    .filter(([, name]) => name)
+    .map(([type, name]) => `<creator type="${type}">${esc(name)}</creator>`)
+    .join("");
   return [
     '<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
     '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">',
     '<score-partwise version="4.0">',
-    `<work><work-title>${esc(title)}</work-title></work>`,
-    `<identification><encoding><software>${esc(software)}</software><encoding-date>${day}</encoding-date></encoding></identification>`,
+    `<work>${subtitle ? `<work-number>${esc(subtitle)}</work-number>` : ""}<work-title>${esc(title)}</work-title></work>`,
+    `<identification>${creators}${copyright ? `<rights>${esc(copyright)}</rights>` : ""}<encoding><software>${esc(software)}</software><encoding-date>${day}</encoding-date></encoding></identification>`,
     '<part-list><score-part id="P1"><part-name print-object="no">Chords</part-name><score-instrument id="P1-I1"><instrument-name>Piano</instrument-name></score-instrument><midi-instrument id="P1-I1"><midi-channel>1</midi-channel><midi-program>1</midi-program></midi-instrument></score-part></part-list>',
     `<part id="P1">`,
     ...measures,

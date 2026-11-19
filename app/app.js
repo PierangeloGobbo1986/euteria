@@ -24,7 +24,7 @@ import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, key
 import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { getNotation, setNotation } from "../src/chordnames.js";
-import { chartXml } from "../src/musicxml.js";
+import { chartXml, CREDIT_FIELDS, readCredits, sameCredits, creditOf } from "../src/musicxml.js";
 import { Editor } from "./editor.js";
 import { SectionMenu } from "./sectionmenu.js";
 import { sectionIndexAt } from "../src/sections.js";
@@ -129,6 +129,11 @@ const app = {
   saving: false,
   clipsSaved: new Map(), // key -> the clips of the track as last saved (null: whole)
   namesSaved: new Map(), // key -> the name given to the track as last saved (2.15; null: none)
+  // The details of the chord chart (2.16, src/musicxml.js): {title, subtitle,
+  // composer, arranger, lyricist, copyright}, null where none is given (the
+  // title: the song's name); as last saved.
+  credits: readCredits(null),
+  creditsSaved: readCredits(null),
   // The files of the stems and of the Original Track in the project (2.13),
   // to take out of it those deleted with ✕: key -> {member, info, crc,
   // inFile, data (the file's bytes, kept while an undo may bring back a
@@ -165,7 +170,9 @@ const namesDirty = () => !!player.song && player.tracks.some((t) => (t.name || n
 // stems or the Original Track deleted (or brought back), tracks renamed,
 // since the last Save.
 const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty() || baseDirty() || namesDirty();
-const songDirty = () => !!player.song && (editor.dirty || retitled() || tracksDirty() || unsavedNew());
+// The details of the chord chart as the song's file has them (2.16), or not.
+const creditsDirty = () => !!player.song && !sameCredits(app.credits, app.creditsSaved);
+const songDirty = () => !!player.song && (editor.dirty || retitled() || creditsDirty() || tracksDirty() || unsavedNew());
 // The song has audio of its own (an empty project has only its takes, if any).
 const ownAudio = () => player.tracks.some((t) => !t.take);
 
@@ -331,6 +338,11 @@ async function discardEdits() {
     song.title = song.fileTitle;
     showTitle();
   }
+  const credited = creditsDirty();
+  if (credited) {
+    app.credits = { ...app.creditsSaved };
+    renderCredits(true);
+  }
   if (recording.dirty) await recording.revert();
   if (baseChanged()) await revertBase();
   // The clips and the names of the tracks as the file has them (the takes
@@ -353,7 +365,7 @@ async function discardEdits() {
     await openSong(cur.file, { source: cur.source, entryId: cur.entryId, handle: cur.handle, created: cur.created, again: true });
   } else app.baseKept = baseNow();
   notice(
-    takes || cuts || named ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
+    takes || cuts || named || credited ? tr("The changes were not saved: the song is as its file has it.") : tr("The changes to the bars and chords were not saved: the song is as its file has it."),
     "",
     5000
   );
@@ -386,6 +398,8 @@ function rememberSettings() {
       title: retitled() ? player.song.title : null,
       // The names given to the tracks, if they are not the file's (2.15).
       names: namesDirty() ? Object.fromEntries(player.tracks.filter((t) => t.name).map((t) => [t.key, t.name])) : null,
+      // The details of the chord chart, if they are not the file's (2.16).
+      credits: creditsDirty() ? { ...app.credits } : null,
     });
   }
 }
@@ -446,6 +460,7 @@ function songState() {
     analysis: app.analysis,
     analysisInFile: app.analysisInFile,
     title: song.title,
+    credits: { ...app.credits },
     tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null, clips: t.clips, name: t.name || null })),
     takesDirty: recording.dirty,
     rate: player.rate,
@@ -497,6 +512,7 @@ function stateChanges(a, b) {
   const out = gridChanges(a.grid, b.grid);
   if (a.analysis !== b.analysis) out.push("analysis");
   if (a.title !== b.title) out.push("title");
+  if (!sameCredits(a.credits, b.credits)) out.push("credits");
   const keysA = a.tracks.map((t) => t.key);
   const keysB = b.tracks.map((t) => t.key);
   const inA = new Set(keysA);
@@ -547,6 +563,10 @@ async function restoreState(s, fields) {
     song.title = s.title;
     showTitle();
   }
+  if (has("credits")) {
+    app.credits = { ...s.credits };
+    renderCredits(true);
+  }
   // The takes that leave the song or come back first; then the order of the
   // tracks, their switches, volumes and Syncs.
   const back = has("takes") ? await recording.restore(s.tracks) : [];
@@ -586,11 +606,12 @@ async function restoreState(s, fields) {
   rememberSettings();
 }
 
-// The clips and the names of every track as the song's file has them now
-// (opened, saved).
+// The clips and the names of every track, and the details of the chord
+// chart, as the song's file has them now (opened, saved).
 function clipsAreSaved() {
   app.clipsSaved = new Map(player.tracks.map((t) => [t.key, t.clips || null]));
   app.namesSaved = new Map(player.tracks.map((t) => [t.key, t.name || null]));
+  app.creditsSaved = { ...app.credits };
 }
 
 // The takes kept for undo that no step can bring back any more leave memory.
@@ -650,6 +671,7 @@ function stepLabel(fields, a, b) {
   if (has("numbers")) return tr("the bar numbers");
   if (has("analysis")) return tr("the tempo and chord detection");
   if (has("title")) return tr("the name of the project");
+  if (has("credits")) return tr("the details of the chord chart");
   const sync = named("sync:");
   if (sync) return tr("the Sync of {take}", { take: title(sync.slice(5)) });
   if (has("order")) return tr("the order of the tracks");
@@ -737,7 +759,10 @@ async function openSong(file, origin) {
     const key = settingsKey(song, file);
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
+    app.credits = readCredits(song.manifest && song.manifest.music && song.manifest.music.chart_credits);
     clipsAreSaved();
+    // The details of the chord chart typed since the song was last saved.
+    if (saved && saved.credits && typeof saved.credits === "object") app.credits = readCredits(saved.credits);
     // The names given to the tracks since the song was last saved.
     if (saved && saved.names && typeof saved.names === "object") for (const t of player.tracks) player.setTrackName(t.key, trackNameOf(saved.names[t.key]));
     app.baseFiles = baseFilesOf(song);
@@ -762,6 +787,7 @@ async function openSong(file, origin) {
     if (!origin.separated && !origin.again) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
     showView("player");
     renderPlayer(saved && saved.view);
+    renderCredits(true);
     if (sectionMenu) sectionMenu.close();
     editor.songOpened({ differs: !!edits, built: !!(edits && edits.built), dirty: !!(saved && saved.dirty) });
     steps.reset(); // undo goes back as far as the song as it opened
@@ -2528,6 +2554,12 @@ async function shareSelected() {
 // are now (edits not saved yet too), in the key of now, with a new line after
 // Bars per line (kept in this browser) and at each section: sent with the
 // share sheet on a smartphone that can share it, downloaded elsewhere.
+//
+// Beside them (2.16), the details of the chart: Title (the song's name until
+// another is typed; emptied, the song's name again), Subtitle, Lyricist,
+// Composer, Arranger, Copyright. Each change is one step to undo and a change
+// to save, kept in this browser until it is saved in the project
+// (music.chart_credits).
 
 const CHART_KEY = "euteria-chart-lines";
 const CHART_LINES = [1, 12];
@@ -2553,14 +2585,74 @@ function wireChart() {
   chartField.set(chartLines);
   $("chart-lines-box").append(chartField.el);
   $("export-chart").addEventListener("click", exportChart);
+  for (const k of CREDIT_FIELDS) {
+    const input = $(`credit-${k}`);
+    input.addEventListener("change", () => setCredit(k, input.value));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur(); // the change, then
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        input.value = shownCredit(k); // as it was
+        input.blur();
+      }
+    });
+  }
+}
+
+// What a field of the details shows: the detail, or for the title the song's name.
+function shownCredit(k) {
+  const v = app.credits[k];
+  return v || (k === "title" && player.song ? player.song.title : "");
+}
+
+function setCredit(k, value) {
+  if (!player.song) return;
+  let v = creditOf(value);
+  if (k === "title" && v === player.song.title) v = null; // the song's name: none of its own
+  if ((app.credits[k] || null) !== v) {
+    app.credits = { ...app.credits, [k]: v };
+    rememberSettings();
+    scheduleUi();
+    steps.note();
+  }
+  renderCredits(true);
+}
+
+// The fields show the details (the one being typed in is left alone, unless
+// `all`: undone, or the song changed).
+function renderCredits(all = false) {
+  for (const k of CREDIT_FIELDS) {
+    const input = $(`credit-${k}`);
+    input.disabled = !player.song;
+    if (!all && document.activeElement === input) continue;
+    const v = shownCredit(k);
+    if (input.value !== v) input.value = v;
+  }
 }
 
 async function exportChart() {
   if (!player.song || !app.grid.bars.length) return;
   editor.commitInput();
-  const title = player.song.title || "EUTERIA";
+  // A detail being typed counts.
+  const typing = CREDIT_FIELDS.find((k) => document.activeElement === $(`credit-${k}`));
+  if (typing) setCredit(typing, $(`credit-${typing}`).value);
+  const c = app.credits;
+  const title = c.title || player.song.title || "EUTERIA";
   const shift = player.semitones;
-  const xml = chartXml({ title, grid: app.grid, shift, barsPerLine: chartLines, software: `EUTERIA Web ${VERSION}`.trim() });
+  const xml = chartXml({
+    title,
+    subtitle: c.subtitle || "",
+    composer: c.composer || "",
+    arranger: c.arranger || "",
+    lyricist: c.lyricist || "",
+    copyright: c.copyright || "",
+    grid: app.grid,
+    shift,
+    barsPerLine: chartLines,
+    software: `EUTERIA Web ${VERSION}`.trim(),
+  });
   const name = `${safeName(title)}.musicxml`;
   const file = new File([xml], name, { type: "application/vnd.recordare.musicxml+xml" });
   const said = shift
@@ -2582,6 +2674,7 @@ function renderChart() {
   const ready = !!song && app.grid.bars.length > 0;
   $("export-chart").disabled = !ready;
   chartField.disable(!song);
+  renderCredits();
   const text = song && !ready ? tr("This song has no bars yet: the chord chart is made from them.") : "";
   const status = $("chart-status");
   if (status.textContent !== text) status.textContent = text;
@@ -2602,6 +2695,7 @@ function practiceState() {
     loop: player.loop,
     gridVisible: app.gridVisible,
     tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr), name: t.name || null })),
+    credits: { ...app.credits },
   };
 }
 
