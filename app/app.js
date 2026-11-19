@@ -487,7 +487,7 @@ function songState() {
       // A grid whose tempo changed is followed again (updateUi()).
       follow: gridTempoKey(g) !== metroTempoKey || metroFollow,
     },
-    trainer: { on: trainer.on, step: trainer.step, every: trainer.every, target: trainer.target },
+    trainer: { on: trainer.on, from: trainer.from, step: trainer.step, every: trainer.every, target: trainer.target },
   };
 }
 
@@ -550,7 +550,7 @@ function stateChanges(a, b) {
   if (m.play !== n.play) out.push("metro.play");
   if (m.mute !== n.mute) out.push("metro.mute");
   if (METRO_SWITCHES.some((k) => m[k] !== n[k]) || Object.keys(m.patterns).some((k) => !sameList(m.patterns[k], n.patterns[k] || []))) out.push("metro");
-  for (const k of ["step", "every", "target"]) if (a.trainer[k] !== b.trainer[k]) out.push(`trainer.${k}`);
+  for (const k of ["from", "step", "every", "target"]) if (a.trainer[k] !== b.trainer[k]) out.push(`trainer.${k}`);
   if (a.trainer.on !== b.trainer.on) out.push("trainer");
   return out;
 }
@@ -1170,16 +1170,18 @@ function tuneSong() {
 
 // ----- speed training ------------------------------------------------------------------
 //
-// A part of the metronome's card: with the loop on, the speed goes up (or
+// A part of the metronome's card: with the loop on, the speed starts at `from` %
+// (set when the training is switched on, or `from` changed) and goes up (or
 // down) by `step` % every `every` passes, until `target` %. Its settings are
 // this browser's; it is off whenever a song opens.
 
 const TRAINER_KEY = "euteria-trainer";
 const trainer = (() => {
-  const t = { on: false, step: 5, every: 1, target: 100 };
+  const t = { on: false, from: 70, step: 5, every: 1, target: 100 };
   try {
     const kept = JSON.parse(localStorage.getItem(TRAINER_KEY) || "null");
     if (kept && typeof kept === "object") {
+      if (Number.isInteger(kept.from)) t.from = Math.max(50, Math.min(200, kept.from));
       if (Number.isInteger(kept.step)) t.step = Math.max(1, Math.min(25, kept.step));
       if (Number.isInteger(kept.every)) t.every = Math.max(1, Math.min(16, kept.every));
       if (Number.isInteger(kept.target)) t.target = Math.max(50, Math.min(200, kept.target));
@@ -1192,8 +1194,15 @@ const trainerFields = {};
 
 function saveTrainer() {
   try {
-    localStorage.setItem(TRAINER_KEY, JSON.stringify({ step: trainer.step, every: trainer.every, target: trainer.target }));
+    localStorage.setItem(TRAINER_KEY, JSON.stringify({ from: trainer.from, step: trainer.step, every: trainer.every, target: trainer.target }));
   } catch (_) {}
+}
+
+// The speed the training starts from: set when it is switched on and when
+// `from` changes while it is on. Like the steps it takes, it is not a step to undo.
+function trainerStart() {
+  trainerPasses = 0;
+  if (trainer.on && player.song) steps.absorb(() => player.setRate(trainer.from / 100));
 }
 
 function trainerChanged() {
@@ -1218,12 +1227,14 @@ function trainerPass(count) {
 function wireTrainer() {
   $("trainer-on").addEventListener("click", () => {
     trainer.on = !trainer.on;
-    trainerPasses = 0;
+    trainerStart();
     trainerChanged();
   });
-  trainerFields.step = numberField({ label: tr("Speed added each time"), min: 1, max: 25, unit: "%", onChange: (v) => ((trainer.step = v), trainerChanged()) });
+  trainerFields.from = numberField({ label: tr("Speed to start from"), min: 50, max: 200, step: 5, unit: "%", onChange: (v) => ((trainer.from = v), trainerStart(), trainerChanged()) });
+  trainerFields.step =numberField({ label: tr("Speed added each time"), min: 1, max: 25, unit: "%", onChange: (v) => ((trainer.step = v), trainerChanged()) });
   trainerFields.every = numberField({ label: tr("Passes of the loop between two steps"), min: 1, max: 16, onChange: (v) => ((trainer.every = v), trainerChanged()) });
   trainerFields.target = numberField({ label: tr("Speed to reach"), min: 50, max: 200, step: 5, unit: "%", onChange: (v) => ((trainer.target = v), trainerChanged()) });
+  $("trainer-from-box").append(trainerFields.from.el);
   $("trainer-step-box").append(trainerFields.step.el);
   $("trainer-every-box").append(trainerFields.every.el);
   $("trainer-target-box").append(trainerFields.target.el);
@@ -1232,6 +1243,7 @@ function wireTrainer() {
 
 function relabelTrainer() {
   if (!trainerFields.step) return;
+  trainerFields.from.relabel(tr("Speed to start from"));
   trainerFields.step.relabel(tr("Speed added each time"));
   trainerFields.every.relabel(tr("Passes of the loop between two steps"));
   trainerFields.target.relabel(tr("Speed to reach"));
@@ -1247,10 +1259,11 @@ function renderTrainer() {
   const state = trainer.on ? tr("On") : tr("Off");
   if ($("trainer-state").textContent !== state) $("trainer-state").textContent = state;
   $("trainer").classList.toggle("off", !trainer.on);
+  trainerFields.from.set(trainer.from);
   trainerFields.step.set(trainer.step);
   trainerFields.every.set(trainer.every);
   trainerFields.target.set(trainer.target);
-  for (const k of ["step", "every", "target"]) trainerFields[k].disable(!song);
+  for (const k of ["from", "step", "every", "target"]) trainerFields[k].disable(!song);
   const hint = $("trainer-hint");
   hint.hidden = !song || !trainer.on || player.loop.on;
   const text = tr("Speed training changes the speed at each pass of the loop: switch the loop on.");

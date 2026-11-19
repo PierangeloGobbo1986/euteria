@@ -580,6 +580,16 @@ button.step-btn .icon { width: 18px; height: 18px; }
 /* The metronome (2.14): its options in one band, the names of the speed training's passes on
    two lines, the menu of the silent bars a little smaller. */
 [data-layout=computer] #ribbon .trainer .mini-label.two-lines { max-width: 5.6em; white-space: normal; font-size: 12px; line-height: 1.1; }
+/* The speed training (2.19): From, Up to and Step on one row, narrow enough for the
+   metronome's tab to stay in one band at 1280 px: no arrows (the keys and the number do), a
+   shorter volume slider beside it. */
+[data-layout=computer] #ribbon .trainer .num input { width: 2em; }
+[data-layout=computer] #ribbon .trainer .num > .step { display: none; }
+[data-layout=computer] #ribbon .trainer .num:has(> .step) { display: inline-flex; }
+[data-layout=computer] #ribbon .trainer .metro-row { gap: 4px; }
+[data-layout=computer] #ribbon .trainer .trainer-item { gap: 3px; }
+[data-layout=computer] #ribbon .trainer .mini-label { font-size: 12px; }
+[data-layout=computer] #ribbon .metro-volume-box input[type=range] { width: 40px; }
 [data-layout=computer] #ribbon .metro-silence select { font-size: 13px; }
 [data-layout=computer] #ribbon .bars-copy button { min-width: 84px; }
 [data-layout=computer] #ribbon #clear-chords { color: #e85d5d; }

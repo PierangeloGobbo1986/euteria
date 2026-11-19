@@ -715,12 +715,16 @@ on: *Clicks for* 4 *bars, then mute for* 2, *Random* off), whatever was set befo
 go back to *Mute metronome and tracks*, the new default.)
 
 **Speed training**, the last group of the metronome's tab, under its own title: *On*/*Off*
-(as the metronome's), then, with the loop on, the speed changes by its *Step* (5% to
-start with) every so many passes of the loop (*Passes per step*), *Up to* the speed set
-(100%), and says when it gets there; from 70%, for example, a hard passage comes up to
-tempo a little at a time. A line under it says how it works, and another one asks for
-the loop while it is off. Its settings are kept in this browser; it is off whenever a
-song opens.
+(as the metronome's) and the *Passes per step* on the first row; *From*, *Up to* and *Step*
+on the second. Switching it on sets the speed to the one it starts from (*From*, 70% to
+start with, changed while it is on it sets the speed again), without a step to undo.
+Then, with the loop on, the speed changes by its *Step* (5%) every so many passes of the
+loop, *Up to* the speed set (100%), and says when it gets there: a hard passage comes up
+to tempo, or a little over it, a little at a time, with no need to slow the whole song
+first (2.19). A line under it says how it works, and another one asks for the loop while it
+is off. Its settings are kept in this browser; it is off whenever a song opens. On the
+computer its fields have no arrows (the keys and the number do), so that the tab keeps its
+one band at 1280 px.
 
 There is no server and no account: the audio stays on each device, and projects
 travel as files (for example over WhatsApp).
