@@ -35,7 +35,7 @@ English names, and so does the tagline.
 **Instructions**: the button at the top right of the Library, between the language menu
 and *Update*; in a song, on a computer, the big button of the tab *Help* (2.14); on the
 phone a small *?* under the language, on both screens. It opens a window with how to use
-EUTERIA, in the language in use. Its text scrolls under its title; ✕, Esc or a click beside it closes it. While it is
+EUTERIA, in the language in use, rewritten in 2.19.1: how EUTERIA is laid out, then the features one by one. Its text scrolls under its title; ✕, Esc or a click beside it closes it. While it is
 open, the keys of the player do nothing and the page under it stays still.
 
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
