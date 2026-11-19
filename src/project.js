@@ -23,6 +23,14 @@ export const TRACK_TITLES = {
   other: "Other",
 };
 
+// The name given to a track (practice.track_names, 2.15) as it may be: one
+// line, at most TRACK_NAME_MAX characters; null if none.
+export const TRACK_NAME_MAX = 40;
+export function trackNameOf(value) {
+  const name = typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, TRACK_NAME_MAX).trim() : "";
+  return name || null;
+}
+
 // The tracks in the order given in EUTERIA Web (practice.track_order, every
 // track: the Original Track and the takes too); the ones it does not name
 // (a take recorded since) after them, as they were. Without it the order
@@ -268,6 +276,10 @@ export async function openProject(file, context, onProgress = () => {}) {
   // audio.clips, by track.
   const cuts = audio.clips && typeof audio.clips === "object" ? audio.clips : {};
   for (const t of [...tracks, ...takes]) t.clips = clipsFromManifest(cuts[t.key], context.sampleRate, t.length);
+  // The names given to the tracks in EUTERIA Web (2.15): shown instead of
+  // their own.
+  const names = practice.track_names && typeof practice.track_names === "object" ? practice.track_names : {};
+  for (const t of [...tracks, ...takes]) t.name = trackNameOf(names[t.key]);
   // Its length: its own audio's (or the empty project's), or longer where a
   // take recorded past the end goes on (or a clip moved past it).
   const own = Math.max(Math.round(ownSeconds * context.sampleRate), ...tracks.map((t) => t.length));

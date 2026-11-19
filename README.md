@@ -90,8 +90,8 @@ open, the keys of the player do nothing and the page under it stays still.
   off, M metronome on or off, [ and ] loop start and end at the current position, R record
   a take (again: stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song,
   Ctrl+S (⌘S on a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a
-  Mac), Escape lets go of what is selected; for the clips, C cut at the playhead, X delete,
-  Ctrl+C copy, Ctrl+V paste (⌘C and ⌘V on a Mac).
+  Mac), Escape lets go of what is selected, F2 on a track's name renames it; for the clips,
+  C cut at the playhead, X delete, Ctrl+C copy, Ctrl+V paste (⌘C and ⌘V on a Mac).
 
 **Messages** (a song opening, the progress of a detection, of a separation or of a
 download, a save, an error) open in a band under the bar at the top: with a song open,
@@ -130,6 +130,15 @@ dragging it puts the track elsewhere, the Original Track and the takes as the st
 on a computer the row of the track in the timeline follows (on the grip, the arrow keys
 ↑ ↓ move the track too; the keys 1 to 9 follow the order). The order is kept with the
 song and written in the project by *Save*.
+
+**The names of the tracks** (2.15). A click on a track's name switches it on or off; a
+double-click (a double tap on the phone, F2 on a computer) turns the name into a field, in
+its place, to give the track a name of its own (a stem, the Original Track or a take alike;
+the two clicks leave the track as it was). Return or a click elsewhere keeps the name typed,
+Escape leaves it as it was, and an empty field gives the track its own name back. A new
+name is a change to save, as the project's name is: one step to undo, kept in the browser
+until it is saved, then written in the project (`practice.track_names`, by track) and shown
+wherever the track is named (its tips, Undo's messages, the takes pasted from it).
 
 **Deleting stems and the Original Track** (2.13). To tidy a project and make its file
 smaller, every stem and the Original Track have a red ✕ as the takes do (beside the name on
@@ -175,7 +184,10 @@ the playhead, to place it exactly. A tap or a click on the time scale places the
 playhead too; a tap or a click on a chord, or on a beat of the chord lane, selects its
 bar, to write its chords (with a mouse, the cursor goes in the field of that beat).
 Dragging the time scale scrolls (with
-momentum on a touch screen);
+momentum on a touch screen). A drag that selects bars (on the chords or the sections), takes
+a stretch of the bar numbers, or moves clips or the loop, scrolls the view when it reaches an
+edge of the timeline or goes past it, faster the further it goes, and goes on there (2.15:
+before, a long stretch had to be chosen zoomed out);
 pinching, ctrl+wheel (a trackpad pinch) or the buttons of *Zoom* (at the right of the
 timeline's toolbar) go from the whole song (100%) to about 100 pixels per second, and a
 tap on the percentage goes back to the whole song.
@@ -196,10 +208,13 @@ stays selected, to cut it again further on. **X**, *Delete* or *Backspace*, or *
 in *Tracks*, deletes them: the track is silent there. Dragging a block moves the clips
 selected together, by the eighth note as the loop's edges (Alt: freely), kept where they
 were against the beats (a take played a little behind the beat stays as far behind it);
-never before the song, and past its end the song grows. A clip moved, or lengthened,
-over others of its track covers them: what is under it no longer plays. Dragging the
+never before the song, and past its end the song grows. Clips may overlap (2.15; before,
+a clip moved over others covered them): where they do, both play, added together, as two
+tracks would, and the one moved last is on top. A click where they overlap takes the one on
+top, a click again on it the one under it, and so on round; shortening one (its edges) is
+the way to keep them apart. Dragging the
 edges of a block shortens or lengthens the clip, to the eighth note, as far as the
-track's audio goes. The knobs under the strip, at the corners of the clip selected or of
+track's audio goes; where an edge lies inside another clip, the edge is taken first. The knobs under the strip, at the corners of the clip selected or of
 the one under the mouse, fade it in and out: the curve and the part it lowers are drawn
 over the waveform. Every change is a step to undo; the audio itself is never touched (a
 take or a stem cut keeps its whole audio in the project, and the parts left out come back
@@ -214,7 +229,7 @@ them.
 another, or within the same song. **Ctrl+C** (⌘C on a Mac), or the copy button of
 *Clips*, copies the clips selected, on one track or several, as they sound: their fades
 and the 4-millisecond edges are in the audio copied, and what lies between two clips of a
-track is silence. The copy stays in the page while other songs are opened (not after the
+track is silence (and where they overlap, their sum). The copy stays in the page while other songs are opened (not after the
 page is reloaded) and replaces the one before. **Ctrl+V** (⌘V), or the paste button
 (its tip says what it pastes), puts it at the playhead of the song open, as takes: one
 for each track copied, the first at the playhead and the others where they were against
@@ -282,7 +297,9 @@ open:
   along the chords (or shift-click) selects several bars (the bar numbers are for the
   loop). No bar is selected when a song opens, so the keys stay the transport's (← → five
   seconds) until a bar is chosen; ‹ and › start from the bar at the playhead, and Escape
-  lets the selection go. A chord typed in a field goes on that beat of every bar selected
+  lets the selection go, as does *Deselect* on a computer (2.15: beside the name of the
+  sections, in their orange, while bars are selected; beside *Bars*, in its light blue,
+  another lets go of the stretch chosen on the bar numbers while the loop is off). A chord typed in a field goes on that beat of every bar selected
   (an emptied field removes the chord of its beat; where the bars selected differ, the
   field shows …). Chords typed one after the other in one field are spread over the rest
   of the bar, as a chart reads them: two typed in the field of beat 1 go on beats 1 and
@@ -292,7 +309,11 @@ open:
   (from the last one, to the next bar; Shift+Tab back), and ← → at an end of the text
   to the field beside. *Copy* and *Paste* copy the chords of the bars selected, beat by
   beat: pasted into several bars they repeat to fill them, pasted into one bar they all
-  go in from there. On a computer: a click puts the cursor in the field of the beat
+  go in from there. The sections wholly in the bars copied go with them (2.15: a section
+  selected is copied with its name): pasted, they take the place of the sections in the
+  bars pasted into, repeated with the chords, and are numbered again (*Verse 1* pasted
+  after it becomes *Verse 2*); one step to undo. Part of a section copies its chords only.
+  On a computer, Return with bars selected opens *Bars and chords* at their field. On a computer: a click puts the cursor in the field of the beat
   clicked, a key from A to G starts a chord on the beat lit, ← → move the selection
   (Shift: extend it), Delete clears it, Ctrl+C and Ctrl+V (⌘ on a Mac) copy and paste.
   With another meter the chords move to its beats, by where they fall in the bar (from
@@ -696,7 +717,9 @@ travel as files (for example over WhatsApp).
   a project opens with its chords spread over the bar (two on beats 1 and 3) and is saved
   with slots.
 - **The clips** (2.10): `audio.clips` keys every track cut in EUTERIA Web (`"original"`,
-  a stem, `"take-<id>"`) to its clips, in the order they play: `from` and `to` (the part
+  a stem, `"take-<id>"`) to its clips, in the order they were placed (2.15: they may
+  overlap, the last one on top; before, they never did and were in the order they play):
+  `from` and `to` (the part
   of the track's own audio, seconds), `at` (where `from` plays, seconds from the track's
   start: a take's Sync moves its clips with it), `fade_in` and `fade_out` (seconds). A
   track whole is not listed; an empty list is a track that plays nothing. The audio
@@ -711,6 +734,9 @@ travel as files (for example over WhatsApp).
   every track in its order, the Original Track and the takes too. A project without
   `track_order` opens with the Original Track first, the stems in the order of
   `stem_order`, then the takes.
+- **The names given to the tracks** (2.15): `practice.track_names`, written by EUTERIA
+  Web, maps a track's key to the name given to it (one line, up to 40 characters); a
+  track not listed shows its own name.
 
 ## Phase 0 test page (`lab/`)
 

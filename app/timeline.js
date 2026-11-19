@@ -26,11 +26,18 @@
 // A click on a block selects that clip (shift-click: more of them; Escape,
 // in app/app.js, none), dragging it moves the clips selected by the step of
 // the bar numbers, keeping where they are against the beats (Alt or Option:
-// freely), over the others of their track (onClips); its edges shorten or
-// lengthen it, as far as the track's audio goes; the knobs at the corners of
-// a clip selected, or under the mouse, fade it in and out. The rest of the
-// row is the playhead's, as before, so that the playhead can be placed in a
-// clip selected to cut it there (C, in app/app.js).
+// freely), on top of the others of their track (onClips): where clips
+// overlap both play (2.15). A click where they overlap takes the one on top
+// (the last one moved), a click again on it the one under it, and so on. The
+// edges of a clip shorten or lengthen it, as far as the track's audio goes;
+// the knobs at the corners of a clip selected, or under the mouse, fade it
+// in and out. The rest of the row is the playhead's, as before, so that the
+// playhead can be placed in a clip selected to cut it there (C, in
+// app/app.js).
+//
+// A drag that selects bars, chooses a stretch of the bar numbers, or moves
+// clips or the loop scrolls the view when it reaches an edge of the timeline
+// (or goes past it), and goes on there (2.15).
 //
 // The chords are for the chords, each on the beat where it starts: while the
 // grid and the chords are edited, a tap or a click on a chord selects its
@@ -62,7 +69,7 @@ import { barNumber, barAt, slotTimes, slotAt, chordTexts } from "../src/grid.js"
 import { chordView } from "../src/chordnames.js";
 import { sectionTitles, sectionColor, sectionIndexAt } from "../src/sections.js";
 import { PEAK_BUCKET } from "../src/peaks.js";
-import { wholeClip, move as moveClips, trim as trimClip, fade as fadeClip } from "../src/clips.js";
+import { wholeClip, clipsAt, move as moveClips, trim as trimClip, fade as fadeClip } from "../src/clips.js";
 import { tr } from "../src/i18n.js";
 
 const C = {
@@ -100,6 +107,11 @@ const MIN_CLIP = 0.02; // seconds: the shortest a clip may be (src/player.js)
 const fadeShape = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u); // as the engine's
 const FONT = '-apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const TAP_SLOP = 6; // pixels a press may move and still be a tap
+// A drag at an edge of the timeline scrolls it (2.15): how near the edge it
+// starts (pixels, inside), and the most it scrolls by in a frame.
+const EDGE_ZONE = { mouse: 8, touch: 24 };
+const EDGE_SPEED = { mouse: 36, touch: 18 };
+const EDGE_GESTURES = new Set(["select", "range", "section", "clip", "start", "end", "body"]);
 const RANGE_PX = { mouse: 6, touch: 12 }; // the narrowest step a stretch of the bar numbers takes
 const MIN_LOOP = 0.25; // seconds, as the engine
 const FOLLOW_PAUSE_MS = 4000;
@@ -876,11 +888,13 @@ export class Timeline {
       const strip = this.clipsOn ? STRIP : 0;
       const wy = y0 + strip;
       const wh = h - strip;
-      for (const c of this._clipsOf(row)) {
+      const clips = this._clipsOf(row);
+      // In the order they were placed: the last one moved over the others.
+      clips.forEach((c, i) => {
         const [s, e] = this._clipSpan(row, c);
         const x0 = this.x(s);
         const x1 = this.x(e);
-        if (x1 < 0 || x0 > W) continue;
+        if (x1 < 0 || x0 > W) return;
         const a = Math.max(0, x0);
         const b = Math.min(W, x1);
         if (strip) {
@@ -888,11 +902,17 @@ export class Timeline {
           ctx.globalAlpha = row.on ? 0.34 : 0.15;
           ctx.fillStyle = row.color;
           this._roundRect(ctx, x0 + 0.5, y0 + 1.5, Math.max(1, x1 - x0 - 1), strip - 2.5, 3);
+          // Over a clip placed before it: its edges marked, to tell it apart.
+          if (clips.some((d, j) => j < i && d.at < c.at + c.to - c.from && c.at < d.at + d.to - d.from)) {
+            ctx.globalAlpha = row.on ? 0.95 : 0.5;
+            ctx.fillRect(Math.round(x0), y0 + 1.5, 1.5, strip - 2.5);
+            ctx.fillRect(Math.round(x1) - 1.5, y0 + 1.5, 1.5, strip - 2.5);
+          }
           ctx.restore();
         }
         this._wave(ctx, row.peaks, row.color, alpha, wy, wh, this.start - s + c.from, this.pps, W, row.scale, a, b);
         this._fades(ctx, c, x0, x1, wy, wh);
-      }
+      });
     }
     this._gridLines(ctx, y0, h);
     ctx.fillStyle = C.border;
@@ -1280,34 +1300,40 @@ export class Timeline {
     return null;
   }
 
-  // The clip under x in a row ({key, i}), or null.
+  // The clips of `row` that play at song time t, the one on top first.
+  _stackAt(row, t) {
+    return clipsAt(this._clipsOf(row), t - (row.offset || 0));
+  }
+
+  // The clip under x in a row ({key, i}): the one selected there, else the
+  // one on top; or null.
   _clipUnder(x, y) {
     const at = this._rowAt(y);
     if (!at) return null;
-    const t = this.t(x);
-    const clips = this._clipsOf(at.row);
-    for (let i = 0; i < clips.length; i++) {
-      const [s, e] = this._clipSpan(at.row, clips[i]);
-      if (t >= s && t < e) return { key: at.row.key, i };
-    }
-    return null;
+    const stack = this._stackAt(at.row, this.t(x));
+    if (!stack.length) return null;
+    const i = stack.find((k) => this._isSelected(at.row.key, k)) ?? stack[0];
+    return { key: at.row.key, i };
   }
 
   // What a press at (x, y) takes of the clips (a computer): {row, i, part:
   // "start" | "end" (the edges of its block in the strip), "move" (the block),
   // "fadeIn" | "fadeOut" (the knobs of a clip selected or under the mouse,
-  // under the strip)}, or null.
+  // under the strip)}, or null. Where clips overlap: an edge first (of the
+  // clip on top, if two are there), then the clip selected, else the one on
+  // top.
   _clipHit(x, y, type) {
     if (!this.clipsOn) return null;
     const at = this._rowAt(y);
     if (!at) return null;
     const { row, top } = at;
     const clips = this._clipsOf(row);
+    const order = clips.map((_, i) => clips.length - 1 - i); // the one on top first
     if (y >= top + STRIP) {
       const grab = type === "mouse" ? KNOB + 3 : KNOB + 10;
-      for (let i = 0; i < clips.length; i++) {
-        const shown = this._isSelected(row.key, i) || (this.hoverClip && this.hoverClip.key === row.key && this.hoverClip.i === i);
-        if (!shown) continue;
+      const sel = (i) => this._isSelected(row.key, i);
+      const hover = (i) => !!this.hoverClip && this.hoverClip.key === row.key && this.hoverClip.i === i;
+      for (const i of [...order.filter(sel), ...order.filter((i) => !sel(i) && hover(i))]) {
         const c = clips[i];
         const [s, e] = this._clipSpan(row, c);
         if (Math.hypot(x - this.x(s + (c.fadeIn || 0)), y - (top + KNOB_Y)) <= grab) return { row, i, part: "fadeIn" };
@@ -1316,8 +1342,10 @@ export class Timeline {
       return null;
     }
     const tol = type === "mouse" ? CLIP_EDGE_PX.mouse : CLIP_EDGE_PX.touch;
-    let best = null;
-    for (let i = 0; i < clips.length; i++) {
+    let edgeIn = null;
+    let middle = null;
+    let near = null;
+    for (const i of order) {
       const [s, e] = this._clipSpan(row, clips[i]);
       const x0 = this.x(s);
       const x1 = this.x(e);
@@ -1326,10 +1354,12 @@ export class Timeline {
       // A block too narrow for its edges and a middle: its middle third moves it.
       const edge = Math.min(tol, (x1 - x0) / 3);
       const part = x - x0 <= edge ? "start" : x1 - x <= edge ? "end" : "move";
-      if (inside) return { row, i, part };
-      if (!best && part !== "move") best = { row, i, part };
+      if (inside && part !== "move") edgeIn = edgeIn || { row, i, part };
+      else if (inside) {
+        if (!middle || (this._isSelected(row.key, i) && !this._isSelected(row.key, middle.i))) middle = { row, i, part };
+      } else if (part !== "move") near = near || { row, i, part };
     }
-    return best;
+    return edgeIn || middle || near;
   }
 
   // A press on the clips: the clip taken is selected (shift: added; one of
@@ -1347,7 +1377,10 @@ export class Timeline {
       const row = this.rows.find((r) => r.key === sel.key);
       if (row) rows.set(sel.key, { row, was: row.clips, clips: this._clipsOf(row), sel: this.clipSel.filter((x) => x.key === sel.key).map((x) => x.i) });
     }
-    this.gesture = { kind: "clip", part: hit.part, id: e.pointerId, x0: p.x, key, i: hit.i, was, shift: e.shiftKey, rows, moved: false, step: this.hasGrid ? this._rangeStep(e.pointerType) : null };
+    // t0: the song time pressed (a drag is measured from there, the view may
+    // scroll meanwhile).
+    const t0 = this.t(p.x);
+    this.gesture = { kind: "clip", part: hit.part, id: e.pointerId, x0: p.x, t0, key, i: hit.i, was, shift: e.shiftKey, rows, moved: false, step: this.hasGrid ? this._rangeStep(e.pointerType) : null };
     if (e.pointerType === "mouse") this.main.style.cursor = hit.part === "move" ? "grabbing" : "ew-resize";
     this.drawTop();
   }
@@ -1361,7 +1394,7 @@ export class Timeline {
     const base = g.rows.get(g.key);
     const c = base.clips[g.i];
     const off = base.row.offset || 0;
-    const dt = (x - g.x0) / this.pps;
+    const dt = this.t(x) - g.t0;
     const snap = (t) => (!free && g.step ? this._rangeSnap(t, g.step) : t);
     if (g.part === "move") {
       const s0 = off + c.at;
@@ -1374,7 +1407,7 @@ export class Timeline {
       for (const r of g.rows.values()) for (const i of r.sel) first = Math.min(first, (r.row.offset || 0) + r.clips[i].at);
       delta = Math.max(delta, -first);
       for (const r of g.rows.values()) {
-        const out = moveClips(r.clips, r.sel, delta, MIN_CLIP);
+        const out = moveClips(r.clips, r.sel, delta);
         r.row.clips = out.clips;
         r.now = out.indexes;
       }
@@ -1393,14 +1426,20 @@ export class Timeline {
   }
 
   // The press on the clips ends: a tap selects (shift: in or out of the
-  // selection; one of several selected: that one alone); a drag gives the
-  // tracks their new clips, the selection following them; cancelled, they
-  // are as they were.
+  // selection; one of several selected: that one alone; the one selected
+  // alone, where clips overlap: the next one under it, from the top again
+  // after the last); a drag gives the tracks their new clips, the selection
+  // following them; cancelled, they are as they were.
   _clipUp(g, cancelled) {
     if (!g.moved) {
       if (!cancelled && g.part === "move") {
         if (g.shift && g.was) this.clipSel = this.clipSel.filter((x) => x.key !== g.key || x.i !== g.i);
-        else if (!g.shift && g.was) this.clipSel = [{ key: g.key, i: g.i }];
+        else if (!g.shift && g.was) {
+          const row = g.rows.get(g.key).row;
+          const stack = this.clipSel.length === 1 ? this._stackAt(row, g.t0) : [];
+          const k = stack.indexOf(g.i);
+          this.clipSel = [{ key: g.key, i: stack.length > 1 && k >= 0 ? stack[(k + 1) % stack.length] : g.i }];
+        }
         this.onClipSelect(this.clipSelection);
       }
     } else if (cancelled) {
@@ -1586,8 +1625,8 @@ export class Timeline {
     // The edges and the body of the loop move by the step of the bar numbers
     // (the eighth note, zoomed in enough).
     const step = this.hasGrid ? this._rangeStep(e.pointerType) : null;
-    if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId, step };
-    else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, loop0: { ...this.loop }, step, moved: false };
+    if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId, x0: p.x, step };
+    else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, t0: this.t(p.x), loop0: { ...this.loop }, step, moved: false };
     else if (p.y >= this.headHeight) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
     // The time scale, or the bars while not editing: a tap places the
     // playhead (the bars: asks for the chord), dragging scrolls.
@@ -1629,6 +1668,15 @@ export class Timeline {
       return;
     }
     if (g.id !== e.pointerId) return;
+    // Far enough from the press to scroll at an edge (a tap there does not).
+    if (!g.far && g.x0 !== undefined && Math.abs(p.x - g.x0) >= TAP_SLOP) g.far = true;
+    this.lastDrag = { x: p.x, y: p.y, altKey: e.altKey, pointerType: e.pointerType, timeStamp: e.timeStamp };
+    this._drag(g, p, e);
+    this._edgeScroll();
+  }
+
+  // A drag going on, the pointer at p (e: its keys and kind).
+  _drag(g, p, e) {
     if (g.kind === "clip") {
       if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
       g.moved = true;
@@ -1688,7 +1736,7 @@ export class Timeline {
       if (!g.moved && Math.abs(dx) < TAP_SLOP) return;
       g.moved = true;
       const w = g.loop0.end - g.loop0.start;
-      let s = clamp(g.loop0.start + dx / this.pps, 0, Math.max(0, this.duration - w));
+      let s = clamp(g.loop0.start + this.t(p.x) - g.t0, 0, Math.max(0, this.duration - w));
       if (!e.altKey && g.step) {
         const snapped = this._rangeSnap(s, g.step);
         if (snapped + w <= this.duration + 1e-9) s = snapped;
@@ -1723,7 +1771,9 @@ export class Timeline {
     }
     if (g.id !== e.pointerId) return;
     this.gesture = null;
+    const scrolled = this._stopEdgeScroll();
     if (e.pointerType === "mouse") this.main.style.cursor = "";
+    if (scrolled) this.onView();
     const commitLoop = () => {
       if (!this.dragLoop) return;
       const lp = this.dragLoop;
@@ -1731,8 +1781,10 @@ export class Timeline {
       this.loop = { ...lp };
       this.onLoop(lp);
     };
-    if (g.kind === "clip") this._clipUp(g, cancelled);
-    else if (g.kind === "select") {
+    if (g.kind === "clip") {
+      this._clipUp(g, cancelled);
+      if (pt && e.pointerType === "mouse") this._hover(pt.x, pt.y); // the knobs of the clip now selected
+    } else if (g.kind === "select") {
       if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled, slot: g.slot });
     } else if (g.kind === "range") {
       if (this.range && !cancelled) this.onRange({ ...this.range });
@@ -1829,6 +1881,14 @@ export class Timeline {
     return clamp(a + Math.round((t - a) / part) * part, 0, this.duration);
   }
 
+  // The stretch chosen on the bar numbers forgotten (Deselect, 2.15). Only
+  // with the loop off: while it is on, the stretch is the loop's.
+  clearRange() {
+    if (!this.range || this.loop.on) return;
+    this.range = null;
+    this.drawTop();
+  }
+
   // The stretch of the bar numbers, at least as long as a loop can be.
   _setRange({ start, end }) {
     let a = clamp(Math.min(start, end), 0, this.duration);
@@ -1899,5 +1959,51 @@ export class Timeline {
   _stopInertia() {
     if (this.inertia) cancelAnimationFrame(this.inertia);
     this.inertia = null;
+  }
+
+  // A drag (EDGE_GESTURES) held at an edge of the timeline, or past it,
+  // scrolls the view that way, faster the further it goes, and goes on under
+  // the pointer as if it moved (2.15). Called on each move of the drag.
+  _edgeScroll() {
+    const g = this.gesture;
+    const d = this.lastDrag;
+    if (!g || !d || !EDGE_GESTURES.has(g.kind) || !g.far || this.zoom <= 1) {
+      this._stopEdgeScroll();
+      return;
+    }
+    const mouse = d.pointerType === "mouse";
+    const zone = mouse ? EDGE_ZONE.mouse : EDGE_ZONE.touch;
+    const depth = d.x < zone ? d.x - zone : d.x > this.width - zone ? d.x - (this.width - zone) : 0;
+    this.edgeDepth = depth;
+    if (!depth || this.edgeRaf) return;
+    let last = now();
+    const step = () => {
+      this.edgeRaf = null;
+      if (this.gesture !== g || !this.edgeDepth) return;
+      const t = now();
+      const elapsed = Math.min(48, t - last);
+      last = t;
+      const k = Math.abs(this.edgeDepth);
+      const px = Math.min(mouse ? EDGE_SPEED.mouse : EDGE_SPEED.touch, 2 + k * (mouse ? 0.35 : 0.8)) * (elapsed / 16);
+      const before = this.start;
+      this.start = this.clampStart(this.start + (Math.sign(this.edgeDepth) * px) / this.pps);
+      if (this.start === before) return; // at the start or the end of the song
+      this.edgeScrolled = true;
+      this.lastUser = t;
+      this._drag(g, { x: this.lastDrag.x, y: this.lastDrag.y }, this.lastDrag);
+      this.draw();
+      this.edgeRaf = requestAnimationFrame(step);
+    };
+    this.edgeRaf = requestAnimationFrame(step);
+  }
+
+  // The scrolling at an edge stopped: whether the view moved.
+  _stopEdgeScroll() {
+    if (this.edgeRaf) cancelAnimationFrame(this.edgeRaf);
+    this.edgeRaf = null;
+    this.edgeDepth = 0;
+    const scrolled = !!this.edgeScrolled;
+    this.edgeScrolled = false;
+    return scrolled;
   }
 }

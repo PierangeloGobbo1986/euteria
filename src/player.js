@@ -258,6 +258,7 @@ export class Player {
     this.tracks = song.tracks.map((t) => ({
       key: t.key,
       title: t.title,
+      name: t.name || null, // the one given in EUTERIA Web (2.15)
       bus: t.bus,
       length: t.length,
       gain: t.gain,
@@ -396,6 +397,15 @@ export class Player {
     if (!t || this.busy) return;
     t.on = !!on;
     this.engine.setTrack(key, { on: t.on });
+    this._changed();
+  }
+
+  // The name given to a track (2.15; null: its own, t.title), shown instead
+  // of its own and saved with the project.
+  setTrackName(key, name) {
+    const t = this.track(key);
+    if (!t) return;
+    t.name = name || null;
     this._changed();
   }
 
@@ -862,7 +872,7 @@ export class Player {
       );
       lent = null;
       this._restore(reply.tracks);
-      const name = stemsExportFileName(this.song.songName, stems, [...(withOriginal ? ["Original"] : []), ...takes.map((t) => t.title)]);
+      const name = stemsExportFileName(this.song.songName, stems, [...(withOriginal ? ["Original"] : []), ...takes.map((t) => t.name || t.title)]);
       return {
         file: new File([reply.mp3], name, { type: "audio/mpeg" }),
         name,

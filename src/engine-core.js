@@ -33,7 +33,8 @@
  * they keep play, each where it is placed, faded in and out as it says. An
  * edge that cuts the sound (a part of the track left out, or moved) fades
  * over EDGE_FADE_SECONDS, so that it does not click; two clips that go on
- * from one another, as a cut leaves them, play on without a break.
+ * from one another, as a cut leaves them, play on without a break. Clips
+ * that overlap play together, added as two tracks are.
  *
  * The metronome clicks at the song times it is given (the beats of the grid,
  * or the beats found in the song: src/metronome.js), as they come out, so it
@@ -289,11 +290,17 @@
         const n = to - from;
         if (n <= 0) continue;
         const at = Math.round(c.at);
-        const prev = clips[i - 1];
-        const next = clips[i + 1];
-        // Going on from the clip before, or into the next, as the audio does.
-        const joinedIn = !!prev && Math.round(prev.to) === from && Math.round(prev.at + prev.to - prev.from) === at;
-        const joinedOut = !!next && Math.round(next.from) === to && Math.round(c.at + c.to - c.from) === Math.round(next.at);
+        const end = Math.round(c.at + c.to - c.from);
+        // Going on from another clip, or into another, as the audio does (a
+        // cut); in any order, as clips may overlap (2.15, src/clips.js).
+        let joinedIn = false;
+        let joinedOut = false;
+        for (let j = 0; j < clips.length; j++) {
+          if (j === i) continue;
+          const q = clips[j];
+          if (Math.round(q.to) === from && Math.round(q.at + q.to - q.from) === at) joinedIn = true;
+          if (Math.round(q.from) === to && Math.round(q.at) === end) joinedOut = true;
+        }
         let fi = Math.max(Math.round(c.fadeIn || 0), from > 0 && !joinedIn ? edge : 0);
         let fo = Math.max(Math.round(c.fadeOut || 0), to < t.length && !joinedOut ? edge : 0);
         if (fi + fo > n) {

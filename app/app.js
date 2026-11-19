@@ -17,7 +17,7 @@ import { manifestPatch, buildProject, zipLayout, composeEdited, composeProject, 
 import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes, withBaseTracks } from "../src/manifest.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile, recentId, recentWritable } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
-import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake } from "../src/project.js";
+import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake, trackNameOf, TRACK_NAME_MAX } from "../src/project.js";
 import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
@@ -35,7 +35,7 @@ import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClic
 import { RecordingFlow } from "./recording.js";
 import { History } from "./history.js";
 import { Ribbon } from "./ribbon.js";
-import { clipsToManifest, scaleClips, sameClips, clipsOf, clipAt, cut as cutClip, remove as removeClips } from "../src/clips.js";
+import { clipsToManifest, scaleClips, sameClips, clipsOf, cut as cutClip, remove as removeClips } from "../src/clips.js";
 import { sortable } from "./sortable.js";
 import { tr, trn, lang, setLang, onLangChange, translatePage, LANGUAGES } from "../src/i18n.js";
 
@@ -90,7 +90,7 @@ function renderShortcuts() {
     [tr("Bar numbers"), tr("Drag along them: a stretch, by the eighth note (shift-click: more bars); Loop loops it")],
     [tr("Time scale"), tr("Drag it: scrolls. Shift-click: the nearest edge of the loop moves to the nearest beat")],
     [tr("Zoom"), tr("Pinch, or Ctrl+wheel; in the overview, drag the frame of the view or of the loop")],
-    [tr("Tracks"), tr("Click a name: on or off; drag ⠿ (or ↑ ↓ on it): moves the track; double-click a volume: 100%")],
+    [tr("Tracks"), tr("Click a name: on or off; double-click it (or F2): rename the track; drag ⠿ (or ↑ ↓ on it): moves it; double-click a volume: 100%")],
   ];
   const fill = (dl, rows) => {
     dl.textContent = "";
@@ -128,6 +128,7 @@ const app = {
   analysisInFile: false, // it is in the song's file already
   saving: false,
   clipsSaved: new Map(), // key -> the clips of the track as last saved (null: whole)
+  namesSaved: new Map(), // key -> the name given to the track as last saved (2.15; null: none)
   // The files of the stems and of the Original Track in the project (2.13),
   // to take out of it those deleted with ✕: key -> {member, info, crc,
   // inFile, data (the file's bytes, kept while an undo may bring back a
@@ -158,9 +159,12 @@ const unsavedNew = () => !!app.current && !!app.current.created && !app.current.
 // The clips of the tracks (src/clips.js) as the song's file has them
 // (app.clipsSaved), or not.
 const clipsDirty = () => !!player.song && player.tracks.some((t) => !sameClips(t.clips, app.clipsSaved.get(t.key) || null));
+// The names given to the tracks (2.15) as the song's file has them, or not.
+const namesDirty = () => !!player.song && player.tracks.some((t) => (t.name || null) !== (app.namesSaved.get(t.key) || null));
 // The tracks: takes recorded, deleted or moved, clips cut, moved or faded,
-// stems or the Original Track deleted (or brought back) since the last Save.
-const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty() || baseDirty();
+// stems or the Original Track deleted (or brought back), tracks renamed,
+// since the last Save.
+const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty() || baseDirty() || namesDirty();
 const songDirty = () => !!player.song && (editor.dirty || retitled() || tracksDirty() || unsavedNew());
 // The song has audio of its own (an empty project has only its takes, if any).
 const ownAudio = () => player.tracks.some((t) => !t.take);
@@ -312,7 +316,7 @@ async function confirmLeave() {
 async function discardEdits() {
   const song = player.song;
   const takes = recording.dirty || baseChanged();
-  const cuts = clipsDirty();
+  const cuts = clipsDirty() || namesDirty();
   const named = retitled();
   if (editor.dirty) {
     editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
@@ -329,8 +333,12 @@ async function discardEdits() {
   }
   if (recording.dirty) await recording.revert();
   if (baseChanged()) await revertBase();
-  // The clips as the file has them (the takes brought back too).
-  for (const t of player.tracks) player.setClips(t.key, app.clipsSaved.get(t.key) || null);
+  // The clips and the names of the tracks as the file has them (the takes
+  // brought back too).
+  for (const t of player.tracks) {
+    player.setClips(t.key, app.clipsSaved.get(t.key) || null);
+    player.setTrackName(t.key, app.namesSaved.get(t.key) || null);
+  }
   if (takes || cuts) renderPlayer(app.timeline.getView());
   rememberSettings();
   steps.reset(); // the song as its file has it: nothing to undo
@@ -376,6 +384,8 @@ function rememberSettings() {
       dirty: editor.dirty,
       analysis: app.analysisInFile ? null : app.analysis,
       title: retitled() ? player.song.title : null,
+      // The names given to the tracks, if they are not the file's (2.15).
+      names: namesDirty() ? Object.fromEntries(player.tracks.filter((t) => t.name).map((t) => [t.key, t.name])) : null,
     });
   }
 }
@@ -409,8 +419,10 @@ const GRID_FIELDS = ["chords", "sections", "grid", "numbers", "analysis"];
 const METRO_FIELD = /^metro(\.|$)/;
 const TRAINER_FIELD = /^trainer(\.|$)/;
 const METRO_SWITCHES = ["on", "muteOn", "mode", "silence", "random", "countIn"];
-// Values whose changes close together make one step (− and + pressed again and again).
-const CONTINUOUS = /^(gain:|sync:|metro\.|trainer\.)|^(rate|key|grid)$/;
+// Values whose changes close together make one step (− and + pressed again and
+// again; the tracks switched on and off, so that the double-click that renames
+// one, switching it and back, leaves no step, 2.15).
+const CONTINUOUS = /^(gain:|sync:|metro\.|trainer\.)|^(rate|key|grid|on)$/;
 const MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || ua);
 
 const steps = new History({
@@ -434,7 +446,7 @@ function songState() {
     analysis: app.analysis,
     analysisInFile: app.analysisInFile,
     title: song.title,
-    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null, clips: t.clips })),
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null, clips: t.clips, name: t.name || null })),
     takesDirty: recording.dirty,
     rate: player.rate,
     semitones: player.semitones,
@@ -493,15 +505,18 @@ function stateChanges(a, b) {
   if (!sameList(keysA.filter((k) => inB.has(k)), keysB.filter((k) => inA.has(k)))) out.push("order");
   const after = new Map(b.tracks.map((t) => [t.key, t]));
   let on = false;
+  let names = false;
   for (const t of a.tracks) {
     const u = after.get(t.key);
     if (!u) continue;
     if (t.on !== u.on) on = true;
+    if (t.name !== u.name) names = true;
     if (t.gain !== u.gain) out.push(`gain:${t.key}`);
     if (t.sync !== u.sync) out.push(`sync:${t.key}`);
     if (!sameClips(t.clips, u.clips)) out.push(`clips:${t.key}`);
   }
   if (on) out.push("on");
+  if (names) out.push("names");
   if (a.rate !== b.rate) out.push("rate");
   if (a.semitones !== b.semitones) out.push("key");
   if (a.loop.on !== b.loop.on || a.loop.start !== b.loop.start || a.loop.end !== b.loop.end) out.push("loop");
@@ -542,6 +557,7 @@ async function restoreState(s, fields) {
     if (!v) continue;
     const returned = back.includes(t.key);
     if ((returned || has("on")) && t.on !== v.on) player.setTrackOn(t.key, v.on);
+    if ((returned || has("names")) && (t.name || null) !== v.name) player.setTrackName(t.key, v.name);
     if ((returned || has(`gain:${t.key}`)) && t.gain !== v.gain) player.setTrackGain(t.key, v.gain);
     if (t.take && (returned || has(`sync:${t.key}`)) && t.take.syncMs !== v.sync) {
       player.setTakeSync(t.key, v.sync);
@@ -570,9 +586,11 @@ async function restoreState(s, fields) {
   rememberSettings();
 }
 
-// The clips of every track as the song's file has them now (opened, saved).
+// The clips and the names of every track as the song's file has them now
+// (opened, saved).
 function clipsAreSaved() {
   app.clipsSaved = new Map(player.tracks.map((t) => [t.key, t.clips || null]));
+  app.namesSaved = new Map(player.tracks.map((t) => [t.key, t.name || null]));
 }
 
 // The takes kept for undo that no step can bring back any more leave memory.
@@ -613,7 +631,7 @@ function stepLabel(fields, a, b) {
   const named = (prefix) => fields.find((f) => f.startsWith(prefix));
   const title = (key) => {
     const t = player.track(key) || (player.stash.get(key) || {}).track;
-    return t ? tr(t.title) : "";
+    return t ? trackName(t) : "";
   };
   if (has("takes")) {
     const inA = new Set(a.tracks.map((t) => t.key));
@@ -635,6 +653,10 @@ function stepLabel(fields, a, b) {
   const sync = named("sync:");
   if (sync) return tr("the Sync of {take}", { take: title(sync.slice(5)) });
   if (has("order")) return tr("the order of the tracks");
+  if (has("names")) {
+    const renamed = a.tracks.filter((t) => b.tracks.some((u) => u.key === t.key && u.name !== t.name));
+    return renamed.length === 1 && title(renamed[0].key) ? tr("the name of {track}", { track: title(renamed[0].key) }) : tr("the names of the tracks");
+  }
   if (has("on")) return tr("the tracks on and off");
   const gain = named("gain:");
   if (gain) return tr("the volume of {track}", { track: title(gain.slice(5)) });
@@ -716,6 +738,8 @@ async function openSong(file, origin) {
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
     clipsAreSaved();
+    // The names given to the tracks since the song was last saved.
+    if (saved && saved.names && typeof saved.names === "object") for (const t of player.tracks) player.setTrackName(t.key, trackNameOf(saved.names[t.key]));
     app.baseFiles = baseFilesOf(song);
     app.baseKept = baseNow();
     // The name the file gives, and a new one not saved in it yet.
@@ -1310,7 +1334,7 @@ function songOwner() {
 function trackWarning() {
   const bad = player.tracks.filter((t) => t.align && t.align.status === "mismatch");
   if (!bad.length) return "";
-  const names = bad.map((t) => tr(t.title)).join(", ");
+  const names = bad.map(trackName).join(", ");
   return trn(
     bad.length,
     "{names}: not the length the project gives, so it may not line up with the other tracks.",
@@ -1868,7 +1892,8 @@ function cutClips() {
     const mine = sel.filter((s) => s.key === key).map((s) => s.i).sort((a, b) => b - a);
     const keep = [];
     for (const i of mine) {
-      const out = clipAt(clips, pos) === i ? cutClip(clips, i, pos, player.minClip) : null;
+      // Cut where it plays (clips may overlap: each selected there is cut).
+      const out = cutClip(clips, i, pos, player.minClip);
       if (!out) {
         keep.push(i);
         continue;
@@ -1929,7 +1954,7 @@ async function copyClips() {
       if (!piece) continue;
       // Named after the track and the song, unless pasted already (its name
       // says where it comes from).
-      const title = t.take && t.take.pastedFrom ? t.title : `${tr(t.title)} (${song.title})`;
+      const title = t.take && t.take.pastedFrom && !t.name ? t.title : `${trackName(t)} (${song.title})`;
       pieces.push({ ...piece, title, bus: t.bus, gain: t.gain });
     }
     if (!pieces.length) return;
@@ -2035,9 +2060,18 @@ function revealPlayhead() {
   if (player.song) app.timeline.reveal(player.position);
 }
 
+// The name a track shows: the one given to it (2.15), else its own (a stem's
+// in the language in use; a take's as it is).
+function trackName(t) {
+  return t.name || tr(t.title);
+}
+
+// A double-click, or a double tap, on a track's name: two clicks this close.
+const RENAME_CLICKS_MS = 400;
+
 function trackRow(t) {
   const key = t.key;
-  const title = tr(t.title); // a stem's name in the language in use; a take's as it is
+  const title = trackName(t);
   const toggle = h(
     "button",
     { type: "button", class: "toggle", "aria-pressed": "false" },
@@ -2045,11 +2079,28 @@ function trackRow(t) {
     h("span", { class: "name", text: title })
   );
   // A take's name may be long (a take pasted: the song's too); beside ✕, in
-  // a narrow window, so may a stem's: whole in the tip.
-  if (t.take || deletable(t)) toggle.title = title;
-  toggle.addEventListener("click", () => {
+  // a narrow window, so may a stem's: whole in the tip, with how to rename it
+  // on a computer.
+  if (!phone) toggle.title = tr("{title}: click to switch it on or off, double-click to rename it", { title });
+  else if (t.take || deletable(t)) toggle.title = title;
+  // A click switches the track on or off; a second one straight after (a
+  // double-click, a double tap) switches it back and opens its name to be
+  // changed (2.15). F2 too, on a computer.
+  let lastClick = 0;
+  toggle.addEventListener("click", (e) => {
     const track = player.track(key);
     if (track) player.setTrackOn(key, !track.on);
+    if (!e.detail) return; // from the keyboard
+    const at = performance.now();
+    if (at - lastClick < RENAME_CLICKS_MS) {
+      lastClick = 0;
+      renameTrack(key);
+    } else lastClick = at;
+  });
+  toggle.addEventListener("keydown", (e) => {
+    if (e.key !== "F2") return;
+    e.preventDefault();
+    renameTrack(key);
   });
   const volume = numberField({ label: tr("{title} volume", { title }), min: 0, max: 200, step: 5, unit: "%", onChange: (v) => player.setTrackGain(key, sliderToGain(v)) });
   // The grip: dragged, or the arrow keys on it, to put the track elsewhere.
@@ -2107,6 +2158,70 @@ function moveTrack(from, to, byKey) {
     const row = app.rows.find((r) => r.key === t.key);
     if (row) row.grip.focus();
   }
+}
+
+// ----- the names of the tracks (2.15) ------------------------------------------------
+//
+// A track's name, double-clicked (a double tap on the phone, F2 on a
+// computer), becomes a field in its place: Return or a click elsewhere keeps
+// the name typed, Escape leaves it as it was, and an empty one gives the
+// track its own name back. The names are kept with the song (Undo, Save).
+
+function renameTrack(key) {
+  const row = app.rows.find((r) => r.key === key);
+  const t = player.track(key);
+  if (!row || !t || row.renaming || player.busy) return;
+  const { toggle } = row;
+  const input = h("input", {
+    type: "text",
+    class: "track-rename",
+    maxlength: String(TRACK_NAME_MAX),
+    spellcheck: "false",
+    autocomplete: "off",
+    "aria-label": tr("Name of {title} (empty: its own name back)", { title: tr(t.title) }),
+  });
+  input.value = trackName(t);
+  input.placeholder = tr(t.title);
+  // In the toggle's place, in the row's grid or in line.
+  const style = getComputedStyle(toggle);
+  input.style.gridColumn = style.gridColumn;
+  input.style.gridRow = style.gridRow;
+  toggle.after(input);
+  toggle.hidden = true;
+  row.renaming = true;
+  let done = false;
+  const finish = (keep) => {
+    if (done) return;
+    done = true;
+    row.renaming = false;
+    const typed = trackNameOf(input.value);
+    input.remove();
+    toggle.hidden = false;
+    if (keep) setTrackName(key, typed);
+    const again = app.rows.find((r) => r.key === key);
+    if (again && document.activeElement === document.body) again.toggle.focus();
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    finish(e.key === "Enter");
+  });
+  input.addEventListener("blur", () => finish(true));
+  input.focus();
+  input.select();
+}
+
+// The name given to a track (null, or its own: its own again).
+function setTrackName(key, name) {
+  const t = player.track(key);
+  if (!t) return;
+  const value = name && name !== tr(t.title) && name !== t.title ? name : null;
+  if ((t.name || null) === value) return;
+  player.setTrackName(key, value);
+  renderPlayer(app.timeline.getView());
+  rememberSettings();
+  scheduleUi();
 }
 
 // ----- the stems and the Original Track, deleted with ✕ (2.13) -------------------------------
@@ -2210,7 +2325,7 @@ function deleteTrack(key) {
   if (!recording.stash(key)) return;
   if (alone) player.allStems();
   takesChanged();
-  notice(tr("{track} deleted: Save takes it out of the file.", { track: tr(t.title) }), "ok", 4000);
+  notice(tr("{track} deleted: Save takes it out of the file.", { track: trackName(t) }), "ok", 4000);
 }
 
 // "Don't save": the stems and the Original Track as the file has them.
@@ -2486,7 +2601,7 @@ function practiceState() {
     semitones: player.semitones,
     loop: player.loop,
     gridVisible: app.gridVisible,
-    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr) })),
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr), name: t.name || null })),
   };
 }
 
@@ -3520,6 +3635,8 @@ function updateUi() {
   setAttr(bigEye, "title", eye.title);
   bigEye.disabled = detection.running;
   $("bars-view-group").hidden = !hasGrid;
+  // Deselect beside Bars, while a stretch is chosen there with the loop off.
+  $("deselect-range").hidden = !(song && app.timeline.range && !player.loop.on);
   // Under the timeline (the phone): nothing over the waveforms, and why first
   // (no bars yet, or hidden); how to use it. A computer has them in Shortcuts
   // and in the tabs (2.14).
@@ -3874,6 +3991,13 @@ function wire() {
   });
   for (const b of document.querySelectorAll(".notation-btn")) b.addEventListener("click", toggleNotation);
   renderNotation();
+  // Deselect (2.15): the bars selected (as Escape does), and the stretch
+  // chosen on the bar numbers with the loop off.
+  $("deselect-bars").addEventListener("click", () => editor.select(null));
+  $("deselect-range").addEventListener("click", () => {
+    app.timeline.clearRange();
+    scheduleUi();
+  });
   // The eye: the bars and the chords shown, and editable, or hidden (over the
   // timeline on the phone, in Bars and chords on a computer).
   const toggleGrid = () => {

@@ -572,7 +572,7 @@ button.step-btn .icon { width: 18px; height: 18px; }
 .howto b { color: var(--text); font-weight: 650; }
 [data-layout=computer] #ribbon .howto-group { flex: 1 1 260px; min-width: 240px; }
 [data-layout=computer] #ribbon .howto { max-width: 400px; }
-[data-layout=computer] #ribbon .howto-wide { max-width: 760px; columns: 2 300px; column-gap: 26px; }
+[data-layout=computer] #ribbon .howto-wide { max-width: 880px; columns: 2 300px; column-gap: 26px; }
 [data-layout=computer] #ribbon .howto-wide li { break-inside: avoid; }
 /* What is not saved yet is said by Save, at the top: not here too. */
 [data-layout=computer] #ribbon #project-status, [data-layout=computer] #ribbon .edit-status.dirty { display: none; }
@@ -749,6 +749,11 @@ button.eye .icon { width: 18px; height: 18px; }
 }
 .tl-side .lane-sections { height: var(--tl-sections, 22px); line-height: var(--tl-sections, 22px); }
 .tl-side .lane-bars { height: var(--tl-nums, 20px); line-height: var(--tl-nums, 20px); }
+.tl-side .lane-sections, .tl-side .lane-bars { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+/* Deselect (2.15), shown while there is something to deselect: in the colour
+   of the bars selected, and of the stretch on the bar numbers. */
+.deselect-btn { min-height: 0; height: 18px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0; line-height: 1; color: #d6a85f; white-space: nowrap; }
+.deselect-btn.range { height: 17px; color: #6bb7aa; }
 .tl-side .lane-chords { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: var(--tl-chords, 24px); line-height: var(--tl-chords, 24px); color: #c9b48a; }
 .notation-btn { min-height: 0; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0; color: #c9b48a; white-space: nowrap; }
 [data-layout=phone] .notation-btn { height: 44px; min-height: 44px; padding: 0 10px; font-size: 14px; }
@@ -932,6 +937,24 @@ button.eye .icon { width: 18px; height: 18px; }
 .track .toggle .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--dim); }
 .track .toggle.on { background: var(--accent-bg); border-color: #3f6d63; color: var(--text); }
 .track .toggle.on .dot { background: var(--accent); border-color: var(--accent); }
+/* A track's name being changed (2.15), in the place of its button. */
+.track .track-rename {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px; /* on the phone, so that the page does not zoom in on it */
+  font-weight: 600;
+}
+.tl-heads .track .track-rename { height: 28px; padding: 0 8px; border-radius: 8px; font-size: 13px; }
 .take-del { background: transparent; border: 1px solid var(--border); color: #e85d5d; font-weight: 700; padding: 0; }
 .take-del:hover:not(:disabled) { background: rgba(232, 93, 93, .12); }
 .take-del.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d9; }

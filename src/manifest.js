@@ -23,8 +23,9 @@ function stemOrder(tracks) {
 // The practice settings as EUTERIA (Python) saves them (_save_music_settings),
 // with the order of every track (track_order) that EUTERIA Web adds.
 // state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key,
-// on, gain, clips}]}, the tracks in their order (clips: as the manifest has
-// them, src/clips.js clipsToManifest(), or null).
+// on, gain, clips, name}]}, the tracks in their order (clips: as the manifest
+// has them, src/clips.js clipsToManifest(), or null; name: the one given to
+// the track in EUTERIA Web, track_names, or null).
 // The key counts as "transposed": EUTERIA Web transposes live, and
 // EUTERIA (Python), without transposed tracks in the file, plays the
 // original key.
@@ -39,8 +40,11 @@ function practiceFields(base, grid, state) {
     volumes[t.key] = round(t.gain, 3);
     enabled[t.key] = !!t.on;
   }
+  // The names given to the tracks (2.15), of those that have one.
+  const names = {};
+  for (const t of state.tracks) if (t.name) names[t.key] = t.name;
   const lp = state.loop;
-  return {
+  const out = {
     ...base,
     tempo_bpm: grid.bpm ? round((grid.bpm * percent) / 100, 3) : null,
     tempo_percent: percent,
@@ -53,6 +57,9 @@ function practiceFields(base, grid, state) {
     stem_order: stemOrder(state.tracks),
     track_order: state.tracks.map((t) => t.key),
   };
+  if (Object.keys(names).length) out.track_names = names;
+  else delete out.track_names;
+  return out;
 }
 
 // The takes of the song (src/project.js takeFromManifest()) in the manifest:
@@ -99,7 +106,7 @@ export function withBaseTracks(manifest, files, present) {
     if (!here) delete tracks[f.member];
     else if (f.info) tracks[f.member] = f.info;
     if (!here && practice) {
-      for (const name of ["track_volumes", "track_enabled"]) {
+      for (const name of ["track_volumes", "track_enabled", "track_names"]) {
         if (!practice[name] || !(key in practice[name])) continue;
         practice[name] = { ...practice[name] };
         delete practice[name][key];

@@ -312,6 +312,7 @@
               <ul class="howto howto-wide">
                 <li data-i18n-html><b>Select</b>: click the strip at the top of a track (shift-click: more clips; Esc: none).</li>
                 <li data-i18n-html><b>Move</b>: drag a clip, by the eighth note (Alt: freely).</li>
+                <li data-i18n-html><b>Over another</b>: both play; a click again takes the one under.</li>
                 <li data-i18n-html><b>Shorten or lengthen</b>: drag its edges.</li>
                 <li data-i18n-html><b>Fade in and out</b>: drag the knobs at its corners.</li>
                 <li data-i18n-html><b>Paste</b>: at the playhead, as takes, in this song or another.</li>
@@ -551,9 +552,9 @@
           <!-- Beside the lanes over the tracks: their names (the sections, the chords, the bars), then,
                beside the time scale, the buttons of the tracks. -->
           <div id="tl-side" class="tl-side">
-            <span class="lane-name lane-sections">Sections</span>
+            <span class="lane-name lane-sections"><button id="deselect-bars" type="button" class="deselect-btn" title="Deselect the bars selected (Esc)" hidden>Deselect</button><span>Sections</span></span>
             <span class="lane-name lane-chords"><button id="chord-notation" type="button" class="notation-btn" title="Chords in the Italian names or in letters"></button><span>Chords</span></span>
-            <span class="lane-name lane-bars">Bars</span>
+            <span class="lane-name lane-bars"><button id="deselect-range" type="button" class="deselect-btn range" title="Deselect the stretch chosen on the bar numbers" hidden>Deselect</button><span>Bars</span></span>
             <div id="tl-side-tools" class="tl-side-tools"></div>
           </div>
           <div id="tl-rows"></div>

@@ -71,6 +71,7 @@ export class Editor {
     this.on = false;
     this.sel = null; // {anchor, lo, hi}: bar indexes
     this.clip = []; // chords copied: the slots of each bar (null for none)
+    this.clipSections = []; // the sections copied with them (2.15), from their first bar
     this.target = null; // the bars whose chords the fields show
     this.shown = []; // what each field showed
     this.slot = 0; // the beat being written (its slot)
@@ -696,6 +697,8 @@ export class Editor {
     this.loadInput();
   }
 
+  // The chords of the bars selected, and the sections wholly in them (2.15:
+  // a section selected is copied with its name).
   copy() {
     this.commitInput();
     if (!this.sel) return;
@@ -705,12 +708,17 @@ export class Editor {
       const slots = this.grid.chords.get(i);
       this.clip.push(slots ? [...slots] : null);
     }
-    this.say(trn(this.clip.length, "Chords of {n} bar copied.", "Chords of {n} bars copied."));
+    // From the first bar copied.
+    this.clipSections = (this.grid.sections || []).filter((s) => s.lo >= lo && s.hi <= hi).map((s) => ({ ...s, lo: s.lo - lo, hi: s.hi - lo }));
+    const n = this.clip.length;
+    this.say(this.clipSections.length ? trn(n, "Chords and sections of {n} bar copied.", "Chords and sections of {n} bars copied.") : trn(n, "Chords of {n} bar copied.", "Chords of {n} bars copied."));
   }
 
   // Into the bars selected, repeating the chords copied to fill them; one bar
   // selected: all the chords copied, from there. Copied in another meter,
-  // they move to the beats of this one.
+  // they move to the beats of this one. Sections copied take the place of
+  // those in the bars pasted into, repeated with the chords (each one whole),
+  // numbered again in order (Verse 2 after Verse 1); one step to undo.
   paste() {
     this.commitInput();
     if (!this.sel || !this.clip.length) return;
@@ -718,9 +726,16 @@ export class Editor {
     let { lo, hi } = this.sel;
     if (lo === hi) hi = Math.min(this.grid.bars.length - 1, lo + n - 1);
     const meter = this.grid.meter;
+    const copied = this.clipSections || [];
+    if (copied.length) {
+      let sections = setSection(this.grid.sections, lo, hi, null);
+      for (let base = lo; base <= hi; base += n) for (const s of copied) if (base + s.hi <= hi) sections = setSection(sections, base + s.lo, base + s.hi, s);
+      this.ctx.app.grid = { ...this.grid, sections };
+    }
     this._setChords(lo, hi, (k) => (this.clip[k % n] ? toSlots(this.clip[k % n], meter) : null));
     this.select({ anchor: lo, lo, hi }, { reveal: true });
-    this.say(trn(hi - lo + 1, "Chords pasted into {n} bar.", "Chords pasted into {n} bars."));
+    const m = hi - lo + 1;
+    this.say(copied.length ? trn(m, "Chords and sections pasted into {n} bar.", "Chords and sections pasted into {n} bars.") : trn(m, "Chords pasted into {n} bar.", "Chords pasted into {n} bars."));
   }
 
   // Keys while editing (the focus is not in a field). Returns true if used.
@@ -817,6 +832,7 @@ export class Editor {
     $("chord-slots").classList.toggle("off", !sel);
     $("chord-copy").disabled = !sel;
     $("chord-paste").disabled = !sel || !this.clip.length;
+    $("deselect-bars").hidden = !sel; // beside Sections (a computer, 2.15)
 
     // Under the grid's tools: changes not saved yet, or no grid.
     const status = $("edit-status");

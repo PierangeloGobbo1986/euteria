@@ -239,7 +239,7 @@ export class RecordingFlow {
     if (!t) return;
     this.dirty = true;
     takesChanged();
-    notice(tr("{take} deleted.", { take: t.title }), "ok", 3000);
+    notice(tr("{take} deleted.", { take: t.name || t.title }), "ok", 3000);
   }
 
   // A track out of the song, kept for undo (a take; a stem or the Original
