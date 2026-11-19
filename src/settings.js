@@ -18,16 +18,19 @@ export function settingsKey(song, file) {
 
 // Tempo, key and loop as EUTERIA (Python) saved them in the project. The key
 // counts only if the project was left transposed; EUTERIA Web transposes live.
+// The fine tuning in cents (2.18) is EUTERIA Web's own.
 export function practiceFromManifest(manifest) {
   const p = (manifest && manifest.practice) || {};
   const tempo = +p.tempo_percent;
   const semitones = p.key_mode === "transposed" ? Math.round(+p.transpose_semitones || 0) : 0;
+  const cents = Math.round(+p.transpose_cents || 0);
   const loop = p.loop && typeof p.loop === "object" ? p.loop : null;
   const start = loop ? +loop.start : NaN;
   const end = loop ? +loop.end : NaN;
   return {
     rate: isFinite(tempo) && tempo > 0 ? clamp(tempo / 100, 0.5, 2) : 1,
     semitones: clamp(semitones, -12, 12),
+    cents: clamp(cents, -50, 50),
     loop: isFinite(start) && isFinite(end) && end > start ? { on: true, start, end } : { on: false, start: 0, end: 0 },
   };
 }

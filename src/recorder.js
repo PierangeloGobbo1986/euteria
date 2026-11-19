@@ -654,7 +654,7 @@ export class Recorder {
         input: cur.label,
         recorded: new Date().toISOString(),
         tempoPercent: Math.round(r * 100),
-        semitones: begin.semitones,
+        semitones: Math.round(begin.semitones * 100) / 100, // with the fine tuning (2.18), in hundredths
         pastedFrom: "",
         bus: "pitched",
         info: null,

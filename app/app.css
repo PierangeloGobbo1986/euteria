@@ -552,6 +552,16 @@ button.step-btn .icon { width: 18px; height: 18px; }
 [data-layout=computer] #ribbon .chart-row .num { height: 32px; }
 [data-layout=computer] #ribbon .chart-row .num input { width: 2em; font-size: 14px; }
 [data-layout=computer] #ribbon .key-group .rnote { max-width: 190px; }
+[data-layout=computer] #ribbon .tuner { gap: 4px; }
+[data-layout=computer] #ribbon button.tuner-step { width: 28px; height: 32px; border-radius: 8px; }
+[data-layout=computer] #ribbon button.tuner-step .icon { width: 14px; height: 14px; }
+[data-layout=computer] #ribbon .tuner-scale { flex: none; width: 200px; height: 32px; border-radius: 8px; }
+[data-layout=computer] #ribbon .tuner-sign { top: 3px; font-size: 11px; }
+[data-layout=computer] #ribbon .tuner-needle { top: 4px; bottom: 4px; }
+[data-layout=computer] #ribbon .tuner .num { margin-left: 2px; }
+[data-layout=computer] #ribbon .tuning-row { gap: 6px; }
+[data-layout=computer] #ribbon #tune-zero { width: 32px; padding: 0; }
+[data-layout=computer] #ribbon .tuning-reading { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 [data-layout=computer] #ribbon .tempo-bpm { font-size: 12px; }
 [data-layout=computer] #ribbon .input-row { flex: none; }
 [data-layout=computer] #ribbon #input-select { max-width: 340px; }
@@ -1039,6 +1049,28 @@ button.eye .icon { width: 18px; height: 18px; }
 .num.time .value { padding: 0 4px; }
 .num.key select { width: auto; min-width: 2.6em; text-align: center; text-align-last: center; padding: 0 4px; cursor: pointer; }
 .num.key select option { background: var(--panel); color: var(--text); }
+
+/* The tuner of the fine tuning (2.18): ◀ its scale ▶ and the cents. The scale has a tick
+   every 10 cents (♭ to the left, ♯ to the right), the band of in tune in the middle, and
+   the needle where the song sounds now, green when in tune. */
+.tuner { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tuner.disabled .tuner-scale { opacity: .55; }
+button.tuner-step { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 10px; color: var(--text); }
+button.tuner-step .icon { width: 18px; height: 18px; }
+.tuner-scale { position: relative; flex: 1 1 auto; min-width: 120px; height: 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--field); overflow: hidden; }
+.tuner-ticks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tuner-ticks line { stroke: var(--dim); stroke-width: 1; }
+.tuner-ticks .tuner-mid { stroke: var(--muted); stroke-width: 1.5; }
+.tuner-ticks .tuner-zone { fill: rgba(143, 207, 154, .18); }
+.tuner-sign { position: absolute; top: 4px; font-size: 12px; line-height: 1; color: var(--muted); pointer-events: none; }
+.tuner-sign.flat { left: 7px; }
+.tuner-sign.sharp { right: 7px; }
+.tuner-needle { position: absolute; top: 5px; bottom: 5px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--gold); box-shadow: 0 0 0 1px rgba(14, 18, 20, .6); transition: left .15s ease-out; }
+.tuner-needle.in-tune { background: var(--ok); }
+.num.tuner-value .value { min-width: 0; padding: 0 8px 0 6px; }
+.num.tuner-value input { width: 2.2em; }
+.tuning-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tuning-reading { min-width: 0; }
 
 .field { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .field .label { width: 54px; flex: none; color: var(--muted); font-size: 14px; }

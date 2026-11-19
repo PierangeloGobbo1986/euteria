@@ -10,7 +10,8 @@
 // the tempo of a song is found as it opens (app/detect.js), and the grid made
 // from it.
 
-import { Player, KEY_RANGE, MIN_LOOP } from "../src/player.js";
+import { Player, KEY_RANGE, CENTS_RANGE, MIN_LOOP } from "../src/player.js";
+import { tuningHz, wrapCents } from "../src/tuning.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
 import { openZip } from "../src/zip.js";
 import { manifestPatch, buildProject, zipLayout, composeEdited, composeProject, crc32Blob } from "../src/zipwrite.js";
@@ -20,7 +21,7 @@ import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSe
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake, trackNameOf, TRACK_NAME_MAX } from "../src/project.js";
 import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
-import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, keyField, confirmTap, icon, setIcon } from "./controls.js";
+import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, keyField, tunerField, confirmTap, icon, setIcon } from "./controls.js";
 import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { getNotation, setNotation } from "../src/chordnames.js";
@@ -112,7 +113,7 @@ const app = {
   // Edge may write to), ready (what Share project needs, read from file)}.
   current: null,
   adding: false,
-  exports: [], // {id, owner, file, url, name, seconds, tempo, key, selected}: in memory only, until the page closes
+  exports: [], // {id, owner, file, url, name, seconds, tempo, key, cents, selected}: in memory only, until the page closes
   renameDeclined: new Set(), // "old name|new name": the save dialog of a rename cancelled (saveSong())
   exportShown: null, // the export the status under Export MP3 is about
   exportStatus: null, // that status: {text (or a function giving it), kind}
@@ -142,6 +143,10 @@ const app = {
   baseKept: new Set(), // those of them in the song when it was last saved (a copy too)
   clipboard: null, // what Copy took, for Paste in this song or another: copyClips()
   copying: false,
+  // The tuning of the open song (2.18, src/tuning.js), measured once its
+  // panel is open: {state: "idle" | "measuring" | "done" | "none" (no clear
+  // tuning), cents (−50 to 50 against A 440 Hz), confidence}.
+  tuning: { state: "idle" },
   sharing: false, // the share sheet is open
   projectMessage: null, // the last message of Save or Share project: {text, kind, until}
 };
@@ -436,7 +441,7 @@ const METRO_SWITCHES = ["on", "muteOn", "mode", "silence", "random", "countIn"];
 // Values whose changes close together make one step (− and + pressed again and
 // again; the tracks switched on and off, so that the double-click that renames
 // one, switching it and back, leaves no step, 2.15).
-const CONTINUOUS = /^(gain:|sync:|metro\.|trainer\.)|^(rate|key|grid|on)$/;
+const CONTINUOUS = /^(gain:|sync:|metro\.|trainer\.)|^(rate|key|cents|grid|on)$/;
 const MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || ua);
 
 const steps = new History({
@@ -465,6 +470,7 @@ function songState() {
     takesDirty: recording.dirty,
     rate: player.rate,
     semitones: player.semitones,
+    cents: player.cents,
     loop: { ...player.loop },
     metro: {
       on: m.on,
@@ -535,6 +541,7 @@ function stateChanges(a, b) {
   if (names) out.push("names");
   if (a.rate !== b.rate) out.push("rate");
   if (a.semitones !== b.semitones) out.push("key");
+  if (a.cents !== b.cents) out.push("cents");
   if (a.loop.on !== b.loop.on || a.loop.start !== b.loop.start || a.loop.end !== b.loop.end) out.push("loop");
   const m = a.metro;
   const n = b.metro;
@@ -588,6 +595,7 @@ async function restoreState(s, fields) {
   if (has("takes") || fields.some((f) => f.startsWith("sync:"))) recording.dirty = s.takesDirty;
   if (has("rate")) player.setRate(s.rate, true);
   if (has("key")) player.setSemitones(s.semitones, true);
+  if (has("cents")) player.setCents(s.cents, true);
   if (has("loop")) player.setLoop(s.loop, true);
   if (fields.some((f) => METRO_FIELD.test(f))) {
     const m = s.metro;
@@ -684,6 +692,7 @@ function stepLabel(fields, a, b) {
   if (gain) return tr("the volume of {track}", { track: title(gain.slice(5)) });
   if (has("rate")) return tr("the tempo");
   if (has("key")) return tr("the key");
+  if (has("cents")) return tr("the tuning");
   if (has("loop")) return tr("the loop");
   if (fields.some((f) => METRO_FIELD.test(f))) return tr("the metronome");
   if (fields.some((f) => TRAINER_FIELD.test(f))) return tr("the speed training");
@@ -759,6 +768,7 @@ async function openSong(file, origin) {
     const key = settingsKey(song, file);
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
+    app.tuning = { state: "idle" }; // measured again (renderTuning())
     app.credits = readCredits(song.manifest && song.manifest.music && song.manifest.music.chart_credits);
     clipsAreSaved();
     // The details of the chord chart typed since the song was last saved.
@@ -1103,6 +1113,59 @@ function renderTempoFound() {
   if (!show) return;
   const text = tr("{bpm} BPM at this speed", { bpm: fmtBpm(g.bpm * player.rate) });
   if (line.textContent !== text) line.textContent = text;
+}
+
+// ----- the fine tuning (2.18) ---------------------------------------------------------
+//
+// Tempo and key: the song moved by whole cents too (player.setCents()), shown
+// as a tuner shows a string: the needle where the song sounds now against
+// A 440 Hz, that is its own tuning (measured, src/tuning.js) with the
+// correction. The song is measured the first time the panel is open with it
+// (a second or two, the song playing on); Tune then moves it to 440 Hz.
+
+const ABOUT_CONFIDENCE = 0.3; // under it, the tuning found is "about"
+
+async function measureTuning() {
+  const song = player.song;
+  app.tuning = { state: "measuring" };
+  scheduleUi();
+  let r;
+  try {
+    r = await player.measureTuning();
+  } catch (error) {
+    console.error(error);
+    r = null;
+  }
+  if (player.song !== song || app.tuning.state !== "measuring") return;
+  // undefined: an export took the tracks meanwhile, measured again later.
+  app.tuning = r === undefined ? { state: "idle" } : r ? { state: "done", cents: r.cents, confidence: r.confidence } : { state: "none" };
+  scheduleUi();
+}
+
+function renderTuning(song, locked) {
+  const t = app.tuning;
+  const own = !!song && ownAudio();
+  if (own && t.state === "idle" && ribbon && ribbon.current === "tempo" && !player.busy && !player.recording) measureTuning();
+  const known = own && t.state === "done";
+  app.fields.tuning.needle(known ? wrapCents(t.cents + player.cents) : null);
+  let text = "";
+  if (song && !own) text = tr("No audio of the song to measure.");
+  else if (t.state === "measuring") text = tr("Measuring the tuning of the song…");
+  else if (t.state === "none") text = tr("Tuning not measured: too few clear notes.");
+  else if (known) {
+    const vars = { cents: fmtSigned(Math.round(t.cents)), hz: tuningHz(t.cents).toFixed(1) };
+    text = t.confidence < ABOUT_CONFIDENCE ? tr("Song: about {cents} cents (A {hz} Hz)", vars) : tr("Song: {cents} cents (A {hz} Hz)", vars);
+  }
+  const reading = $("tuning-reading");
+  if (reading.textContent !== text) reading.textContent = text;
+  setAttr(reading, "title", text);
+  $("tune-song").disabled = !known || locked || player.cents === -Math.round(t.cents);
+  $("tune-zero").disabled = !song || locked || !player.cents;
+}
+
+// Tune: the needle in the middle, the song at A 440 Hz (to the cent).
+function tuneSong() {
+  if (app.tuning.state === "done") player.setCents(-Math.round(app.tuning.cents));
 }
 
 // ----- speed training ------------------------------------------------------------------
@@ -1716,6 +1779,9 @@ function buildControls() {
   $("tempo-box").append(f.tempo.el);
   f.key = keyField({ label: tr("Key"), min: KEY_RANGE[0], max: KEY_RANGE[1], onChange: (v) => player.setSemitones(v) });
   $("key-box").append(f.key.el);
+  // The fine tuning (2.18): ◀ ▶ either side of the tuner's scale, the cents beside it.
+  f.tuning = tunerField({ label: tr("Tuning"), min: CENTS_RANGE[0], max: CENTS_RANGE[1], onChange: (v) => player.setCents(v) });
+  $("tuning-box").append(f.tuning.el);
   // The cards of the tracks, dragged by their grip to another place; the
   // bar at the top of the screen stays in view.
   sortable(phone ? $("tracks") : $("tl-rows"), {
@@ -1842,6 +1908,7 @@ function relabelControls() {
   f.tempo.relabel(tr("Tempo"));
   if (f.tempoSlider) f.tempoSlider.setAttribute("aria-label", tr("Tempo"));
   f.key.relabel(tr("Key"));
+  f.tuning.relabel(tr("Tuning"));
 }
 
 function updateZoom() {
@@ -2425,7 +2492,7 @@ async function exportMp3() {
     });
     for (const e of songExports()) e.selected = false; // the new one is the selection
     const owner = app.current ? app.current.owner : null;
-    app.exports.unshift({ id: Date.now(), owner, file: r.file, url: URL.createObjectURL(r.file), name: r.name, seconds: r.seconds, tempo: r.tempo, key: r.key, selected: true });
+    app.exports.unshift({ id: Date.now(), owner, file: r.file, url: URL.createObjectURL(r.file), name: r.name, seconds: r.seconds, tempo: r.tempo, key: r.key, cents: r.cents, selected: true });
     while (app.exports.length > MAX_EXPORTS) URL.revokeObjectURL(app.exports.pop().url);
     setExportStatus(() => {
       const lowered = r.reductionDb >= 0.1 ? ` · ${tr("lowered {db} dB to avoid clipping", { db: r.reductionDb.toFixed(1) })}` : "";
@@ -2477,7 +2544,9 @@ function renderExports() {
       e.selected = tick.checked;
       updateExportActions();
     });
-    const meta = `${fmtTime(e.seconds)} · ${fmtSize(e.file.size)} · ${tr("tempo {tempo}%", { tempo: e.tempo })} · ${tr("key {key}", { key: `${e.key > 0 ? "+" : ""}${e.key}` })}`;
+    // The key, with the fine tuning when there is one (2.18): "+2 −23c".
+    const key = `${e.key > 0 ? "+" : ""}${e.key}${e.cents ? ` ${fmtSigned(e.cents)}c` : ""}`;
+    const meta = `${fmtTime(e.seconds)} · ${fmtSize(e.file.size)} · ${tr("tempo {tempo}%", { tempo: e.tempo })} · ${tr("key {key}", { key })}`;
     const del = h("button", { type: "button", class: "export-del", title: tr("Delete"), "aria-label": tr("Delete {title}", { title: e.name }), text: "✕" });
     del.addEventListener("click", () => deleteExports([e]));
     box.append(
@@ -2692,6 +2761,7 @@ function practiceState() {
   return {
     rate: player.rate,
     semitones: player.semitones,
+    cents: player.cents,
     loop: player.loop,
     gridVisible: app.gridVisible,
     tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr), name: t.name || null })),
@@ -3275,7 +3345,7 @@ async function newEmptyProject() {
   if (!name) return;
   const length = (EMPTY_BARS * 4 * 60) / EMPTY_BPM;
   const grid = newGrid(EMPTY_BPM, "4/4", length);
-  const state = { rate: 1, semitones: 0, loop: null, gridVisible: true, tracks: [] };
+  const state = { rate: 1, semitones: 0, cents: 0, loop: null, gridVisible: true, tracks: [] };
   const manifest = emptyProjectManifest({ id: newProjectId(), title: name, grid, state, length });
   const blob = await buildProject([{ name: "manifest.json", data: manifestBytes(manifest) }]);
   const file = new File([blob], `${safeName(name)}.euteria`, { type: "application/zip" });
@@ -3805,6 +3875,9 @@ function updateUi() {
   }
   f.key.set(player.semitones);
   f.key.disable(!song || locked);
+  f.tuning.set(player.cents);
+  f.tuning.disable(!song || locked);
+  renderTuning(song, locked);
   // The metronome: as songDefaults() with every song that opens, the speed
   // trainer off; its tempo follows the grid again when the grid's tempo,
   // anchor or meter change; its clicks made again when the grid or the beats
@@ -3948,6 +4021,7 @@ function renderRibbon() {
   const changed = [];
   if (song && Math.abs(player.rate - 1) > 1e-6) changed.push(`${Math.round(player.rate * 100)}%`);
   if (song && player.semitones) changed.push(`${fmtSigned(player.semitones)}st`); // semitones
+  if (song && player.cents) changed.push(`${fmtSigned(player.cents)}c`); // the fine tuning, cents (2.18)
   badge("tempo", changed.join(" · "));
   badge("metro", "", song && metro.on ? "on" : "");
   badge("record", "", player.recording ? "rec" : "");
@@ -4134,6 +4208,9 @@ function wire() {
       if (!e.detail && !$(other).hidden) $(other).focus();
     });
   $("export").addEventListener("click", exportMp3);
+  // The fine tuning (2.18): Tune, and 0 (no correction).
+  $("tune-song").addEventListener("click", tuneSong);
+  $("tune-zero").addEventListener("click", () => player.setCents(0));
   wireChart();
   $("download").addEventListener("click", downloadSelected);
   $("share").addEventListener("click", shareSelected);

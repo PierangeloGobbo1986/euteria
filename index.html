@@ -346,6 +346,20 @@
                 <p id="key-hint" class="hint rnote">The key moves every instrument except the drums.</p>
               </div>
             </div>
+            <!-- The fine tuning (2.18): the song's own tuning measured against A at 440 Hz and
+                 shown as a tuner shows it (its needle where the song sounds now), moved a cent at a
+                 time either way (app/controls.js tunerField()); Tune puts the needle in the middle,
+                 0 leaves the song as it was recorded. -->
+            <div class="rgroup tuning-group">
+              <h3 class="rgroup-title">Tuning</h3>
+              <div id="tuning-box" class="control-box"></div>
+              <div class="tuning-row">
+                <button id="tune-song" type="button" class="small" title="Move the song to A at 440 Hz: the needle goes to the middle">Tune</button>
+                <button id="tune-zero" type="button" class="small" title="No correction: the song as it was recorded"><span translate="no">0</span></button>
+                <p id="tuning-reading" class="rnote tuning-reading" aria-live="polite"></p>
+              </div>
+              <p class="hint rtip">A song may have been recorded a little above or below A at 440 Hz. EUTERIA measures how far, and the needle shows how the song sounds now against 440 Hz: ◀ and ▶ move it a cent at a time (held, faster), Tune puts it in the middle, 0 takes the correction away. The correction moves every instrument except the drums, as the key does, and goes into the MP3 exported.</p>
+            </div>
           </div>
         </section>
 

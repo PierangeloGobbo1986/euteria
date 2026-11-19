@@ -75,7 +75,8 @@ open, the keys of the player do nothing and the page under it stays still.
   icon, the help texts as the tooltips of their groups; the MP3 files exported open in a
   small window under their button. In a narrow window the tabs show their short names
   and the groups go on more rows, a row starting as the first one does. The tabs say what
-  their panels are doing: the tempo and the key changed (*80% · +2st*, in semitones), bars
+  their panels are doing: the tempo, the key and its fine tuning changed (*80% · +2st · −23c*,
+  in semitones and cents), bars
   and chords hidden (a closed eye), the metronome on, a take being recorded, a detection, a
   separation (its percentage) or an export running. *Shortcuts*, at the right of the tabs
   (2.14, *Keys* before), shows in a small window the keys and what the mouse does in the
@@ -126,11 +127,31 @@ needs that memory takes it back, and the oldest steps go with it.
 
 In both layouts: tracks on and off (*All stems*, *Original only*), volumes up to 200%
 (+20 dB, − and + by 5%, as the tempo), tempo 50-200%, key ±12 semitones (drums
-excluded), a loop with its start and end. Every track card has a grip (⠿) at its left:
+excluded) and its fine tuning ±50 cents (2.18, below), a loop with its start and end. Every track card has a grip (⠿) at its left:
 dragging it puts the track elsewhere, the Original Track and the takes as the stems, and
 on a computer the row of the track in the timeline follows (on the grip, the arrow keys
 ↑ ↓ move the track too; the keys 1 to 9 follow the order). The order is kept with the
 song and written in the project by *Save*.
+
+**The fine tuning** (2.18). A song may have been recorded a little above or below A at
+440 Hz (an old record, a band tuned by ear, a tape that ran a little fast), and an
+instrument tuned to 440 then sounds out of tune with it by some tens of cents. *Tuning*,
+right of *Key* in *Tempo and key* (under it on the phone), works as a tuner: its needle
+shows where the song sounds now against A at 440 Hz, in the middle (and green) when in
+tune, ♭ to the left and ♯ to the right, half a semitone (50 cents) at the ends. The song's
+own tuning is measured the first time the panel is open with it (a second or so, the song
+playing on; see *How the tuning is measured*), and the line beside *Tune* says it (*Song:
++23 cents (A 445.9 Hz)*, *about* when the song gives little to go by, or that it could not
+be measured). ◀ and ▶ move the song a cent at a time, faster and faster when held; the
+field beside them takes a number (50 either way at most); *Tune* puts the needle in the
+middle, the song at 440 Hz (the correction is the song's tuning turned round: −23 cents);
+*0* takes the correction away. The correction moves every instrument but the drums, as
+the key does, and adds to it (*+2st · −23c*); the needle does not move with the key, which
+goes by whole semitones. It is one step to undo (a press held on ◀ or ▶ is one step), it is
+kept with the song in the browser and saved in the project, the MP3 exported has it, and a
+take recorded with it is brought back to the song's own tuning, as one recorded in another
+key. A project with no audio of its own has nothing to measure: the correction still
+works, by ear.
 
 **The names of the tracks** (2.15). A click on a track's name switches it on or off; a
 double-click (a double tap on the phone, F2 on a computer) turns the name into a field, in
@@ -467,11 +488,11 @@ to put it. *Detect tempo*, *Detect chords* and the separation have nothing to an
 there; the metronome, the takes, the bars and chords, the loop and the MP3 export work
 as in any song. Its manifest has no audio members, only `audio.length_seconds`.
 
-Every song reopens as it was left (tracks, volumes, tempo, key, loop, position, zoom,
+Every song reopens as it was left (tracks, volumes, tempo, key and fine tuning, loop, position, zoom,
 the part in view, the grid shown or hidden, the edits not saved yet): the settings are
 kept in the browser. A project opened for the first time starts from the practice
-settings saved in it: tempo, transposition (if the project was left transposed), loop,
-volumes and the tracks that are on.
+settings saved in it: tempo, transposition (if the project was left transposed), the fine
+tuning, loop, volumes and the tracks that are on.
 
 On a smartphone or a tablet it is best to add EUTERIA to the Home Screen (in Safari:
 Share, then *Add to Home Screen*; in Chrome: the menu, then *Add to Home screen* or
@@ -723,7 +744,8 @@ travel as files (for example over WhatsApp).
 - **Takes** recorded in EUTERIA Web go in the same zip as `audio/takes/<id>.mp3` (320
   kbps stereo, or 160 kbps mono for a mono input), listed in `manifest.audio.takes` with
   their title, the moment of the song where they begin (`start`, seconds), `sync_ms`,
-  the input, the date, and the tempo and key they were recorded at; `audio.tracks` gives
+  the input, the date, and the tempo and key they were recorded at (the key with the fine
+  tuning, in hundredths of a semitone, 2.18); `audio.tracks` gives
   their exact length, delay and padding as for the stems, and `practice` their volume
   and switch (keys `take-<id>`). A take pasted (2.11) has no input and gives the song
   it was copied from (`pasted_from`), and `bus: "drums"` when it comes from the drums
@@ -770,6 +792,9 @@ travel as files (for example over WhatsApp).
   holds those given of `title` (only when it is not the project's name), `subtitle`,
   `composer`, `arranger`, `lyricist` and `copyright` (one line each, up to 120
   characters); without it the chart is titled with the project's name.
+- **The fine tuning** (2.18): `practice.transpose_cents`, written by EUTERIA Web when the
+  song is moved by some cents (−50 to 50, on top of the key of `transpose_semitones`);
+  without it, none. The song's own tuning, measured, is not saved: it is measured again.
 
 ## Phase 0 test page (`lab/`)
 
@@ -865,6 +890,27 @@ recorded it plays on past the end of the song (silence, and the clicks), and it 
 the level of what plays before the clicks are added, so that the take's level follows
 the song, not the metronome; the song lasts as long as its longest track, takes
 included, or the length an empty project was given.
+
+**The fine tuning** (2.18) is not left to Signalsmith's transposition, which moves each
+partial by a step worked out from the peak of the spectrum around it: for steps of a few
+cents that is a few cents wrong, and differently for each partial (measured: a tone of
+220 Hz moved by −23 cents came out −15, −23 and −21 cents in its first three partials, a
+tune once in tune no longer quite in tune with itself). The pitched bus is read through a
+resampler instead (`_vs…` in `src/engine-core.js`: a windowed sinc of 24 taps, Kaiser,
+tabulated at 256 fractions of a sample), a little faster or slower along the playback path,
+so that every partial moves by exactly as much, and its stretcher makes up the time; the
+whole semitones stay with the stretcher. Each block the pitched bus takes as many song
+samples as the drums, so the two keep together. Signalsmith also takes the frame before as
+the one an interval earlier when the input moved by an interval give or take a sample
+(`reanalysePrev`): with a time ratio that near 1 the pitch follows the time, as on tape,
+and a correction of a cent or two at 100% was lost. Within 3 samples an interval of 1 the
+song moves at the resampler's own step, as a tape does, a hair off the tempo asked (0.2% at
+most: 1 cent down at 100% plays at 99.94%), and the pitched stretcher keeps time exactly as
+it is. Checked offline, rendered with the engine: every partial within 0.05 cents of the
+cents asked, at 50% to 150% and near a ratio of 1; the clicks of the two buses within a
+millisecond of each other, round the loop too; a tone as loud, the highs of noise kept; a
+change of the cents while it plays without a jump. Without a fine tuning the pitched bus
+is read as before.
 
 The stretchers run at Signalsmith's default quality (120 ms blocks every 30 ms) with
 the work of each block spread over the audio callbacks: done all at once, it
@@ -1059,6 +1105,30 @@ Tested in the browser on synthesised chord sequences with the real model; the te
 model there was the stand-in. BTC was trained on pop and rock songs: it finds roots
 and major or minor well, sevenths and the rarer chords less often.
 
+## How the tuning is measured
+
+`src/tuning.js` (2.18) finds how far the notes of a song lie from those of the equal
+temperament with A at 440 Hz. It listens to the stems that are not the drums, or else to
+the Original Track (never to the takes): the whole song up to 96 seconds, a longer one in
+twelve excerpts of 8 seconds spread over it, copied from the audio thread four seconds at
+a time while the song plays on. In frames of about 0.19 s (8192 samples at 44.1 kHz, a
+Hann window, each half over the one before; quiet frames left out) it takes the peaks of
+the spectrum between 80 Hz and 2 kHz within 40 dB of the strongest, and refines the
+frequency of each with a parabola through the log magnitudes of its bin and of the two
+beside it (less the small bias a Hann window gives the parabola). Each peak's distance from
+the nearest note, in cents, goes into a histogram of tenths of a cent that wraps around (a
+note 50 cents sharp is the next one 50 cents flat), weighted by the peak's strength against
+the frame's strongest. The highest point of the histogram, smoothed over 6 cents, is the
+tuning, refined by the mean of the distances within 10 cents of it (again from the mean
+found, five times). The overtones of a note in tune are in tune too, but for the 5th and
+the 7th (14 and 31 cents flat), which make smaller bumps out of the way. The confidence is
+the share of the weight near the tuning, against what an even spread would put there:
+drums and noise spread their peaks evenly; under 0.12 there is no tuning to give (white
+noise gives about 0.01), under 0.3 it is *about*. Checked offline: notes made out of tune
+on purpose (chords, vibrato, inharmonic overtones, noise, drums) found within 0.6 cents;
+eight recordings moved by known amounts (resampled) followed within 0.8 cents; about a
+quarter of a second of work for two minutes of music on a computer.
+
 ## Visit counter
 
 `index.html` loads the counter of GoatCounter (`euteria.goatcounter.com`), which counts
@@ -1167,7 +1237,7 @@ file and kept (`app.baseFiles`), and they go back in as they were if it comes ba
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
   (`grid.js`), the clips of the tracks (`clips.js`), chord names read and transposed (`chordnames.js`), the chord chart in
-  MusicXML (`musicxml.js`), the metronome's
+  MusicXML (`musicxml.js`), the tuning of a song measured (`tuning.js`), the metronome's
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
@@ -1213,7 +1283,8 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8; its
   title, composer and other details, 2.16), undo and redo (2.9), cutting, moving and fading
   the tracks on a computer (2.10; several clips together, on several tracks, 2.17), copying
-  and pasting them from one project to another (2.11).
+  and pasting them from one project to another (2.11), the fine tuning in cents, with the
+  song's own tuning measured (2.18).
 - **Phase 3**: band features.
 
 ## Licence

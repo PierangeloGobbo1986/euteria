@@ -63,7 +63,7 @@ function takeFromManifest(t, info = null) {
     input: t.input ? String(t.input) : "",
     recorded: t.recorded ? String(t.recorded) : "",
     tempoPercent: isFinite(+t.tempo_percent) ? +t.tempo_percent : 100,
-    semitones: isFinite(+t.transpose_semitones) ? Math.round(+t.transpose_semitones) : 0,
+    semitones: isFinite(+t.transpose_semitones) ? Math.round(+t.transpose_semitones * 100) / 100 : 0, // the fine tuning in the hundredths (2.18)
     // Pasted (2.11) from the tracks of a song (its name), the drums with the
     // drums (not transposed).
     pastedFrom: t.pasted_from ? String(t.pasted_from) : "",

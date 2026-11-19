@@ -1,6 +1,6 @@
 // Small building blocks of the app's interface: number fields with − and +
 // buttons (hold a button to repeat; tap the number to type it), the key
-// selector, and formatting helpers.
+// selector, the tuner of the fine tuning, and formatting helpers.
 
 import { tr } from "../src/i18n.js";
 
@@ -50,6 +50,9 @@ const ICONS = {
   // Copy and paste: two sheets, one over the other; a clipboard.
   copy: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></g>',
   paste: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="3.5" rx="1"/></g>',
+  // Left and right, as on a tuner (the fine tuning).
+  left: '<path d="M15.5 5.5 7.5 12l8 6.5z"/>',
+  right: '<path d="M8.5 5.5 16.5 12l-8 6.5z"/>',
 };
 
 export function icon(name) {
@@ -293,6 +296,68 @@ export function keyField({ label, min = -12, max = 12, onChange = () => {} }) {
       select.setAttribute("aria-label", tr("{label} in semitones", { label: name }));
       dec.setAttribute("aria-label", tr("{label}: down a semitone", { label: name }));
       inc.setAttribute("aria-label", tr("{label}: up a semitone", { label: name }));
+    },
+  };
+}
+
+// The fine tuning (2.18), as a tuner: ◀ and ▶ either side of its scale move
+// the song down or up a cent (hold to repeat); the needle on the scale is
+// where the song sounds against A 440 Hz (needle(); hidden while that is not
+// known), green when in tune, ♭ to the left and ♯ to the right; beside it the
+// correction in cents, a field to type in (↑ ↓ step it).
+export const IN_TUNE_CENTS = 2.5;
+export function tunerField({ label, min = -50, max = 50, onChange = () => {} }) {
+  const down = h("button", { type: "button", class: "step tuner-step", "aria-label": tr("{label}: down a cent", { label }) }, icon("left"));
+  const up = h("button", { type: "button", class: "step tuner-step", "aria-label": tr("{label}: up a cent", { label }) }, icon("right"));
+  const ticks = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  ticks.setAttribute("viewBox", "0 0 100 20");
+  ticks.setAttribute("preserveAspectRatio", "none");
+  ticks.setAttribute("class", "tuner-ticks");
+  let marks = `<rect class="tuner-zone" x="${50 - IN_TUNE_CENTS}" y="0" width="${2 * IN_TUNE_CENTS}" height="20"/>`;
+  for (let c = 10; c < 100; c += 10) marks += `<line x1="${c}" x2="${c}" y1="${c === 50 ? 2 : c % 20 ? 14 : 11}" y2="20" vector-effect="non-scaling-stroke"${c === 50 ? ' class="tuner-mid"' : ""}/>`;
+  ticks.innerHTML = marks;
+  const needle = h("span", { class: "tuner-needle", hidden: true });
+  const scale = h("div", { class: "tuner-scale", "aria-hidden": "true" }, ticks, h("span", { class: "tuner-sign flat", text: "♭" }), h("span", { class: "tuner-sign sharp", text: "♯" }), needle);
+  const field = numberField({ label: tr("{label} in cents", { label }), min, max, unit: "cent", buttons: false, inputMode: "text", format: fmtSigned, onChange, className: "tuner-value" });
+  const move = (d) => {
+    const v = Math.min(max, Math.max(min, field.value + d));
+    if (v === field.value) return;
+    field.set(v);
+    onChange(v);
+  };
+  holdRepeat(down, () => move(-1));
+  holdRepeat(up, () => move(1));
+  const el = h("div", { class: "tuner" }, down, scale, up, field.el);
+  let shown = null;
+  return {
+    el,
+    scale,
+    get value() {
+      return field.value;
+    },
+    set(v) {
+      field.set(v);
+    },
+    // The song as it sounds against A 440 Hz, in cents (−50 to 50), or null.
+    needle(cents) {
+      const v = cents === null || !isFinite(cents) ? null : Math.round(Math.min(50, Math.max(-50, cents)) * 10) / 10;
+      if (v === shown) return;
+      shown = v;
+      needle.hidden = v === null;
+      if (v === null) return;
+      needle.style.left = `${v + 50}%`;
+      needle.classList.toggle("in-tune", Math.abs(v) < IN_TUNE_CENTS);
+    },
+    disable(off) {
+      field.disable(off);
+      down.disabled = off;
+      up.disabled = off;
+      el.classList.toggle("disabled", off);
+    },
+    relabel(name) {
+      field.relabel(tr("{label} in cents", { label: name }));
+      down.setAttribute("aria-label", tr("{label}: down a cent", { label: name }));
+      up.setAttribute("aria-label", tr("{label}: up a cent", { label: name }));
     },
   };
 }

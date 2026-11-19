@@ -23,14 +23,15 @@ function stemOrder(tracks) {
 
 // The practice settings as EUTERIA (Python) saves them (_save_music_settings),
 // with the order of every track (track_order) that EUTERIA Web adds.
-// state: {rate, semitones, loop: {on, start, end}, gridVisible, tracks: [{key,
-// on, gain, clips, name}], credits}, the tracks in their order (clips: as the
+// state: {rate, semitones, cents, loop: {on, start, end}, gridVisible,
+// tracks: [{key, on, gain, clips, name}], credits}, the tracks in their order (clips: as the
 // manifest has them, src/clips.js clipsToManifest(), or null; name: the one
 // given to the track in EUTERIA Web, track_names, or null; credits: the
 // details of the chord chart, music.chart_credits).
 // The key counts as "transposed": EUTERIA Web transposes live, and
 // EUTERIA (Python), without transposed tracks in the file, plays the
-// original key.
+// original key. The fine tuning (2.18, cents) is transpose_cents, there
+// only when the song is moved by some.
 function practiceFields(base, grid, state) {
   const percent = round(state.rate * 100, 1);
   const volumes = { ...(base.track_volumes || {}) };
@@ -61,6 +62,8 @@ function practiceFields(base, grid, state) {
   };
   if (Object.keys(names).length) out.track_names = names;
   else delete out.track_names;
+  if (state.cents) out.transpose_cents = state.cents;
+  else delete out.transpose_cents;
   return out;
 }
 

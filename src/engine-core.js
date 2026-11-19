@@ -98,6 +98,71 @@
   const MIN_LOOP_SECONDS = 0.25;
   const MAX_BLOCK = 2048; // largest block render() accepts
 
+  // The fine tuning (2.18): the part of the key under half a semitone either
+  // way is not left to the stretcher, which moves each partial by a step
+  // worked out from the peak of the spectrum around it, a few cents wrong
+  // for such small steps (partials once in tune no longer are). The pitched
+  // bus is read a little faster or slower instead (resampled along the
+  // playback path), every partial moving by exactly as much, and the
+  // stretcher makes up the time; it keeps the whole semitones. The
+  // resampler: a windowed sinc (Kaiser) of VS_TAPS taps, cut a little under
+  // Nyquist, tabulated at VS_PHASES fractions of a sample (and in between,
+  // linearly), each one summing to 1.
+  const VS_HALF = 12;
+  const VS_TAPS = 2 * VS_HALF;
+  const VS_PHASES = 256;
+  const VS_CUTOFF = 0.94; // of Nyquist
+  const VS_BETA = 8;
+  // Signalsmith measures how far each partial turned from a frame taken an
+  // interval before the new one; when the input moved by an interval give or
+  // take a sample, it takes the frame before as that one (reanalysePrev), and
+  // the pitch then follows the time, as on tape: with a time ratio within
+  // VS_NEAR samples an interval of 1 (and not 1), small steps of the key
+  // would be lost (and its own transposition is no better for steps that
+  // small). There the song moves at the resampler's step itself, as on tape,
+  // a hair (0.2% at most) off the tempo asked, and the pitched bus's
+  // stretcher keeps time exactly as it is (_retime()).
+  const VS_NEAR = 3;
+  const VS_TABLE = new Float32Array((VS_PHASES + 1) * VS_TAPS);
+  const VS_DIFF = new Float32Array(VS_PHASES * VS_TAPS); // row p + 1 less row p
+  (function vsTable() {
+    const i0 = (x) => {
+      let s = 1;
+      let t = 1;
+      for (let k = 1; k < 50; k++) {
+        t *= (x / (2 * k)) ** 2;
+        s += t;
+        if (t < 1e-12 * s) break;
+      }
+      return s;
+    };
+    const norm = i0(VS_BETA);
+    for (let p = 0; p <= VS_PHASES; p++) {
+      // Tap t multiplies the sample t - VS_HALF + 1 after the one at or before the point.
+      const f = p / VS_PHASES;
+      let sum = 0;
+      for (let t = 0; t < VS_TAPS; t++) {
+        const x = t - VS_HALF + 1 - f;
+        const u = x / VS_HALF;
+        const w = Math.abs(u) >= 1 ? 0 : i0(VS_BETA * Math.sqrt(1 - u * u)) / norm;
+        const s = x === 0 ? VS_CUTOFF : Math.sin(Math.PI * VS_CUTOFF * x) / (Math.PI * x);
+        VS_TABLE[p * VS_TAPS + t] = s * w;
+        sum += s * w;
+      }
+      for (let t = 0; t < VS_TAPS; t++) VS_TABLE[p * VS_TAPS + t] /= sum;
+    }
+    for (let i = 0; i < VS_DIFF.length; i++) VS_DIFF[i] = VS_TABLE[i + VS_TAPS] - VS_TABLE[i];
+  })();
+
+  // The key in semitones as the whole semitones (the stretcher's) and the rest,
+  // under half a semitone either way (the resampler's): 1.77 is 2 and −0.23;
+  // ±0.5 stays with the resampler.
+  function pitchParts(semitones) {
+    const whole = Math.sign(semitones) * Math.ceil(Math.abs(semitones) - 0.5) || 0;
+    const fine = semitones - whole;
+    return [whole, Math.abs(fine) < 1e-6 ? 0 : fine];
+  }
+
   // The metronome's click: a sine burst with its octave, higher for an
   // accent, with a fast attack and a short decay; the levels are those of a
   // volume of 100%, which goes up to 200%.
@@ -132,6 +197,7 @@
       m._setFormantBase(0);
       this.inputLatency = m._inputLatency();
       this.outputLatency = m._outputLatency();
+      this.interval = Math.round(INTERVAL_SECONDS * sampleRate); // output samples between frames
       // Input and output buffers: room for the priming window and for a block.
       this.bufferLength = Math.max(this.inputLatency + this.outputLatency, 2 * MAX_BLOCK + 2);
       const pointer = m._setBuffers(this.channels, this.bufferLength);
@@ -209,7 +275,8 @@
       this.frac = 0;
       this.startOut = 0; // where playback last (re)started
       this.sinceStart = 0; // output samples produced since then
-      this.rate = 1;
+      this.rate = 1; // the song samples an output sample: the tempo asked, or as _retime() has it
+      this.wantedRate = 1; // the tempo asked
       this.semitones = 0;
       this.loop = { on: false, start: 0, end: 0 };
       this.loopA = 0;
@@ -428,11 +495,23 @@
     }
 
     setRate(rate) {
-      this.rate = Math.min(2, Math.max(0.5, +rate || 1));
+      this.wantedRate = Math.min(2, Math.max(0.5, +rate || 1));
+      this._retime();
     }
 
     setSemitones(semitones) {
       this.semitones = Math.min(24, Math.max(-24, +semitones || 0));
+      this._retime();
+    }
+
+    // The tempo the song moves at: the one asked, or, with a fine tuning
+    // whose resampler step is within VS_NEAR samples an interval of it (see
+    // there), that step itself.
+    _retime() {
+      const [, fine] = pitchParts(this.semitones);
+      const r = 2 ** (fine / 12);
+      const near = fine !== 0 && Math.abs(this.wantedRate / r - 1) < VS_NEAR / this.buses[0].s.interval;
+      this.rate = near ? r : this.wantedRate;
     }
 
     setLoop(on, start, end) {
@@ -504,13 +583,19 @@
       }
     }
 
-    // Primes a bus with the window around "out", so it joins in step.
+    // Primes a bus with the window around "out", so it joins in step. The
+    // pitched bus with a fine tuning (2.18) is read through the resampler.
     _prime(bus) {
       const s = bus.s;
       s.views();
-      s.setSemitones(bus.name === "pitched" ? this.semitones : 0);
-      this._mix(bus, this.out - this.outputLatency, this.windowLength, s.input[0], s.input[1]);
-      s.prime(this.windowLength, this.rate);
+      const [whole, fine] = pitchParts(this.semitones);
+      bus.vsOn = bus.name === "pitched" && fine !== 0;
+      if (bus.vsOn) this._vsPrime(bus, this._vsPlan(whole, fine));
+      else {
+        s.setSemitones(bus.name === "pitched" ? whole : 0);
+        this._mix(bus, this.out - this.outputLatency, this.windowLength, s.input[0], s.input[1]);
+        s.prime(this.windowLength, this.rate);
+      }
       bus.active = true;
     }
 
@@ -550,18 +635,28 @@
       this.frac += this.rate * n;
       const k = Math.floor(this.frac);
       this.frac -= k;
+      const [whole, fine] = pitchParts(this.semitones);
       for (let b = 0; b < this.buses.length; b++) {
         const bus = this.buses[b];
         if (!bus.hasAudio) {
           bus.active = false;
           continue;
         }
-        if (!bus.active) this._prime(bus);
+        // A fine tuning set while the pitched bus is read straight: primed
+        // again, through the resampler (back to none, it stays there, at 1).
+        if (!bus.active || (fine !== 0 && bus.name === "pitched" && !bus.vsOn)) this._prime(bus);
         const s = bus.s;
         s.views();
-        s.setSemitones(bus.name === "pitched" ? this.semitones : 0);
-        this._mix(bus, this.feed, k, s.input[0], s.input[1]);
-        s.stream(k, n, out0, out1);
+        if (bus.vsOn) {
+          const plan = this._vsPlan(whole, fine);
+          s.setSemitones(plan.semitones);
+          bus.vs.r = plan.r;
+          s.stream(this._vsBlock(bus, k, plan.near ? n : 0, s.input[0], s.input[1]), n, out0, out1);
+        } else {
+          s.setSemitones(bus.name === "pitched" ? whole : 0);
+          this._mix(bus, this.feed, k, s.input[0], s.input[1]);
+          s.stream(k, n, out0, out1);
+        }
       }
       if (this.measureTracks) {
         this.preL.set(out0.subarray(0, n));
@@ -746,21 +841,153 @@
     }
 
     // Mixes `count` samples of the bus's tracks along the playback path from
-    // song sample `from` (following the loop) into dst0/dst1 from index 0.
-    _mix(bus, from, count, dst0, dst1) {
-      dst0.fill(0, 0, count);
-      dst1.fill(0, 0, count);
+    // song sample `from` (following the loop) into dst0/dst1 from index `at`.
+    _mix(bus, from, count, dst0, dst1, at = 0) {
+      dst0.fill(0, at, at + count);
+      dst1.fill(0, at, at + count);
       let x = from;
       let o = 0;
       while (o < count) {
         let len = count - o;
         const bounded = this.loop.on && x < this.loopB;
         if (bounded) len = Math.min(len, this.loopB - x);
-        this._mixRange(bus, x, len, dst0, dst1, o);
+        this._mixRange(bus, x, len, dst0, dst1, at + o);
         o += len;
         x += len;
         if (bounded && x >= this.loopB) x = this.loopA;
       }
+    }
+
+    // `x` moved forward by d samples along the playback path, going round the
+    // loop as many times as it takes.
+    _path(x, d) {
+      if (this.loop.on && this.loopB > this.loopA) {
+        while (x < this.loopB && x + d >= this.loopB) {
+          d -= this.loopB - x;
+          x = this.loopA;
+        }
+      }
+      return x + d;
+    }
+
+    // ----- the resampler of the fine tuning (2.18) ---------------------------
+    //
+    // bus.vs: the pitched bus's own samples along the playback path from song
+    // sample `base` (f0, f1: `len` of them), the next sample to make at `q`
+    // (counted from base, a fraction: it moves by `r` a sample made), the
+    // song samples given so far ending at `end` (from base). Each block the
+    // bus takes as many song samples as the drums (k), so they keep together:
+    // about k / r samples made of them, which the stretcher spreads over the
+    // block (time ratio rate / r), the whole semitones its own.
+
+    // How the pitched bus is read with the key's `fine` part (semitones): the
+    // resampler's step r (song samples a sample made), the stretcher's
+    // semitones, and whether the song moves at that step (near, see
+    // VS_NEAR): the stretcher then keeps time exactly as it is.
+    _vsPlan(whole, fine) {
+      const r = 2 ** (fine / 12);
+      return { r, semitones: whole, near: Math.abs(this.rate - r) < 1e-12 };
+    }
+
+    _vsState() {
+      const cap = Math.ceil(this.windowLength * 1.1) + 4 * MAX_BLOCK + 4 * VS_TAPS + 64;
+      return { f0: new Float32Array(cap), f1: new Float32Array(cap), base: 0, len: 0, q: 0, end: 0, r: 1 };
+    }
+
+    // The window around "out" made through the resampler: its first sample
+    // at `out - outputLatency * r`, so that the next output is "out", as a
+    // bus read straight has it.
+    _vsPrime(bus, plan) {
+      const s = bus.s;
+      const v = bus.vs || (bus.vs = this._vsState());
+      const r = plan.r;
+      s.setSemitones(plan.semitones);
+      v.r = r;
+      const q0 = this.out - this.outputLatency * r;
+      v.base = Math.floor(q0) - VS_HALF;
+      v.len = 0;
+      v.q = q0 - v.base;
+      const n = this.windowLength;
+      this._vsFill(bus, Math.floor(v.q + (n - 1) * r) + VS_HALF + 2);
+      this._vsMake(bus, n, s.input[0], s.input[1]);
+      v.end = v.q;
+      this._vsDrop(bus);
+      s.prime(n, this.rate / r);
+    }
+
+    // The block's k song samples, made into the stretcher's input; returns
+    // how many: as many as they make, or `exactly` (the stretcher's time
+    // ratio 1: the song's own k come out even over the blocks).
+    _vsBlock(bus, k, exactly, dst0, dst1) {
+      const v = bus.vs;
+      v.end += k;
+      const m = exactly || Math.min(bus.s.bufferLength, Math.max(0, Math.ceil((v.end - v.q) / v.r - 1e-9)));
+      if (m) {
+        this._vsFill(bus, Math.floor(v.q + (m - 1) * v.r) + VS_HALF + 2);
+        this._vsMake(bus, m, dst0, dst1);
+      }
+      this._vsDrop(bus);
+      return m;
+    }
+
+    // The bus's samples mixed in, up to index `upto` (from base).
+    _vsFill(bus, upto) {
+      const v = bus.vs;
+      const need = upto + 1 - v.len;
+      if (need <= 0) return;
+      if (v.len + need > v.f0.length) {
+        // Never with the room _vsState() gives; just in case.
+        const f0 = new Float32Array(v.len + need + MAX_BLOCK);
+        const f1 = new Float32Array(f0.length);
+        f0.set(v.f0.subarray(0, v.len));
+        f1.set(v.f1.subarray(0, v.len));
+        v.f0 = f0;
+        v.f1 = f1;
+      }
+      this._mix(bus, this._path(v.base, v.len), need, v.f0, v.f1, v.len);
+      v.len += need;
+    }
+
+    // m samples made from q on, into dst0/dst1.
+    _vsMake(bus, m, dst0, dst1) {
+      const v = bus.vs;
+      const f0 = v.f0;
+      const f1 = v.f1;
+      const r = v.r;
+      let q = v.q;
+      for (let j = 0; j < m; j++, q += r) {
+        const i = Math.floor(q);
+        const pf = (q - i) * VS_PHASES;
+        const p = Math.floor(pf);
+        const w = pf - p;
+        const row = p * VS_TAPS;
+        let x = i - VS_HALF + 1;
+        let a0 = 0;
+        let a1 = 0;
+        for (let t = 0; t < VS_TAPS; t++, x++) {
+          const h = VS_TABLE[row + t] + w * VS_DIFF[row + t];
+          a0 += f0[x] * h;
+          a1 += f1[x] * h;
+        }
+        dst0[j] = a0;
+        dst1[j] = a1;
+      }
+      v.q = q;
+    }
+
+    // The samples no sample to make needs any more, let go.
+    _vsDrop(bus) {
+      const v = bus.vs;
+      const drop = Math.floor(v.q) - VS_HALF;
+      if (drop <= 0) return;
+      if (v.len > drop) {
+        v.f0.copyWithin(0, drop, v.len);
+        v.f1.copyWithin(0, drop, v.len);
+      }
+      v.len = Math.max(0, v.len - drop);
+      v.q -= drop;
+      v.end -= drop;
+      v.base = this._path(v.base, drop);
     }
 
     _mixRange(bus, x, len, dst0, dst1, offset) {

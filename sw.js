@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v50";
+const CACHE = "euteria-app-v51";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -78,6 +78,7 @@ const SHELL = [
   "src/stft.js",
   "src/take-sync.js",
   "src/tempo.js",
+  "src/tuning.js",
   "src/zip.js",
   "src/zipwrite.js",
   "lib/signalsmith-stretch/signalsmith-module.js",

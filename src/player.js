@@ -1,7 +1,7 @@
 // The player of the app: one audio context and one engine for the whole
 // session, the song that is open, its tracks (the takes recorded over it
-// included) and the practice controls (tempo, key, loop), and the MP3
-// export. No user interface here: the page listens to `onupdate` (something
+// included) and the practice controls (tempo, key and its fine tuning in
+// cents, loop), and the MP3 export. No user interface here: the page listens to `onupdate` (something
 // shown changed) and `onsettings` (a setting worth saving changed).
 //
 // While a take is being recorded (src/recorder.js) nothing may move the song
@@ -14,11 +14,14 @@ import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder, gainToSlider } from "./project.js";
 import { int16Peaks, PEAK_BUCKET } from "./peaks.js";
 import { clipsOf, clipsEnd, normalize, sameClips, bake, EDGE_FADE_SECONDS } from "./clips.js";
+import { TuningMeter, TUNING, tuningExcerpts } from "./tuning.js";
 import { tr } from "./i18n.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
 const TEMPO_RANGE = [0.5, 2];
 export const KEY_RANGE = [-12, 12];
+export const CENTS_RANGE = [-TUNING.range, TUNING.range]; // the fine tuning (2.18)
+const TUNING_PIECE_SECONDS = 4; // the audio measured for the tuning, copied this much at a time
 const NEW_LOOP_SECONDS = 8;
 const GROW_SECONDS = 10; // a take past the end: the song grows by this much at a time
 const MIN_CLIP_SECONDS = 0.02; // the shortest a clip may be
@@ -110,6 +113,7 @@ export class Player {
     this.playing = false;
     this.rate = 1;
     this.semitones = 0;
+    this.cents = 0; // the fine tuning, with the key (2.18)
     this.loop = { on: false, start: 0, end: 0 };
     // The metronome as the engine has it (setMetronome()), and the bars of
     // count-in before playback and recording start.
@@ -288,6 +292,7 @@ export class Player {
     this.playing = false;
     this.rate = 1;
     this.semitones = 0;
+    this.cents = 0;
     this.loop = { on: false, start: 0, end: 0 };
     engine.setRate(1);
     engine.setSemitones(0);
@@ -342,7 +347,7 @@ export class Player {
   settings() {
     const tracks = {};
     for (const t of this.tracks) tracks[t.key] = { on: t.on, gain: t.gain };
-    return { v: 1, tracks, order: this.tracks.map((t) => t.key), rate: this.rate, semitones: this.semitones, loop: { ...this.loop }, position: this.position };
+    return { v: 1, tracks, order: this.tracks.map((t) => t.key), rate: this.rate, semitones: this.semitones, cents: this.cents, loop: { ...this.loop }, position: this.position };
   }
 
   // Applies saved settings (any part may be missing).
@@ -360,6 +365,7 @@ export class Player {
     }
     if (isFinite(s.rate)) this.setRate(s.rate, true);
     if (isFinite(s.semitones)) this.setSemitones(s.semitones, true);
+    if (isFinite(s.cents)) this.setCents(s.cents, true);
     if (s.loop) this.setLoop(s.loop, true);
     if (isFinite(s.position) && s.position < this.song.duration - 1) this.seek(s.position, true);
     this._update();
@@ -464,6 +470,41 @@ export class Player {
     } finally {
       this.drawing = false;
     }
+  }
+
+  // The tuning of the song (2.18, src/tuning.js), from the stems that are
+  // not the drums, or else the Original Track; never the takes, which are
+  // played by the user. A long song is measured in excerpts spread over it.
+  // The audio is copied from the audio thread a few seconds at a time, the
+  // song playing on. {cents, confidence, frames, peaks}; null with no song
+  // audio, or no clear tuning in it; undefined when the song closed, or an
+  // export took its tracks, meanwhile (to measure again later).
+  async measureTuning() {
+    const song = this.song;
+    if (!song || !this.engine || this.busy) return undefined;
+    const pitched = this.tracks.filter((t) => STEM_NAMES.includes(t.key) && t.key !== "drums");
+    const sources = pitched.length ? pitched : this.tracks.filter((t) => t.key === "original");
+    if (!sources.length) return null;
+    const sr = this.context.sampleRate;
+    const meter = new TuningMeter(sr);
+    const piece = Math.round(TUNING_PIECE_SECONDS * sr);
+    for (const [from, to] of tuningExcerpts(Math.max(...sources.map((t) => t.length)), sr)) {
+      meter.gap();
+      for (let at = from; at < to; at += piece) {
+        const end = Math.min(to, at + piece);
+        const mono = new Float32Array(end - at);
+        for (const t of sources) {
+          if (this.song !== song || this.busy) return undefined;
+          const channels = await this.engine.copyTrack(t.key, at, end);
+          if (!channels || !channels.length) continue; // gone meanwhile
+          const k = 1 / (32768 * channels.length);
+          for (const c of channels) for (let i = 0; i < c.length; i++) mono[i] += c[i] * k;
+        }
+        if (this.song !== song || this.busy) return undefined;
+        meter.add(mono);
+      }
+    }
+    return meter.result();
   }
 
   // ----- takes -------------------------------------------------------------------
@@ -797,8 +838,24 @@ export class Player {
   setSemitones(semitones, quiet = false) {
     if (this.locked) return;
     this.semitones = clamp(Math.round(+semitones || 0), KEY_RANGE[0], KEY_RANGE[1]);
-    if (this.engine) this.engine.setSemitones(this.semitones);
+    if (this.engine) this.engine.setSemitones(this.pitch);
     if (!quiet) this._changed();
+  }
+
+  // The fine tuning (2.18): the key moved by whole cents too, either way up
+  // to half a semitone, so that a song recorded a little above or below
+  // A 440 Hz sounds at it (or anywhere else).
+  setCents(cents, quiet = false) {
+    if (this.locked) return;
+    this.cents = clamp(Math.round(+cents || 0), CENTS_RANGE[0], CENTS_RANGE[1]) || 0; // never −0
+    if (this.engine) this.engine.setSemitones(this.pitch);
+    if (!quiet) this._changed();
+  }
+
+  // The key and the fine tuning together, in semitones (the engine, the
+  // export, the takes recorded take fractions of one).
+  get pitch() {
+    return this.semitones + this.cents / 100;
   }
 
   // ----- loop ----------------------------------------------------------------------
@@ -849,7 +906,7 @@ export class Player {
     const fullOn = !!original;
     // As the fields show them: tempo in whole percent, volume in percent; or
     // cut in clips.
-    const changed = fullOn && (Math.round(this.rate * 100) !== 100 || this.semitones !== 0 || gainToSlider(original.gain) !== 100 || !!original.clips);
+    const changed = fullOn && (Math.round(this.rate * 100) !== 100 || this.pitch !== 0 || gainToSlider(original.gain) !== 100 || !!original.clips);
     if (!stems.length && !takes.length && !changed) {
       let text;
       if (!fullOn) text = tr("No track is switched on. Switch on the tracks you want to export.");
@@ -867,7 +924,7 @@ export class Player {
     try {
       lent = await this._lend(keys);
       const reply = await runRenderWorker(
-        { type: "export", tracks: lent, sampleRate: this.context.sampleRate, rate: this.rate, semitones: this.semitones, bitrate: 320, seconds: this.song.duration },
+        { type: "export", tracks: lent, sampleRate: this.context.sampleRate, rate: this.rate, semitones: this.pitch, bitrate: 320, seconds: this.song.duration },
         onProgress
       );
       lent = null;
@@ -881,6 +938,7 @@ export class Player {
         fullOn: fullOn && !withOriginal,
         tempo: Math.round(this.rate * 100),
         key: this.semitones,
+        cents: this.cents,
       };
     } catch (error) {
       this._restore(error.tracks || lent || []);
