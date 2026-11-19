@@ -1830,8 +1830,8 @@ function buildControls() {
   } else {
     // On a computer the tracks are the rows of the timeline; at the top of the
     // column of the tracks, beside the bars and the time scale, All stems and
-    // Original only.
-    $("tl-side-tools").prepend($("quick"));
+    // Original only (after the eye, there while the bars and chords are hidden).
+    $("ruler-eye").after($("quick"));
     $("tl-hint").before($("tracks-note"));
   }
 }
@@ -3728,6 +3728,24 @@ function updateUi() {
   setAttr(bigEye, "aria-pressed", String(app.gridVisible));
   setAttr(bigEye, "title", eye.title);
   bigEye.disabled = detection.running;
+  // The same eye beside DO RE MI… (a computer, 2.17), and beside the time
+  // scale while the bars and chords are hidden, their lanes with them.
+  for (const [id, shown] of [
+    ["lane-eye", hasGrid && app.gridVisible],
+    ["ruler-eye", hasGrid && !app.gridVisible],
+  ]) {
+    const b = $(id);
+    b.hidden = !shown;
+    if (!shown) continue;
+    const name = app.gridVisible ? "eye" : "eyeClosed";
+    if (b.dataset.icon !== name) {
+      setIcon(b, name);
+      b.dataset.icon = name;
+    }
+    setAttr(b, "aria-pressed", String(app.gridVisible));
+    setAttr(b, "title", eye.title);
+    b.disabled = detection.running;
+  }
   $("bars-view-group").hidden = !hasGrid;
   // Deselect beside Bars, while a stretch is chosen there with the loop off.
   $("deselect-range").hidden = !(song && app.timeline.range && !player.loop.on);
@@ -4104,6 +4122,17 @@ function wire() {
   };
   $("grid-eye").addEventListener("click", toggleGrid);
   $("bars-eye").addEventListener("click", toggleGrid);
+  // The eye beside DO RE MI… hides its own lane: the focus goes to the one
+  // beside the time scale, and back.
+  for (const [id, other] of [
+    ["lane-eye", "ruler-eye"],
+    ["ruler-eye", "lane-eye"],
+  ])
+    $(id).addEventListener("click", (e) => {
+      toggleGrid();
+      updateUi();
+      if (!e.detail && !$(other).hidden) $(other).focus();
+    });
   $("export").addEventListener("click", exportMp3);
   wireChart();
   $("download").addEventListener("click", downloadSelected);
@@ -4164,6 +4193,13 @@ function onKey(e) {
   if (!phone && plain && (e.key === "v" || e.key === "V") && app.clipboard) {
     e.preventDefault();
     if (!e.repeat) pasteClips();
+    return;
+  }
+  // Ctrl+A, ⌘A: every clip of every track selected (2.17), to move, trim,
+  // fade, cut or delete them all.
+  if (!phone && plain && (e.key === "a" || e.key === "A")) {
+    e.preventDefault();
+    if (!e.repeat) app.timeline.selectAllClips();
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;

@@ -91,7 +91,8 @@ open, the keys of the player do nothing and the page under it stays still.
   a take (again: stop), 1 to 9 switch a track on or off, + and − zoom, 0 the whole song,
   Ctrl+S (⌘S on a Mac) save, Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (⌘Z and ⇧⌘Z on a
   Mac), Escape lets go of what is selected, F2 on a track's name renames it; for the clips,
-  C cut at the playhead, X delete, Ctrl+C copy, Ctrl+V paste (⌘C and ⌘V on a Mac).
+  Ctrl+A select all of them (2.17), C cut at the playhead, X delete, Ctrl+C copy, Ctrl+V
+  paste (⌘A, ⌘C and ⌘V on a Mac).
 
 **Messages** (a song opening, the progress of a detection, of a separation or of a
 download, a save, an error) open in a band under the bar at the top: with a song open,
@@ -214,8 +215,11 @@ view there.
 **The clips of the tracks** (2.10.0, on a computer). Every track, stems, Original Track
 and takes alike, is played as its clips: at first one, the track whole. The strip at the
 top of its row has a block for each clip, over the part of the waveform it plays. A click
-on a block selects that clip (shift-click: more of them, on any track; *Escape* lets them
-go; clips and bars selected for their chords never go together). **C**, or *Cut* in the
+on a block selects that clip (shift-click, or Ctrl-click, ⌘-click on a Mac, 2.17: more of
+them, on any track, a click again on one of them leaving it out; **Ctrl+A**, ⌘A: every
+clip of every track, 2.17; *Escape* lets them go; clips and bars selected for their chords
+never go together). Whatever is done to one of the clips selected is done to all of them
+together: moved, trimmed and faded (2.17 for these two), cut, deleted, copied. **C**, or *Cut* in the
 tab *Tracks* (2.14: the tools of the clips there, each with its key under its name, and
 how to use them beside them), cuts the clips selected at the playhead: place it with a
 click in the waveform, which keeps the clip selected, then C; the part after the playhead
@@ -229,9 +233,14 @@ tracks would, and the one moved last is on top. A click where they overlap takes
 top, a click again on it the one under it, and so on round; shortening one (its edges) is
 the way to keep them apart. Dragging the
 edges of a block shortens or lengthens the clip, to the eighth note, as far as the
-track's audio goes; where an edge lies inside another clip, the edge is taken first. The knobs under the strip, at the corners of the clip selected or of
+track's audio goes; where an edge lies inside another clip, the edge is taken first. With
+several clips selected (2.17), the same edge of each of them moves as much as the one
+dragged, each as far as its own audio goes; the edge of a clip not selected trims that
+clip alone, and selects it alone. The knobs under the strip, at the corners of the clip selected or of
 the one under the mouse, fade it in and out: the curve and the part it lowers are drawn
-over the waveform. Every change is a step to undo; the audio itself is never touched (a
+over the waveform; with several selected (2.17), each of them gets the same fade, as long
+as the one dragged. Every change is a step to undo (the clips of several tracks changed at
+once are one step); the audio itself is never touched (a
 take or a stem cut keeps its whole audio in the project, and the parts left out come back
 with their edges). An edge that cuts the sound fades over 4 milliseconds, so that it does
 not click; two clips that go on from one another, as a cut leaves them, play on without a
@@ -275,7 +284,12 @@ except for a few seconds after it was moved by hand.
 The eye (*Show*, in the tab *Bars and chords* on a computer; on the phone over the
 timeline, beside *Bars and chords*) shows or hides the sections, the grid lines and the
 chords (open: shown and editable, closed: hidden, a closed eye on the tab; the choice is
-kept with the song, in this browser, and saved in the project). On the phone, when nothing
+kept with the song, in this browser, and saved in the project). On a computer the same eye
+is also at hand in the timeline (2.17): a small square button before the one of the
+notation (*DO RE MI…* or *C D E…*, beside *Chords* in the column of the tracks); with the
+bars and chords hidden their lanes go, and the eye waits
+beside the time scale, before *All stems*, to show them again (the focus of the keyboard
+goes with it). On the phone, when nothing
 is over the waveforms, the line under the timeline says why first: the song has no bars
 yet (*Detect tempo* finds them, on a computer; *Set first beat* makes them by hand), or
 they are hidden, and where the eye is. Bar numbers start from the number saved by
@@ -1198,8 +1212,8 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   on every device, saved in the project (version 0.5, online, being tested). Step 3: the
   chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8; its
   title, composer and other details, 2.16), undo and redo (2.9), cutting, moving and fading
-  the tracks on a computer (2.10), copying and pasting them from one project to another
-  (2.11).
+  the tracks on a computer (2.10; several clips together, on several tracks, 2.17), copying
+  and pasting them from one project to another (2.11).
 - **Phase 3**: band features.
 
 ## Licence

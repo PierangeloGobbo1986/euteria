@@ -736,6 +736,9 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .grid-view[hidden] { display: none; }
 .grid-view-label { font-size: 13px; font-weight: 600; color: var(--muted); }
 button.eye { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 8px; }
+/* The eye of the bars and chords beside DO RE MI… (2.17), square, as high as the lane. */
+.tl-side .lane-eye { flex: none; width: 22px; height: 22px; border-radius: 6px; }
+.tl-side .lane-eye .icon { width: 16px; height: 16px; }
 button.eye .icon { width: 18px; height: 18px; }
 [data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 72px)); }
 /* Beside everything over the tracks: the names of the lanes of the sections,
@@ -770,7 +773,9 @@ button.eye .icon { width: 18px; height: 18px; }
 .tl-side .lane-chords { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: var(--tl-chords, 24px); line-height: var(--tl-chords, 24px); color: #c9b48a; }
 .notation-btn { min-height: 0; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 650; letter-spacing: 0; color: #c9b48a; white-space: nowrap; }
 [data-layout=phone] .notation-btn { height: 44px; min-height: 44px; padding: 0 10px; font-size: 14px; }
-.tl-side-tools { flex: none; height: var(--tl-ruler, 28px); display: flex; flex-direction: column; justify-content: center; }
+.tl-side-tools { flex: none; height: var(--tl-ruler, 28px); display: flex; align-items: center; gap: 6px; }
+.tl-side-tools .quick { flex: 1 1 auto; min-width: 0; }
+.tl-side-tools #ruler-eye { flex: none; width: 28px; padding: 0; }
 /* Beside the overview (2.14): the zoom, named as the lanes. */
 .tl-zoom-slot { position: absolute; top: 0; left: 0; right: 10px; height: var(--tl-over, 26px); display: flex; align-items: center; justify-content: flex-end; }
 .tl-zoom-slot .tool-group { flex-direction: row; align-items: center; gap: 6px; }

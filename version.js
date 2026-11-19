@@ -1,4 +1,4 @@
 // The version of EUTERIA Web, raised with every update published. The page
 // shows it next to the name, and the Update button compares it with the
 // version online (this file, fetched again).
-self.EUTERIA_VERSION = "2.16.0";
+self.EUTERIA_VERSION = "2.17.0";

@@ -107,6 +107,8 @@ const MIN_CLIP = 0.02; // seconds: the shortest a clip may be (src/player.js)
 const fadeShape = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u); // as the engine's
 const FONT = '-apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
 const TAP_SLOP = 6; // pixels a press may move and still be a tap
+// A Mac: ⌘ adds a clip to those selected (Ctrl-click is its right click).
+const MAC = /Mac|iPhone|iPad|iPod/.test((typeof navigator !== "undefined" && navigator.platform) || "");
 // A drag at an edge of the timeline scrolls it (2.15): how near the edge it
 // starts (pixels, inside), and the most it scrolls by in a frame.
 const EDGE_ZONE = { mouse: 8, touch: 24 };
@@ -305,6 +307,14 @@ export class Timeline {
       const row = this.rows.find((r) => r.key === s.key);
       return row && s.i >= 0 && s.i < this._clipsOf(row).length;
     });
+    this.drawTop();
+  }
+
+  // Every clip of every track selected (Ctrl+A, ⌘A, 2.17).
+  selectAllClips() {
+    if (!this.clipsOn) return;
+    this.clipSel = this.rows.flatMap((row) => this._clipsOf(row).map((_, i) => ({ key: row.key, i })));
+    this.onClipSelect(this.clipSelection);
     this.drawTop();
   }
 
@@ -1362,13 +1372,14 @@ export class Timeline {
     return edgeIn || middle || near;
   }
 
-  // A press on the clips: the clip taken is selected (shift: added; one of
-  // several selected stays with them, to drag them all), and the drag starts.
+  // A press on the clips: the clip taken is selected (shift, or Ctrl / ⌘:
+  // added; one of several selected stays with them, so that the drag moves,
+  // trims or fades them all, 2.17), and the drag starts.
   _clipDown(e, p, hit) {
     const key = hit.row.key;
     const was = this._isSelected(key, hit.i);
-    if (hit.part !== "move") this.clipSel = [{ key, i: hit.i }];
-    else if (!was) this.clipSel = e.shiftKey ? [...this.clipSel, { key, i: hit.i }] : [{ key, i: hit.i }];
+    const add = e.shiftKey || (MAC ? e.metaKey : e.ctrlKey);
+    if (!was) this.clipSel = add ? [...this.clipSel, { key, i: hit.i }] : [{ key, i: hit.i }];
     this.onClipSelect(this.clipSelection);
     // Every row with a clip selected, as it was (the drag starts from there).
     const rows = new Map();
@@ -1380,7 +1391,7 @@ export class Timeline {
     // t0: the song time pressed (a drag is measured from there, the view may
     // scroll meanwhile).
     const t0 = this.t(p.x);
-    this.gesture = { kind: "clip", part: hit.part, id: e.pointerId, x0: p.x, t0, key, i: hit.i, was, shift: e.shiftKey, rows, moved: false, step: this.hasGrid ? this._rangeStep(e.pointerType) : null };
+    this.gesture = { kind: "clip", part: hit.part, id: e.pointerId, x0: p.x, t0, key, i: hit.i, was, shift: add, rows, moved: false, step: this.hasGrid ? this._rangeStep(e.pointerType) : null };
     if (e.pointerType === "mouse") this.main.style.cursor = hit.part === "move" ? "grabbing" : "ew-resize";
     this.drawTop();
   }
@@ -1388,8 +1399,10 @@ export class Timeline {
   // The drag of a press on the clips, the pointer at x: the clips selected
   // moved (by the step of the bar numbers, kept where they are against the
   // beats; never before the song), the edge trimmed (to the step), or the
-  // fade made longer or shorter. Shown at once; the track takes them when the
-  // pointer is let go.
+  // fade made longer or shorter. With several selected (2.17) their same
+  // edge moves as much as the one taken (each as far as its audio goes), and
+  // their same fade becomes as long. Shown at once; the tracks take them
+  // when the pointer is let go.
   _clipDrag(g, x, free) {
     const base = g.rows.get(g.key);
     const c = base.clips[g.i];
@@ -1413,14 +1426,25 @@ export class Timeline {
       }
     } else if (g.part === "start" || g.part === "end") {
       const [s, e] = this._clipSpan(base.row, c);
-      const t = snap((g.part === "start" ? s : e) + dt);
-      const out = trimClip(base.clips, g.i, g.part, t - off, base.row.length, MIN_CLIP);
-      base.row.clips = out.clips;
-      base.now = [out.index];
+      const edge = g.part === "start" ? s : e;
+      const delta = snap(edge + dt) - edge;
+      for (const r of g.rows.values()) {
+        let clips = r.clips;
+        for (const i of r.sel) {
+          const at = r.clips[i].at + (g.part === "start" ? 0 : r.clips[i].to - r.clips[i].from);
+          clips = trimClip(clips, i, g.part, at + delta, r.row.length, MIN_CLIP).clips;
+        }
+        r.row.clips = clips;
+        r.now = r.sel;
+      }
     } else {
-      const len = g.part === "fadeIn" ? (c.fadeIn || 0) + dt : (c.fadeOut || 0) - dt;
-      base.row.clips = fadeClip(base.clips, g.i, g.part === "fadeIn" ? "in" : "out", Math.max(0, len));
-      base.now = [g.i];
+      const len = Math.max(0, g.part === "fadeIn" ? (c.fadeIn || 0) + dt : (c.fadeOut || 0) - dt);
+      for (const r of g.rows.values()) {
+        let clips = r.clips;
+        for (const i of r.sel) clips = fadeClip(clips, i, g.part === "fadeIn" ? "in" : "out", len);
+        r.row.clips = clips;
+        r.now = r.sel;
+      }
     }
     this.requestDraw();
   }

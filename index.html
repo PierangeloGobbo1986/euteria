@@ -310,11 +310,11 @@
             <div class="rgroup howto-group">
               <h3 class="rgroup-title">How to</h3>
               <ul class="howto howto-wide">
-                <li data-i18n-html><b>Select</b>: click the strip at the top of a track (shift-click: more clips; Esc: none).</li>
+                <li data-i18n-html><b>Select</b>: click the strip at the top of a track (Esc: none).</li>
                 <li data-i18n-html><b>Move</b>: drag a clip, by the eighth note (Alt: freely).</li>
+                <li data-i18n-html><b>More clips</b>: shift-click (Ctrl+A, ⌘A: all); every change acts on all of them.</li>
+                <li data-i18n-html><b>Edges and fades</b>: drag its edges, or the knobs at its corners.</li>
                 <li data-i18n-html><b>Over another</b>: both play; a click again takes the one under.</li>
-                <li data-i18n-html><b>Shorten or lengthen</b>: drag its edges.</li>
-                <li data-i18n-html><b>Fade in and out</b>: drag the knobs at its corners.</li>
                 <li data-i18n-html><b>Paste</b>: at the playhead, as takes, in this song or another.</li>
               </ul>
             </div>
@@ -564,9 +564,11 @@
                beside the time scale, the buttons of the tracks. -->
           <div id="tl-side" class="tl-side">
             <span class="lane-name lane-sections"><button id="deselect-bars" type="button" class="deselect-btn" title="Deselect the bars selected (Esc)" hidden>Deselect</button><span>Sections</span></span>
-            <span class="lane-name lane-chords"><button id="chord-notation" type="button" class="notation-btn" title="Chords in the Italian names or in letters"></button><span>Chords</span></span>
+            <span class="lane-name lane-chords"><button id="lane-eye" type="button" class="small eye lane-eye" aria-pressed="true" aria-label="Show or hide the bars and chords"></button><button id="chord-notation" type="button" class="notation-btn" title="Chords in the Italian names or in letters"></button><span>Chords</span></span>
             <span class="lane-name lane-bars"><button id="deselect-range" type="button" class="deselect-btn range" title="Deselect the stretch chosen on the bar numbers" hidden>Deselect</button><span>Bars</span></span>
-            <div id="tl-side-tools" class="tl-side-tools"></div>
+            <!-- Beside the time scale: the eye again while the bars and chords are hidden (their
+                 lanes with it), to show them again (2.17); All stems and Original only. -->
+            <div id="tl-side-tools" class="tl-side-tools"><button id="ruler-eye" type="button" class="small eye" aria-pressed="false" aria-label="Show or hide the bars and chords" hidden></button></div>
           </div>
           <div id="tl-rows"></div>
         </div>
