@@ -180,7 +180,7 @@ export class SeparationFlow {
   // The open song can be separated: it has no stems yet.
   get applicable() {
     const { player } = this.ctx;
-    return !!player.song && !player.hasStems && player.tracks.some((t) => t.key === "original");
+    return !!player.song && !player.anyStems && player.tracks.some((t) => t.key === "original");
   }
 
   get supported() {
@@ -385,7 +385,7 @@ export class SeparationFlow {
       state.tracks = [
         { key: "original", on: false, gain: 1, clips: cutAsOriginal },
         ...kept.map((k) => ({ key: k, on: true, gain: 1, clips: cutAsOriginal })),
-        ...player.takes.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: cuts.get(t.key) || null })),
+        ...player.takes.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: cuts.get(t.key) || null, sourceOnly: !!t.sourceOnly })),
       ];
       const grid = app.grid;
       let manifest;

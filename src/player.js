@@ -13,7 +13,7 @@
 import { Engine } from "./engine.js";
 import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExportFileName, takeStartSample, inTrackOrder, gainToSlider } from "./project.js";
 import { int16Peaks, PEAK_BUCKET } from "./peaks.js";
-import { clipsOf, clipsEnd, normalize, sameClips, bake, EDGE_FADE_SECONDS } from "./clips.js";
+import { clipsOf, clipsEnd, normalize, sameClips, bake, sourcesOf, EDGE_FADE_SECONDS } from "./clips.js";
 import { TuningMeter, TUNING, tuningExcerpts } from "./tuning.js";
 import { tr } from "./i18n.js";
 
@@ -274,6 +274,7 @@ export class Player {
       clips: t.clips || null,
       take: t.take || null,
       align: t.align || null,
+      sourceOnly: !!t.sourceOnly, // deleted, its audio kept for the clips of other tracks (2.23)
       peaks: wanted.has(t.key) ? int16Peaks(t.channels, t.length) : null,
     }));
     for (const t of song.tracks) engine.addTrack(t); // hands the PCM to the audio thread
@@ -337,12 +338,62 @@ export class Player {
     this._update();
   }
 
+  // Stems among the tracks shown; anyStems: in the song at all, a stem kept
+  // only as the source of clips of other tracks too (2.23).
   get hasStems() {
+    return this.tracks.some((t) => STEM_NAMES.includes(t.key) && !t.sourceOnly);
+  }
+
+  get anyStems() {
     return this.tracks.some((t) => STEM_NAMES.includes(t.key));
   }
 
   get takes() {
     return this.tracks.filter((t) => t.take);
+  }
+
+  // ----- tracks that lend their audio (2.23) -------------------------------------------
+  //
+  // A clip moved to another track plays the audio of the one it came from
+  // (src/clips.js, its src). That track deleted, its audio stays for it: the
+  // track is only a source then (sourceOnly), shown nowhere, silent, its own
+  // clips none, and saved with the song as such; an undo brings it back.
+
+  // The tracks shown (the rows, the cards, the keys 1 to 9).
+  get shown() {
+    return this.tracks.filter((t) => !t.sourceOnly);
+  }
+
+  // Whether clips of other tracks (shown) play the audio of track `key`.
+  lends(key) {
+    return this.tracks.some((t) => t.key !== key && !t.sourceOnly && sourcesOf(t.clips).has(key));
+  }
+
+  // Track `key` only a source (on), or shown again (off: its clips and its
+  // switch come back as an undo gives them).
+  setSourceOnly(key, on) {
+    const t = this.track(key);
+    if (!t || this.busy || !!t.sourceOnly === !!on) return;
+    t.sourceOnly = !!on;
+    if (on) {
+      t.onBefore = t.on;
+      t.clips = [];
+      t.on = false;
+    } else {
+      // On as it was (an undo then gives it its switch and its clips).
+      t.on = t.onBefore ?? true;
+      delete t.onBefore;
+    }
+    this.engine.setTrack(key, { clips: t.clips, on: t.on });
+    this._updateDuration();
+    this._changed();
+  }
+
+  // The length of the audio of track `key` (samples), for the clips that play
+  // it; undefined without it.
+  audioLength(key) {
+    const t = this.track(key);
+    return t ? t.length : undefined;
   }
 
   // ----- settings ------------------------------------------------------------
@@ -360,7 +411,7 @@ export class Player {
     if (s.tracks) {
       for (const t of this.tracks) {
         const v = s.tracks[t.key];
-        if (!v) continue;
+        if (!v || t.sourceOnly) continue; // only a source (2.23): silent
         if (typeof v.on === "boolean") t.on = v.on;
         if (isFinite(v.gain)) t.gain = clamp(+v.gain, 0, BOOST_CEILING);
         this.engine.setTrack(t.key, { on: t.on, gain: t.gain });
@@ -439,7 +490,7 @@ export class Player {
   _only(test) {
     if (this.busy) return;
     for (const t of this.tracks) {
-      if (t.take) continue;
+      if (t.take || t.sourceOnly) continue;
       t.on = test(t);
       this.engine.setTrack(t.key, { on: t.on });
     }
@@ -451,8 +502,8 @@ export class Player {
   // its samples copied back from the audio thread about ten seconds at a
   // time. Resolves with true once it has its waveform.
   async drawFirstTrack() {
-    if (!this.peakKeys || !this.engine || this.drawing || this.tracks.some((t) => t.peaks)) return false;
-    const t = this.tracks.find((x) => !x.take);
+    if (!this.peakKeys || !this.engine || this.drawing || this.shown.some((t) => t.peaks)) return false;
+    const t = this.shown.find((x) => !x.take);
     if (!t) return false;
     this.drawing = true;
     try {
@@ -485,8 +536,8 @@ export class Player {
   async measureTuning() {
     const song = this.song;
     if (!song || !this.engine || this.busy) return undefined;
-    const pitched = this.tracks.filter((t) => STEM_NAMES.includes(t.key) && t.key !== "drums");
-    const sources = pitched.length ? pitched : this.tracks.filter((t) => t.key === "original");
+    const pitched = this.tracks.filter((t) => STEM_NAMES.includes(t.key) && t.key !== "drums" && !t.sourceOnly);
+    const sources = pitched.length ? pitched : this.tracks.filter((t) => t.key === "original" && !t.sourceOnly);
     if (!sources.length) return null;
     const sr = this.context.sampleRate;
     const meter = new TuningMeter(sr);
@@ -604,12 +655,12 @@ export class Player {
     return Math.round(MIN_CLIP_SECONDS * (this.context ? this.context.sampleRate : 48000));
   }
 
-  // The clips of track `key` (src/clips.js, samples of its own audio; null:
-  // the track whole). Returns whether they changed.
+  // The clips of track `key` (src/clips.js, samples of its own audio, or of
+  // their src; null: the track whole). Returns whether they changed.
   setClips(key, clips) {
     const t = this.track(key);
     if (!t || this.busy || this.recording) return false;
-    const next = normalize(clips, t.length, 1);
+    const next = normalize(clips, t.length, 1, (k) => this.audioLength(k), key);
     if (sameClips(next, t.clips)) return false;
     t.clips = next;
     this.engine.setTrack(key, { clips: next });
@@ -632,12 +683,12 @@ export class Player {
     const start = t.start;
     const audio = [];
     for (const c of list) {
-      const channels = await this.engine.copyTrack(key, c.from, c.to);
+      const channels = await this.engine.copyTrack(c.src || key, c.from, c.to);
       if (!channels || this.track(key) !== t) return null;
       audio.push(channels);
     }
     const edge = Math.max(1, Math.round(EDGE_FADE_SECONDS * this.context.sampleRate));
-    const piece = bake(list, audio, t.length, edge);
+    const piece = bake(list, audio, t.length, edge, (k) => this.audioLength(k));
     return { channels: piece.channels, length: piece.length, start: start + piece.at };
   }
 
@@ -703,7 +754,7 @@ export class Player {
   firstSound() {
     let first = null;
     for (const t of this.tracks) {
-      if (t.take || !t.peaks) continue;
+      if (t.take || !t.peaks || t.sourceOnly) continue;
       const { min, max } = t.peaks;
       const n = max.length;
       const level = new Uint8Array(n);
@@ -942,6 +993,10 @@ export class Player {
     }
     const withOriginal = !stems.length && fullOn;
     const keys = [...stems, ...(withOriginal ? ["original"] : []), ...takes.map((t) => t.key)];
+    // The tracks whose audio their clips play (2.23), lent too, silent
+    // themselves (the Original Track on with the stems, say).
+    const exported = new Set(keys);
+    for (const key of [...keys]) for (const src of sourcesOf((this.track(key) || {}).clips)) if (!keys.includes(src) && this.track(src)) keys.push(src);
     if (this.playing) this.pause();
     this.busy = "exporting";
     this._update();
@@ -949,7 +1004,15 @@ export class Player {
     try {
       lent = await this._lend(keys);
       const reply = await runRenderWorker(
-        { type: "export", tracks: lent, sampleRate: this.context.sampleRate, rate: this.rate, semitones: this.pitch, bitrate: 320, seconds: this.song.duration },
+        {
+          type: "export",
+          tracks: lent.map((t) => (exported.has(t.key) ? t : { ...t, on: false })),
+          sampleRate: this.context.sampleRate,
+          rate: this.rate,
+          semitones: this.pitch,
+          bitrate: 320,
+          seconds: this.song.duration,
+        },
         onProgress
       );
       lent = null;

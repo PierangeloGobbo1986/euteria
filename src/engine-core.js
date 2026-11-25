@@ -34,7 +34,10 @@
  * edge that cuts the sound (a part of the track left out, or moved) fades
  * over EDGE_FADE_SECONDS, so that it does not click; two clips that go on
  * from one another, as a cut leaves them, play on without a break. Clips
- * that overlap play together, added as two tracks are.
+ * that overlap play together, added as two tracks are. A clip may play the
+ * audio of another track (2.23, its src: moved there from it), as its own
+ * track plays (on or off, volume), through the bus of that audio (the drums
+ * are never transposed, wherever they are).
  *
  * The metronome clicks at the song times it is given (the beats of the grid,
  * or the beats found in the song: src/metronome.js), as they come out, so it
@@ -338,22 +341,29 @@
         clips: Array.isArray(clips) ? clips : null,
         parts: null,
       };
-      this._parts(t);
       this.tracks.set(key, t);
+      this._parts(t);
+      this._partsOfBorrowers();
       this._lengthChanged();
     }
 
     // What a track plays: its clips (or itself whole) as parts {from, to (its
-    // own samples), s (the song sample of `from`), fi, fo (the samples faded
-    // in and out)}, an edge that cuts the sound faded over EDGE_FADE_SECONDS.
+    // own samples, or those of src), s (the song sample of `from`), fi, fo
+    // (the samples faded in and out), src (2.23: the key of the track whose
+    // audio it plays, read when it plays: that track may come later, or be
+    // lent for a while), bus (the bus of that audio)}, an edge that cuts the
+    // sound faded over EDGE_FADE_SECONDS.
     _parts(t) {
       const edge = Math.max(1, Math.round(EDGE_FADE_SECONDS * this.sampleRate));
       const clips = t.clips || [{ from: 0, to: t.length, at: 0, fadeIn: 0, fadeOut: 0 }];
       const parts = [];
       for (let i = 0; i < clips.length; i++) {
         const c = clips[i];
+        const src = c.src && c.src !== t.key ? c.src : null;
+        const owner = src ? this.tracks.get(src) : t;
+        const length = owner ? owner.length : Infinity;
         const from = Math.max(0, Math.round(c.from));
-        const to = Math.min(t.length, Math.round(c.to));
+        const to = Math.min(length, Math.round(c.to));
         const n = to - from;
         if (n <= 0) continue;
         const at = Math.round(c.at);
@@ -365,19 +375,26 @@
         for (let j = 0; j < clips.length; j++) {
           if (j === i) continue;
           const q = clips[j];
+          if ((q.src && q.src !== t.key ? q.src : null) !== src) continue;
           if (Math.round(q.to) === from && Math.round(q.at + q.to - q.from) === at) joinedIn = true;
           if (Math.round(q.from) === to && Math.round(q.at) === end) joinedOut = true;
         }
         let fi = Math.max(Math.round(c.fadeIn || 0), from > 0 && !joinedIn ? edge : 0);
-        let fo = Math.max(Math.round(c.fadeOut || 0), to < t.length && !joinedOut ? edge : 0);
+        let fo = Math.max(Math.round(c.fadeOut || 0), to < length && !joinedOut ? edge : 0);
         if (fi + fo > n) {
           const k = n / (fi + fo);
           fi = Math.floor(fi * k);
           fo = Math.floor(fo * k);
         }
-        parts.push({ from, to, s: t.start + at, fi, fo });
+        parts.push({ from, to, s: t.start + at, fi, fo, src, bus: owner ? owner.bus : t.bus });
       }
       t.parts = parts;
+    }
+
+    // The parts of the tracks whose clips play the audio of others, again
+    // (a track came: its length is known now).
+    _partsOfBorrowers() {
+      for (const t of this.tracks.values()) if (t.clips && t.clips.some((c) => c.src && c.src !== t.key)) this._parts(t);
     }
 
     removeTrack(key) {
@@ -388,7 +405,7 @@
     _tracksChanged() {
       this.list = [...this.tracks.values()];
       for (const bus of this.buses) {
-        bus.hasAudio = this.list.some((t) => t.bus === bus.name && t.on && t.gain > 0);
+        bus.hasAudio = this.list.some((t) => t.on && t.gain > 0 && (t.bus === bus.name || t.parts.some((p) => p.bus === bus.name)));
       }
     }
 
@@ -994,9 +1011,11 @@
       const list = this.list;
       for (let j = 0; j < list.length; j++) {
         const t = list[j];
-        if (t.bus !== bus.name || !t.on || t.gain <= 0) continue;
+        if (!t.on || t.gain <= 0) continue;
+        // Each part through the bus of its audio (2.23: a clip of the drums
+        // moved to a take stays untransposed).
         const parts = t.parts;
-        for (let k = 0; k < parts.length; k++) this._mixPart(t, parts[k], x, len, dst0, dst1, offset);
+        for (let k = 0; k < parts.length; k++) if (parts[k].bus === bus.name) this._mixPart(t, parts[k], x, len, dst0, dst1, offset);
       }
     }
 
@@ -1004,12 +1023,16 @@
     // dst1 from `offset`: its own samples from p.from, the first at song
     // sample p.s, faded in over p.fi and out over p.fo.
     _mixPart(t, p, x, len, dst0, dst1, offset) {
+      // The audio it plays: its track's, or another's (2.23); not there (lent
+      // for an export, say): silent.
+      const owner = p.src ? this.tracks.get(p.src) : t;
+      if (!owner || p.to > owner.length) return;
       const n = p.to - p.from;
       const a = Math.max(x, p.s);
       const b = Math.min(x + len, p.s + n);
       if (b <= a) return;
-      const L = t.ch[0];
-      const R = t.ch[1] || t.ch[0];
+      const L = owner.ch[0];
+      const R = owner.ch[1] || owner.ch[0];
       const g = t.gain / 32768;
       const boost = t.gain > 1;
       // Song samples a..b: the part's own i = song - p.s, its audio from + i.

@@ -279,6 +279,22 @@ saved with its clips, a separation gives the stems the cuts of the Original Trac
 phone plays them and shows them in its waveform, without the strip, as it does not edit
 them.
 
+**Clips from one track to another** (2.23.0, on a computer). Dragged up or down, the clips
+selected on one track go to the track the pointer is let go on, where they played in the
+song (the eighth-note step and Alt as for any move): the best passages of several takes
+gathered in one, pieces of the drums in a take. A clip keeps the audio it came with (the
+track it was cut from: moved back there, it is that track's own audio again) and plays as
+the track it is in now plays, when it is on and at its volume, but through the bus of its
+audio, so a piece of the drums moved to a take is still not transposed. Its waveform is
+that audio's, and its edges go as far as that audio goes. The Original Track neither gives
+nor takes clips (the stems play in its place), and clips selected on several tracks move
+only in time. The move is one step to undo, the clips of both tracks in it; the selection
+follows the clips. A track deleted (✕) while clips moved from it play in other tracks stays
+in the song as their source only, and a message says so: shown nowhere, silent, its audio
+saved with the project; it leaves the song once none of them plays it any more (those
+clips deleted, or their tracks), and an undo brings it back. The MP3 export and Copy play
+the clips with the audio they came with.
+
 **Copy and paste** (2.11.0, on a computer): tracks, or parts of them, from one song to
 another, or within the same song. **Ctrl+C** (⌘C on a Mac), or the copy button of
 *Clips*, copies the clips selected, on one track or several, as they sound: their fades
@@ -825,9 +841,14 @@ travel as files (for example over WhatsApp).
   overlap, the last one on top; before, they never did and were in the order they play):
   `from` and `to` (the part
   of the track's own audio, seconds), `at` (where `from` plays, seconds from the track's
-  start: a take's Sync moves its clips with it), `fade_in` and `fade_out` (seconds). A
-  track whole is not listed; an empty list is a track that plays nothing. The audio
-  members stay as they are.
+  start: a take's Sync moves its clips with it; 2.23: it may be negative, a clip moved to a
+  take placed before the take begins), `fade_in` and `fade_out` (seconds), and `src` for a
+  clip moved from another track (2.23): the key of the track whose audio it plays, `from`
+  and `to` being in that audio. A track whole is not listed; an empty list is a track that
+  plays nothing. The audio members stay as they are.
+- **Tracks kept as sources** (2.23): `practice.track_sources_only` lists the tracks
+  deleted whose audio clips of other tracks still play. Their audio members and entries
+  stay in the project; they open hidden, off, with no clips of their own.
 - **Stems and the Original Track deleted** (2.13): a stem deleted with ✕, or left out by
   the separation as empty, is `null` in `audio.stems`; the Original Track deleted leaves
   `audio.original_member` `null`. Their audio members, their entries in `audio.tracks`
@@ -901,7 +922,8 @@ instance. Tempo and key change live, the tracks cannot drift apart, and the drum
 their pitch, as in EUTERIA (Python). Volumes above 100% use the same soft limiter as
 EUTERIA (Python). A track cut in clips (`src/clips.js`) is mixed part by part, each from
 where it is placed, with its fades (a raised cosine), and with 4 ms at each edge that cuts
-the sound; a part that goes on from the one before, as a cut leaves it, has no fade
+the sound (a part moved from another track, 2.23, reads that track's audio and goes
+through that audio's bus); a part that goes on from the one before, as a cut leaves it, has no fade
 (checked offline, rendered with the engine: silence where a part is left out, a fade half
 way at half the level, no dip at a cut). Copy (2.11) asks the audio thread for the
 audio of the clips (a copy, about ten seconds a message, the track playing on) and makes
@@ -1335,7 +1357,8 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   on every device, saved in the project (version 0.5, online, being tested). Step 3: the
   chords beat by beat (2.7), the chord chart exported for MuseScore (MusicXML, 2.8; its
   title, composer and other details, 2.16), undo and redo (2.9), cutting, moving and fading
-  the tracks on a computer (2.10; several clips together, on several tracks, 2.17), copying
+  the tracks on a computer (2.10; several clips together, on several tracks, 2.17; from one
+  track to another, 2.23), copying
   and pasting them from one project to another (2.11), the fine tuning in cents, with the
   song's own tuning measured (2.18).
 - **Phase 3**: band features.

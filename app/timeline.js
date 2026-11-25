@@ -41,7 +41,10 @@
 // the knobs at the corners of a clip selected, or under the mouse, fade it
 // in and out. The rest of the row is the playhead's, as before, so that the
 // playhead can be placed in a clip selected to cut it there (C, in
-// app/app.js).
+// app/app.js). Dragged up or down (2.23), the clips selected in one track go
+// to the track let go on (not the Original Track, nor from it): they play
+// there, with its switch and its volume, the audio they came with (their
+// src, src/clips.js; the waveform of that audio drawn).
 //
 // A drag that selects bars, chooses a stretch of the bar numbers, or moves
 // clips or the loop scrolls the view when it reaches an edge of the timeline
@@ -292,11 +295,13 @@ export class Timeline {
   // rows: [{key, color, peaks: {min, max} | null, on, offset (the song time
   // where the track begins, a take), height (null: the usual), length (the
   // seconds of its audio), clips (src/clips.js, in seconds; null: whole)}],
-  // grid as readGrid().
-  setSong({ duration, sampleRate, rows, grid, gridVisible = true, view = null }) {
+  // grid as readGrid(); sources: key -> {peaks, length (seconds)}, the audio
+  // of every track (shown or not), for the clips that play another's (2.23).
+  setSong({ duration, sampleRate, rows, sources = null, grid, gridVisible = true, view = null }) {
     this.duration = duration;
     this.sampleRate = sampleRate || 48000;
     this.rows = rows;
+    this.sources = sources || new Map();
     this.grid = grid;
     this.chordNames = chordView(chordTexts(grid.chords), this.chordShift);
     this.titles = sectionTitles(grid.sections);
@@ -332,6 +337,13 @@ export class Timeline {
     return row.length > 0 ? [wholeClip(row.length)] : [];
   }
 
+  // The audio clip c of `row` plays (2.23): {peaks, length (seconds)}, its
+  // row's, or that of the track it came from.
+  _audioOf(row, c) {
+    if (!c.src || c.src === row.key) return { peaks: row.peaks, length: row.length };
+    return this.sources.get(c.src) || { peaks: null, length: 0 };
+  }
+
   // The clips of track `key` changed elsewhere (cut, deleted, undone): those
   // selected there are kept while they are still there.
   setRowClips(key, clips) {
@@ -364,6 +376,14 @@ export class Timeline {
   }
 
   _isSelected(key, i) {
+    // Being dragged: where the clips taken are now (moved on top of their
+    // track, or to another, 2.23).
+    const g = this.gesture;
+    if (g && g.kind === "clip" && g.moved) {
+      if (g.dest && g.dest.row.key === key) return g.dest.now.includes(i);
+      const r = g.rows.get(key);
+      return !!r && (r.now || r.sel).includes(i);
+    }
     return this.clipSel.some((s) => s.key === key && s.i === i);
   }
 
@@ -1077,7 +1097,7 @@ export class Timeline {
           }
           ctx.restore();
         }
-        this._wave(ctx, row.peaks, row.color, alpha, wy, wh, this.start - s + c.from, this.pps, W, row.scale, a, b);
+        this._wave(ctx, this._audioOf(row, c).peaks, row.color, alpha, wy, wh, this.start - s + c.from, this.pps, W, row.scale, a, b);
         this._fades(ctx, c, x0, x1, wy, wh);
       });
     }
@@ -1577,19 +1597,34 @@ export class Timeline {
     // t0: the song time pressed (a drag is measured from there, the view may
     // scroll meanwhile).
     const t0 = this.t(p.x);
-    this.gesture = { kind: "clip", part: hit.part, id: e.pointerId, x0: p.x, t0, key, i: hit.i, was, shift: add, rows, moved: false, step: this.hasGrid ? this._rangeStep(e.pointerType) : null };
+    this.gesture = {
+      kind: "clip",
+      part: hit.part,
+      id: e.pointerId,
+      x0: p.x,
+      y0: p.y,
+      t0,
+      key,
+      i: hit.i,
+      was,
+      shift: add,
+      rows,
+      dest: null, // the track they are being moved to (2.23): {row, was, clips, now}
+      moved: false,
+      step: this.hasGrid ? this._rangeStep(e.pointerType) : null,
+    };
     if (e.pointerType === "mouse") this.main.style.cursor = hit.part === "move" ? "grabbing" : "ew-resize";
     this.drawTop();
   }
 
-  // The drag of a press on the clips, the pointer at x: the clips selected
-  // moved (by the step of the bar numbers, kept where they are against the
-  // beats; never before the song), the edge trimmed (to the step), or the
-  // fade made longer or shorter. With several selected (2.17) their same
-  // edge moves as much as the one taken (each as far as its audio goes), and
-  // their same fade becomes as long. Shown at once; the tracks take them
-  // when the pointer is let go.
-  _clipDrag(g, x, free) {
+  // The drag of a press on the clips, the pointer at x (y: its height, for a
+  // move to another track): the clips selected moved (by the step of the bar
+  // numbers, kept where they are against the beats; never before the song),
+  // the edge trimmed (to the step), or the fade made longer or shorter. With
+  // several selected (2.17) their same edge moves as much as the one taken
+  // (each as far as its audio goes), and their same fade becomes as long.
+  // Shown at once; the tracks take them when the pointer is let go.
+  _clipDrag(g, x, free, y = null) {
     const base = g.rows.get(g.key);
     const c = base.clips[g.i];
     const off = base.row.offset || 0;
@@ -1605,10 +1640,34 @@ export class Timeline {
       let first = Infinity;
       for (const r of g.rows.values()) for (const i of r.sel) first = Math.min(first, (r.row.offset || 0) + r.clips[i].at);
       delta = Math.max(delta, -first);
-      for (const r of g.rows.values()) {
-        const out = moveClips(r.clips, r.sel, delta);
-        r.row.clips = out.clips;
-        r.now = out.indexes;
+      // Up or down to another track (2.23): those of one track only, never
+      // to the Original Track or from it (the stems play in its place).
+      const at = g.rows.size === 1 && g.key !== "original" && y !== null ? this._rowAt(y) : null;
+      const dest = at && at.row.key !== g.key && at.row.key !== "original" ? at.row : null;
+      if (g.dest && g.dest.row !== dest) g.dest.row.clips = g.dest.was; // the track left: as it was
+      if (dest) {
+        if (!g.dest || g.dest.row !== dest) g.dest = { row: dest, was: dest.clips, clips: this._clipsOf(dest), now: [] };
+        // Where they play in the song stays; their audio goes with them (src),
+        // back in its own track without one.
+        const shift = off - (dest.offset || 0) + delta;
+        const moved = base.sel.map((i) => {
+          const m = { ...base.clips[i], at: base.clips[i].at + shift };
+          const src = m.src || g.key;
+          if (src === dest.key) delete m.src;
+          else m.src = src;
+          return m;
+        });
+        base.row.clips = base.clips.filter((_, i) => !base.sel.includes(i));
+        base.now = [];
+        dest.clips = [...g.dest.clips, ...moved];
+        g.dest.now = moved.map((_, k) => g.dest.clips.length + k);
+      } else {
+        g.dest = null;
+        for (const r of g.rows.values()) {
+          const out = moveClips(r.clips, r.sel, delta);
+          r.row.clips = out.clips;
+          r.now = out.indexes;
+        }
       }
     } else if (g.part === "start" || g.part === "end") {
       const [s, e] = this._clipSpan(base.row, c);
@@ -1618,7 +1677,7 @@ export class Timeline {
         let clips = r.clips;
         for (const i of r.sel) {
           const at = r.clips[i].at + (g.part === "start" ? 0 : r.clips[i].to - r.clips[i].from);
-          clips = trimClip(clips, i, g.part, at + delta, r.row.length, MIN_CLIP).clips;
+          clips = trimClip(clips, i, g.part, at + delta, (c) => this._audioOf(r.row, c).length, MIN_CLIP).clips;
         }
         r.row.clips = clips;
         r.now = r.sel;
@@ -1654,10 +1713,15 @@ export class Timeline {
       }
     } else if (cancelled) {
       for (const r of g.rows.values()) r.row.clips = r.was;
+      if (g.dest) g.dest.row.clips = g.dest.was;
     } else {
       const sel = [];
       for (const [key, r] of g.rows) for (const i of r.now || r.sel) sel.push({ key, i });
+      if (g.dest) for (const i of g.dest.now) sel.push({ key: g.dest.row.key, i });
       this.clipSel = sel;
+      // The track they went to first (2.23): the audio they play stays in the
+      // song meanwhile.
+      if (g.dest) this.onClips(g.dest.row.key, g.dest.row.clips);
       for (const [key, r] of g.rows) this.onClips(key, r.row.clips);
       this.onClipSelect(this.clipSelection);
     }
@@ -2026,9 +2090,9 @@ export class Timeline {
   // A drag going on, the pointer at p (e: its keys and kind).
   _drag(g, p, e) {
     if (g.kind === "clip") {
-      if (!g.moved && Math.abs(p.x - g.x0) < TAP_SLOP) return;
+      if (!g.moved && Math.hypot(p.x - g.x0, g.part === "move" ? p.y - g.y0 : 0) < TAP_SLOP) return;
       g.moved = true;
-      this._clipDrag(g, p.x, e.altKey);
+      this._clipDrag(g, p.x, e.altKey, p.y);
       return;
     }
     if (g.kind === "select") {

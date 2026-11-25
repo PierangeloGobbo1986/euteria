@@ -260,9 +260,12 @@ export async function openProject(file, context, onProgress = () => {}) {
   tracks.sort((a, b) => (a.key === "original" ? -1 : b.key === "original" ? 1 : order.indexOf(a.key) - order.indexOf(b.key)));
   const enabled = practice.track_enabled || {};
   const volumes = practice.track_volumes || {};
+  // The tracks deleted whose audio clips of other tracks play (2.23): their
+  // source only, shown nowhere, silent.
+  const sourcesOnly = new Set(Array.isArray(practice.track_sources_only) ? practice.track_sources_only.map(String) : []);
   // Without the Original Track (deleted, 2.13), the stems on unless the
   // project says otherwise.
-  const hasOriginal = tracks.some((t) => t.key === "original");
+  const hasOriginal = tracks.some((t) => t.key === "original" && !sourcesOnly.has(t.key));
   for (const t of tracks) {
     t.on = t.key in enabled ? !!enabled[t.key] : t.key === "original" || !hasOriginal;
     t.gain = Math.min(BOOST_CEILING, Math.max(0, volumes[t.key] ?? 1));
@@ -275,7 +278,18 @@ export async function openProject(file, context, onProgress = () => {}) {
   // The clips of the tracks cut in EUTERIA Web (src/clips.js): seconds in
   // audio.clips, by track.
   const cuts = audio.clips && typeof audio.clips === "object" ? audio.clips : {};
-  for (const t of [...tracks, ...takes]) t.clips = clipsFromManifest(cuts[t.key], context.sampleRate, t.length);
+  const all = [...tracks, ...takes];
+  const lengthOf = (key) => {
+    const t = all.find((x) => x.key === key);
+    return t ? t.length : undefined;
+  };
+  for (const t of all) t.clips = clipsFromManifest(cuts[t.key], context.sampleRate, t.length, lengthOf, t.key);
+  for (const t of all) {
+    if (!sourcesOnly.has(t.key)) continue;
+    t.sourceOnly = true;
+    t.clips = [];
+    t.on = false;
+  }
   // The names given to the tracks in EUTERIA Web (2.15): shown instead of
   // their own.
   const names = practice.track_names && typeof practice.track_names === "object" ? practice.track_names : {};

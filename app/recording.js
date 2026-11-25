@@ -240,17 +240,41 @@ export class RecordingFlow {
     const t = this.stash(key);
     if (!t) return;
     this.dirty = true;
+    this.dropIdle();
     takesChanged();
-    notice(tr("{take} deleted.", { take: t.name || t.title }), "ok", 3000);
+    if (t.sourceOnly) notice(tr("{track} deleted: its audio stays in the song for the clips moved from it to other tracks.", { track: t.name || t.title }), "ok", 6000);
+    else notice(tr("{take} deleted.", { take: t.name || t.title }), "ok", 3000);
   }
 
   // A track out of the song, kept for undo (a take; a stem or the Original
   // Track, 2.13, whose file app.js looks after): a take of the song's file
-  // leaves the file at the next Save.
-  stash(key) {
-    const t = this.ctx.player.stashTrack(key);
+  // leaves the file at the next Save. A track whose audio clips of other
+  // tracks play (2.23) stays in the song as their source only: shown
+  // nowhere, silent, saved with it (unless `out`: it leaves all the same,
+  // an undo or a redo taking the song where they do not play it).
+  stash(key, out = false) {
+    const { player } = this.ctx;
+    if (!out && player.lends(key)) {
+      player.setSourceOnly(key, true);
+      return player.track(key);
+    }
+    const t = player.stashTrack(key);
     if (t && t.take && t.take.saved) this.dropped.set(t.take.member, t.take);
     return t;
+  }
+
+  // The tracks only a source of clips of others (2.23) that none of them
+  // plays any more (those clips deleted, or their tracks) leave the song too,
+  // kept for undo. Returns whether one did.
+  dropIdle() {
+    const { player } = this.ctx;
+    let gone = false;
+    for (const t of [...player.tracks]) {
+      if (!t.sourceOnly || player.lends(t.key) || !this.stash(t.key, true)) continue;
+      if (t.take) this.dirty = true;
+      gone = true;
+    }
+    return gone;
   }
 
   // Undo and redo (app.js): the tracks of a step, among `list` (its tracks,
@@ -261,7 +285,8 @@ export class RecordingFlow {
   async restore(list) {
     const { player } = this.ctx;
     const want = new Set(list.map((t) => t.key));
-    for (const t of [...player.tracks]) if (!want.has(t.key)) this.stash(t.key);
+    // Out, even a source of clips (2.23): the step's clips do not play it.
+    for (const t of [...player.tracks]) if (!want.has(t.key)) this.stash(t.key, true);
     const back = [];
     for (const { key } of list) {
       if (player.track(key) || !player.stash.has(key)) continue;

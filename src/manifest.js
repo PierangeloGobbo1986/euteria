@@ -24,7 +24,7 @@ function stemOrder(tracks) {
 // The practice settings as EUTERIA (Python) saves them (_save_music_settings),
 // with the order of every track (track_order) that EUTERIA Web adds.
 // state: {rate, semitones, cents, loop: {on, start, end}, gridVisible,
-// tracks: [{key, on, gain, clips, name}], credits}, the tracks in their order (clips: as the
+// tracks: [{key, on, gain, clips, name, sourceOnly}], credits}, the tracks in their order (clips: as the
 // manifest has them, src/clips.js clipsToManifest(), or null; name: the one
 // given to the track in EUTERIA Web, track_names, or null; credits: the
 // details of the chord chart, music.chart_credits).
@@ -62,6 +62,11 @@ function practiceFields(base, grid, state) {
   };
   if (Object.keys(names).length) out.track_names = names;
   else delete out.track_names;
+  // The tracks deleted whose audio clips of other tracks play (2.23): kept
+  // in the file, not shown.
+  const sources = state.tracks.filter((t) => t.sourceOnly).map((t) => t.key);
+  if (sources.length) out.track_sources_only = sources;
+  else delete out.track_sources_only;
   if (state.cents) out.transpose_cents = state.cents;
   else delete out.transpose_cents;
   return out;

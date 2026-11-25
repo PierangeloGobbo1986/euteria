@@ -136,6 +136,7 @@ const app = {
   saving: false,
   clipsSaved: new Map(), // key -> the clips of the track as last saved (null: whole)
   namesSaved: new Map(), // key -> the name given to the track as last saved (2.15; null: none)
+  sourcesSaved: new Set(), // the tracks only a source of other tracks' clips as last saved (2.23)
   // The details of the chord chart (2.16, src/musicxml.js): {title, subtitle,
   // composer, arranger, lyricist, copyright}, null where none is given (the
   // title: the song's name); as last saved.
@@ -182,10 +183,13 @@ const unsavedNew = () => !!app.current && !!app.current.created && !app.current.
 const clipsDirty = () => !!player.song && player.tracks.some((t) => !sameClips(t.clips, app.clipsSaved.get(t.key) || null));
 // The names given to the tracks (2.15) as the song's file has them, or not.
 const namesDirty = () => !!player.song && player.tracks.some((t) => (t.name || null) !== (app.namesSaved.get(t.key) || null));
+// The tracks deleted that stay as the source of clips of others (2.23) as
+// the song's file has them, or not.
+const sourcesDirty = () => !!player.song && player.tracks.some((t) => !!t.sourceOnly !== app.sourcesSaved.has(t.key));
 // The tracks: takes recorded, deleted or moved, clips cut, moved or faded,
 // stems or the Original Track deleted (or brought back), tracks renamed,
 // since the last Save.
-const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty() || baseDirty() || namesDirty();
+const tracksDirty = () => (!!recording && recording.dirty) || clipsDirty() || baseDirty() || namesDirty() || sourcesDirty();
 // The details of the chord chart as the song's file has them (2.16), or not.
 const creditsDirty = () => !!player.song && !sameCredits(app.credits, app.creditsSaved);
 const songDirty = () => !!player.song && (editor.dirty || retitled() || creditsDirty() || tracksDirty() || unsavedNew());
@@ -339,7 +343,7 @@ async function confirmLeave() {
 async function discardEdits() {
   const song = player.song;
   const takes = recording.dirty || baseChanged();
-  const cuts = clipsDirty() || namesDirty();
+  const cuts = clipsDirty() || namesDirty() || sourcesDirty();
   const named = retitled();
   if (editor.dirty) {
     editor.reset(song ? readGrid(song.manifest, song.duration) : emptyGrid());
@@ -362,7 +366,8 @@ async function discardEdits() {
   if (recording.dirty) await recording.revert();
   if (baseChanged()) await revertBase();
   // The clips and the names of the tracks as the file has them (the takes
-  // brought back too).
+  // brought back too): those only a source of others' clips (2.23) first.
+  for (const t of player.tracks) player.setSourceOnly(t.key, app.sourcesSaved.has(t.key));
   for (const t of player.tracks) {
     player.setClips(t.key, app.clipsSaved.get(t.key) || null);
     player.setTrackName(t.key, app.namesSaved.get(t.key) || null);
@@ -477,7 +482,7 @@ function songState() {
     analysisInFile: app.analysisInFile,
     title: song.title,
     credits: { ...app.credits },
-    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null, clips: t.clips, name: t.name || null })),
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, sync: t.take ? t.take.syncMs : null, clips: t.clips, name: t.name || null, sourceOnly: !!t.sourceOnly })),
     takesDirty: recording.dirty,
     rate: player.rate,
     semitones: player.semitones,
@@ -540,17 +545,20 @@ function stateChanges(a, b) {
   const after = new Map(b.tracks.map((t) => [t.key, t]));
   let on = false;
   let names = false;
+  let sources = false;
   for (const t of a.tracks) {
     const u = after.get(t.key);
     if (!u) continue;
     if (t.on !== u.on) on = true;
     if (t.name !== u.name) names = true;
+    if (t.sourceOnly !== u.sourceOnly) sources = true; // deleted, kept for clips of others (2.23)
     if (t.gain !== u.gain) out.push(`gain:${t.key}`);
     if (t.sync !== u.sync) out.push(`sync:${t.key}`);
     if (!sameClips(t.clips, u.clips)) out.push(`clips:${t.key}`);
   }
   if (on) out.push("on");
   if (names) out.push("names");
+  if (sources) out.push("sources");
   if (a.rate !== b.rate) out.push("rate");
   if (a.semitones !== b.semitones) out.push("key");
   if (a.cents !== b.cents) out.push("cents");
@@ -595,6 +603,9 @@ async function restoreState(s, fields) {
     const v = was.get(t.key);
     if (!v) continue;
     const returned = back.includes(t.key);
+    // Only a source of other tracks' clips (2.23), or shown again: first, so
+    // that its switch and its clips come back as the step has them.
+    if (!!t.sourceOnly !== !!v.sourceOnly) player.setSourceOnly(t.key, v.sourceOnly);
     if ((returned || has("on")) && t.on !== v.on) player.setTrackOn(t.key, v.on);
     if ((returned || has("names")) && (t.name || null) !== v.name) player.setTrackName(t.key, v.name);
     if ((returned || has(`gain:${t.key}`)) && t.gain !== v.gain) player.setTrackGain(t.key, v.gain);
@@ -631,6 +642,7 @@ async function restoreState(s, fields) {
 function clipsAreSaved() {
   app.clipsSaved = new Map(player.tracks.map((t) => [t.key, t.clips || null]));
   app.namesSaved = new Map(player.tracks.map((t) => [t.key, t.name || null]));
+  app.sourcesSaved = new Set(player.tracks.filter((t) => t.sourceOnly).map((t) => t.key));
   app.creditsSaved = { ...app.credits };
 }
 
@@ -674,15 +686,25 @@ function stepLabel(fields, a, b) {
     const t = player.track(key) || (player.stash.get(key) || {}).track;
     return t ? trackName(t) : "";
   };
+  // Clips moved past the end make the song (and its grid) longer: the clips.
+  const clips = fields.filter((f) => f.startsWith("clips:"));
   if (has("takes")) {
     const inA = new Set(a.tracks.map((t) => t.key));
     const inB = new Set(b.tracks.map((t) => t.key));
     const moved = [...a.tracks.filter((t) => !inB.has(t.key)), ...b.tracks.filter((t) => !inA.has(t.key))];
-    if (moved.length === 1 && title(moved[0].key)) return title(moved[0].key);
-    return moved.every((t) => isTake(t.key)) ? tr("the takes") : tr("the tracks");
+    // Only tracks kept for clips of others (2.23), leaving with them or
+    // coming back: the clips, below.
+    if (!(clips.length && moved.every((t) => t.sourceOnly))) {
+      if (moved.length === 1 && title(moved[0].key)) return title(moved[0].key);
+      return moved.every((t) => isTake(t.key)) ? tr("the takes") : tr("the tracks");
+    }
   }
-  // Clips moved past the end make the song (and its grid) longer: the clips.
-  const clips = fields.filter((f) => f.startsWith("clips:"));
+  // A track deleted, kept for clips of others (2.23), or back: its name.
+  if (has("sources")) {
+    const changed = a.tracks.filter((t) => b.tracks.some((u) => u.key === t.key && u.sourceOnly !== t.sourceOnly));
+    if (changed.length === 1 && title(changed[0].key)) return title(changed[0].key);
+    return tr("the tracks");
+  }
   if (clips.length === 1) return tr("the clips of {track}", { track: title(clips[0].slice(6)) });
   if (clips.length) return tr("the clips");
   if (has("grid")) return tr("the grid"); // its chords may move with it
@@ -1525,7 +1547,7 @@ async function openEntry(entry, fresh = false) {
   }
   const song = await openSong(file, { source: "library", entryId: entry.id });
   if (song) {
-    library.update(entry.id, { title: song.fileTitle, duration: song.duration, tracks: player.tracks.length, kind: song.kind, settingsKey: app.current.key, opened: Date.now() });
+    library.update(entry.id, { title: song.fileTitle, duration: song.duration, tracks: player.shown.length, kind: song.kind, settingsKey: app.current.key, opened: Date.now() });
   } else if (fresh) {
     // A file this browser cannot read takes no space.
     try {
@@ -1950,16 +1972,24 @@ function updateZoom() {
   $("zoom-level").disabled = !player.song;
 }
 
+// The audio of every track, shown or only a source (2.23), for the clips that
+// play another track's: key -> {peaks, length (seconds)}.
+function audioSources() {
+  const sr = player.context ? player.context.sampleRate : 48000;
+  return new Map(player.tracks.map((t) => [t.key, { peaks: t.peaks, length: t.length / sr }]));
+}
+
 function waveRows() {
   const sr = player.context ? player.context.sampleRate : 48000;
   // Its length and its clips in seconds (src/clips.js).
   const cuts = (t) => ({ length: t.length / sr, clips: scaleClips(t.clips, 1 / sr) });
   if (phone) {
-    const t = player.tracks.find((x) => x.peaks) || player.tracks[0];
+    const shown = player.shown;
+    const t = shown.find((x) => x.peaks) || shown[0];
     return t ? [{ key: t.key, color: WAVE_COLORS.original, peaks: t.peaks, on: true, offset: t.start / sr, ...cuts(t) }] : [];
   }
   let stem = 0;
-  return player.tracks.map((t) => ({
+  return player.shown.map((t) => ({
     key: t.key,
     color: t.take ? WAVE_COLORS.take : STEM_NAMES.includes(t.key) ? WAVE_COLORS.stems[stem++ % 2] : WAVE_COLORS.original,
     peaks: t.peaks,
@@ -1989,6 +2019,9 @@ function setTrackClips(key, clips) {
   if (!t) return;
   player.setClips(key, clips);
   app.timeline.setRowClips(key, scaleClips(t.clips, 1 / player.context.sampleRate));
+  // A track deleted that stayed only for clips of others (2.23) leaves once
+  // none of them plays its audio.
+  if (recording.dropIdle()) takesChanged();
   scheduleUi();
 }
 
@@ -2286,8 +2319,11 @@ function trackRow(t) {
 // grip): the cards and the rows of the timeline are drawn again in the new
 // order, kept with the song's settings and written in its file by Save.
 function moveTrack(from, to, byKey) {
-  const t = player.tracks[from];
-  if (!t || !player.moveTrack(t.key, to)) return;
+  // From the rows (the tracks shown) to the list of every track.
+  const shown = player.shown;
+  const t = shown[from];
+  const there = shown[Math.max(0, Math.min(shown.length - 1, to))];
+  if (!t || !there || !player.moveTrack(t.key, player.tracks.indexOf(there))) return;
   renderPlayer(app.timeline.getView());
   if (byKey) {
     const row = app.rows.find((r) => r.key === t.key);
@@ -2384,7 +2420,7 @@ function baseFilesOf(song) {
 // A stem, or the Original Track, that ✕ may delete: one of the project's
 // files, and not the last of them in the song.
 function deletable(t) {
-  return !t.take && app.baseFiles.has(t.key) && player.tracks.filter((x) => !x.take).length > 1;
+  return !t.take && app.baseFiles.has(t.key) && player.shown.filter((x) => !x.take).length > 1;
 }
 
 // Stems or the Original Track deleted, or brought back, since the file
@@ -2456,24 +2492,26 @@ function takesChanged() {
 function deleteTrack(key) {
   const t = player.track(key);
   if (!t || !deletable(t) || player.busy || recording.busy) return;
-  const alone = key === "original" && t.on && !player.tracks.some((x) => x !== t && !x.take && x.on);
+  const alone = key === "original" && t.on && !player.shown.some((x) => x !== t && !x.take && x.on);
   if (!recording.stash(key)) return;
+  recording.dropIdle();
   if (alone) player.allStems();
   takesChanged();
-  notice(tr("{track} deleted: Save takes it out of the file.", { track: trackName(t) }), "ok", 4000);
+  if (t.sourceOnly) notice(tr("{track} deleted: its audio stays in the song for the clips moved from it to other tracks.", { track: trackName(t) }), "ok", 6000);
+  else notice(tr("{track} deleted: Save takes it out of the file.", { track: trackName(t) }), "ok", 4000);
 }
 
 // "Don't save": the stems and the Original Track as the file has them.
 async function revertBase() {
   for (const [key, f] of app.baseFiles) {
     if (f.inFile && !player.track(key) && player.stash.has(key)) await player.unstashTrack(key);
-    else if (!f.inFile && player.track(key)) recording.stash(key);
+    else if (!f.inFile && player.track(key)) recording.stash(key, true);
   }
 }
 
 function showSongMeta() {
   const song = player.song;
-  const n = player.tracks.length;
+  const n = player.shown.length;
   $("song-meta").textContent = song ? `${song.kind === "audio" ? tr("Audio file") : trn(n, "{n} track", "{n} tracks")} · ${fmtTime(song.duration)}` : "";
 }
 
@@ -2492,26 +2530,26 @@ function renderPlayer(view = null) {
     return;
   }
   showSongMeta();
-  for (const t of player.tracks) {
+  for (const t of player.shown) {
     const row = trackRow(t);
     app.rows.push(row);
     box.append(row.el);
   }
   $("quick").hidden = !player.hasStems;
   $("original-only").hidden = !player.track("original"); // deleted (✕)
-  $("tracks-note").hidden = player.hasStems;
+  $("tracks-note").hidden = player.anyStems;
   // The grid goes on to the song's end when a take made it longer, and back
   // when it is shorter again (not when it opens: its grid is its own).
   if (app.gridFit && app.gridFit.song === song && app.gridFit.duration !== song.duration) app.grid = extendGrid(app.grid, song.duration);
   app.gridFit = { song, duration: song.duration };
   app.shownDuration = song.duration;
-  app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), grid: app.grid, gridVisible: app.gridVisible, view });
+  app.timeline.setSong({ duration: song.duration, sampleRate: song.sampleRate, rows: waveRows(), sources: audioSources(), grid: app.grid, gridVisible: app.gridVisible, view });
   app.timeline.setLoop(player.loop);
   app.timeline.setPosition(player.position, player.playing);
   if (recording) recording.drawLive(); // a take being recorded: its card again beside its row
   updateZoom();
   updateUi();
-  if (phone && !player.tracks.some((t) => t.peaks) && player.tracks.some((t) => !t.take)) drawAnotherWave();
+  if (phone && !player.shown.some((t) => t.peaks) && player.shown.some((t) => !t.take)) drawAnotherWave();
 }
 
 // The phone draws the Original Track's waveform; with that deleted (✕), the
@@ -2806,7 +2844,7 @@ function practiceState() {
     cents: player.cents,
     loop: player.loop,
     gridVisible: app.gridVisible,
-    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr), name: t.name || null })),
+    tracks: player.tracks.map((t) => ({ key: t.key, on: t.on, gain: t.gain, clips: clipsToManifest(t.clips, sr), name: t.name || null, sourceOnly: !!t.sourceOnly })),
     credits: { ...app.credits },
   };
 }
@@ -3874,7 +3912,7 @@ function updateUi() {
   // song has its stems, the button stays, grey.
   const sep = $("separate");
   const separable = !phone && !!song && separation.applicable;
-  const separated = !phone && !!song && player.hasStems;
+  const separated = !phone && !!song && player.anyStems;
   sep.hidden = !(separable || separated);
   if (separable) {
     sep.disabled = !separation.supported || separation.running || busy || takesBusy;
@@ -3894,7 +3932,7 @@ function updateUi() {
   if (song && !ownAudio()) {
     const note = tr("This project has no audio of its own: Rec records a take, with the metronome if you like, and the project gets longer as you play.");
     if ($("tracks-note").textContent !== note) $("tracks-note").textContent = note;
-  } else if (song && !player.hasStems) {
+  } else if (song && !player.anyStems) {
     const note = phone
       ? tr("This song has no separate instruments: tempo, key and loop work on the whole song. To separate them, open it in EUTERIA on a computer, with Chrome or Edge.")
       : separation.supported
@@ -4367,7 +4405,7 @@ function onKey(e) {
   } else if (e.key === "]") {
     setLoopEndHere();
   } else if (/^[1-9]$/.test(e.key) && !e.repeat) {
-    const t = player.tracks[+e.key - 1];
+    const t = player.shown[+e.key - 1];
     if (t) player.setTrackOn(t.key, !t.on);
   } else if (e.key === "+" || e.key === "=") {
     app.timeline.zoomBy(1.5);

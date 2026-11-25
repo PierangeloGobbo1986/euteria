@@ -10,6 +10,13 @@
 // undo (app/history.js) can keep them as they are. `min` is the shortest a
 // clip may be, in the same unit.
 //
+// A clip may play the audio of another track (2.23: moved there from it):
+// its `src`, that track's key, its from and to in that audio; without src,
+// the track's own. It plays as its track does (on or off, volume, bus), from
+// `at` of its track. lengthOf(src): how long that audio is (the functions
+// that need it take it; a track whose clips play another's never counts as
+// whole).
+//
 // Clips may overlap (2.15): where they do, both play, added together, as two
 // tracks would. The list is in the order they were put there, the last one
 // moved at the end: over the others where they overlap (app/timeline.js
@@ -39,8 +46,12 @@ export function isWhole(clips, length) {
   if (!clips) return true;
   if (clips.length !== 1) return false;
   const c = clips[0];
-  return c.from === 0 && c.to === length && c.at === 0 && !c.fadeIn && !c.fadeOut;
+  return !c.src && c.from === 0 && c.to === length && c.at === 0 && !c.fadeIn && !c.fadeOut;
 }
+
+// The length of the audio clip c plays: its track's, or that of its src
+// (lengthOf(src); undefined if that track is not there).
+const audioLength = (c, length, lengthOf) => (c.src ? (lengthOf ? lengthOf(c.src) : undefined) : length);
 
 // The fades of clip c, within its length (in, then out).
 function fitFades(c) {
@@ -50,18 +61,25 @@ function fitFades(c) {
   return fadeIn === c.fadeIn && fadeOut === c.fadeOut ? c : { ...c, fadeIn, fadeOut };
 }
 
-// A list as it may be: each clip within the audio (0..length) and at least
-// `min` long, the fades within it, in the order given (overlapping or not).
-// null if it is the track whole.
-export function normalize(clips, length, min = 0) {
+// A list as it may be: each clip within its audio (0..length, or that of its
+// src) and at least `min` long, the fades within it, in the order given
+// (overlapping or not); a clip whose src is not there goes. own: the track's
+// key (a clip moved back to it plays its own audio again). null if it is
+// the track whole.
+export function normalize(clips, length, min = 0, lengthOf = null, own = null) {
   if (!Array.isArray(clips)) return null;
   const out = [];
   for (const raw of clips) {
     if (!raw || ![raw.from, raw.to, raw.at].every(Number.isFinite)) continue;
-    const from = clamp(raw.from, 0, length);
-    const to = clamp(raw.to, from, length);
+    const src = raw.src && raw.src !== own ? String(raw.src) : null;
+    const len = src ? (lengthOf ? lengthOf(src) : undefined) : length;
+    if (!(len > 0)) continue;
+    const from = clamp(raw.from, 0, len);
+    const to = clamp(raw.to, from, len);
     if (to - from <= 0 || to - from < min) continue;
-    out.push(fitFades({ from, to, at: raw.at + (from - raw.from), fadeIn: Math.max(0, +raw.fadeIn || 0), fadeOut: Math.max(0, +raw.fadeOut || 0) }));
+    const c = { from, to, at: raw.at + (from - raw.from), fadeIn: Math.max(0, +raw.fadeIn || 0), fadeOut: Math.max(0, +raw.fadeOut || 0) };
+    if (src) c.src = src;
+    out.push(fitFades(c));
   }
   return isWhole(out, length) ? null : out;
 }
@@ -70,7 +88,7 @@ export function normalize(clips, length, min = 0) {
 // c begins, in its audio and in time, as a cut leaves them) or into another
 // ("out"). In samples, as src/engine-core.js _parts() tells them.
 export function joined(clips, c, side) {
-  return clips.some((q) => q !== c && (side === "in" ? q.to === c.from && clipEnd(q) === c.at : q.from === c.to && q.at === clipEnd(c)));
+  return clips.some((q) => q !== c && (q.src || null) === (c.src || null) && (side === "in" ? q.to === c.from && clipEnd(q) === c.at : q.from === c.to && q.at === clipEnd(c)));
 }
 
 // The clips that play at `pos` (from the track's start), the one on top
@@ -110,9 +128,11 @@ export function move(clips, indexes, delta) {
 
 // An edge of clip i ("start" or "end") moved to `pos` (from the track's
 // start), as far as the audio goes and leaving the clip at least `min` long;
-// where it is in the list stays. {clips, index}.
+// where it is in the list stays. {clips, index}. length: the track's, or a
+// function giving the length of a clip's audio (lengthOf(clip)).
 export function trim(clips, i, edge, pos, length, min = 0) {
   const c = clips[i];
+  if (typeof length === "function") length = length(c);
   let next;
   if (edge === "start") {
     const at = clamp(pos, c.at - c.from, clipEnd(c) - Math.max(min, 1e-9));
@@ -139,17 +159,17 @@ export function fade(clips, i, side, len) {
 // (where it does not go on from another of them, as src/engine-core.js
 // _parts() does), silence between them, and where they overlap their sum
 // (2.15, kept within 16 bits). Samples only. audio[i]: clip i's own audio,
-// from..to of the track (Int16Array[], one by channel); length: the track's.
-// Returns {at (where the piece begins, from the track's start), length,
-// channels}.
-export function bake(list, audio, length, edge) {
+// from..to of the track, or of its src (Int16Array[], one by channel);
+// length: the track's; lengthOf(src): that of a src. Returns {at (where the
+// piece begins, from the track's start), length, channels}.
+export function bake(list, audio, length, edge, lengthOf = null) {
   const at = Math.min(...list.map((c) => c.at));
   const n = Math.max(...list.map(clipEnd)) - at;
   const sums = audio[0].map(() => new Float32Array(n));
   list.forEach((c, i) => {
     const m = clipLength(c);
     let fi = Math.max(Math.round(c.fadeIn || 0), c.from > 0 && !joined(list, c, "in") ? edge : 0);
-    let fo = Math.max(Math.round(c.fadeOut || 0), c.to < length && !joined(list, c, "out") ? edge : 0);
+    let fo = Math.max(Math.round(c.fadeOut || 0), c.to < (audioLength(c, length, lengthOf) ?? length) && !joined(list, c, "out") ? edge : 0);
     if (fi + fo > m) {
       const k = m / (fi + fo);
       fi = Math.floor(fi * k);
@@ -188,7 +208,7 @@ export function sameClips(a, b) {
   if (!a || !b || a.length !== b.length) return false;
   return a.every((c, i) => {
     const d = b[i];
-    return c.from === d.from && c.to === d.to && c.at === d.at && (c.fadeIn || 0) === (d.fadeIn || 0) && (c.fadeOut || 0) === (d.fadeOut || 0);
+    return c.from === d.from && c.to === d.to && c.at === d.at && (c.fadeIn || 0) === (d.fadeIn || 0) && (c.fadeOut || 0) === (d.fadeOut || 0) && (c.src || null) === (d.src || null);
   });
 }
 
@@ -197,24 +217,35 @@ export function sameClips(a, b) {
 export function scaleClips(clips, k, whole = false) {
   if (!clips) return null;
   const f = whole ? (v) => Math.round(v * k) : (v) => v * k;
-  return clips.map((c) => ({ from: f(c.from), to: f(c.to), at: f(c.at), fadeIn: f(c.fadeIn || 0), fadeOut: f(c.fadeOut || 0) }));
+  return clips.map((c) => ({ from: f(c.from), to: f(c.to), at: f(c.at), fadeIn: f(c.fadeIn || 0), fadeOut: f(c.fadeOut || 0), ...(c.src ? { src: c.src } : {}) }));
 }
 
 // In the project's manifest (manifest.audio.clips[key]): seconds, rounded
-// to the microsecond.
+// to the microsecond; src, the key of the track whose audio it plays (2.23).
 const r6 = (v) => Math.round(v * 1e6) / 1e6;
 export function clipsToManifest(clips, rate) {
   if (!clips) return null;
-  return clips.map((c) => ({ from: r6(c.from / rate), to: r6(c.to / rate), at: r6(c.at / rate), fade_in: r6((c.fadeIn || 0) / rate), fade_out: r6((c.fadeOut || 0) / rate) }));
+  return clips.map((c) => ({ from: r6(c.from / rate), to: r6(c.to / rate), at: r6(c.at / rate), fade_in: r6((c.fadeIn || 0) / rate), fade_out: r6((c.fadeOut || 0) / rate), ...(c.src ? { src: c.src } : {}) }));
 }
 
-// The clips a manifest gives a track of `length` samples, at `rate`.
-export function clipsFromManifest(list, rate, length) {
+// The clips a manifest gives a track of `length` samples, at `rate`
+// (lengthOf(src): the length of another track's audio, for its clips that
+// play it; own: the track's key).
+export function clipsFromManifest(list, rate, length, lengthOf = null, own = null) {
   if (!Array.isArray(list)) return null;
   const s = (v) => Math.round(+v * rate);
   return normalize(
-    list.map((c) => c && { from: s(c.from), to: s(c.to), at: s(c.at), fadeIn: s(c.fade_in || 0), fadeOut: s(c.fade_out || 0) }),
+    list.map((c) => c && { from: s(c.from), to: s(c.to), at: s(c.at), fadeIn: s(c.fade_in || 0), fadeOut: s(c.fade_out || 0), ...(c.src ? { src: String(c.src) } : {}) }),
     length,
-    1
+    1,
+    lengthOf,
+    own
   );
+}
+
+// The tracks whose audio the clips of `clips` play, besides their own.
+export function sourcesOf(clips) {
+  const out = new Set();
+  for (const c of clips || []) if (c.src) out.add(c.src);
+  return out;
 }
