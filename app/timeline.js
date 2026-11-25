@@ -1,11 +1,19 @@
 // The timeline of the player, from the top: the notes (2.21), the sections of
 // the song, the chords and, under them, the bar numbers (when there is a grid
-// and it is shown), the time scale, then the
+// and it is shown), the time scale (on a smartphone under the tracks, 2.22:
+// thicker there, for a finger to drag), then the
 // waveform of each track (one row on the phone, one per track on a computer)
 // with the bar grid over it. The loop and the playhead are drawn over the
 // tracks only, so that the bars and their chords stay free to be clicked.
 // Only the part of the song in view is drawn. While a take is recorded, its
 // waveform grows in a row of its own at the bottom.
+//
+// Two panes, each with its two canvases (2.22): the lanes (and, on a
+// computer, the time scale) in the head pane, the tracks in the body pane.
+// On a computer the head pane stays in view (sticky) while the page scrolls
+// down the tracks, as the transport over it does; a press on it is read in
+// its own place (_point()). The drawing works in one frame from the top of
+// the head down, each pane drawing its part.
 //
 // The same with a mouse and a finger: on the waveforms, a tap or a click
 // places the playhead, dragging from inside the loop moves the loop (keeping
@@ -208,7 +216,7 @@ export class Timeline {
     // numbers under that; ruler: the time scale over the tracks; tab: the
     // handles of the loop at its ends.
     this.dims = compact
-      ? { notes: 24, sections: 24, nums: 18, chords: 22, ruler: 26, row: 64, overview: 24, tab: { w: 12, h: 20 } }
+      ? { notes: 24, sections: 24, nums: 18, chords: 22, ruler: 40, row: 64, overview: 24, tab: { w: 12, h: 20 } }
       : { notes: 22, sections: 22, nums: 20, chords: 24, ruler: 28, row: 60, overview: 26, tab: { w: 9, h: 16 } };
     this.duration = 0;
     this.sampleRate = 48000;
@@ -243,11 +251,24 @@ export class Timeline {
     this.main = document.createElement("div");
     this.main.className = "tl-main";
     this.main.setAttribute("role", "img");
+    // The head pane (the lanes, the time scale on a computer) and the body
+    // pane (the tracks), each a canvas for what changes rarely and one over
+    // it for the selection, the loop and the playhead (2.22).
+    this.head = document.createElement("div");
+    this.head.className = "tl-headpane";
+    this.hbase = document.createElement("canvas");
+    this.hbase.className = "tl-base";
+    this.htop = document.createElement("canvas");
+    this.htop.className = "tl-top";
+    this.head.append(this.hbase, this.htop);
+    this.body = document.createElement("div");
+    this.body.className = "tl-bodypane";
     this.base = document.createElement("canvas");
     this.base.className = "tl-base";
     this.top = document.createElement("canvas");
     this.top.className = "tl-top";
-    this.main.append(this.base, this.top);
+    this.body.append(this.base, this.top);
+    this.main.append(this.head, this.body);
     this.over = document.createElement("canvas");
     this.over.className = "tl-overview";
     this.relabel();
@@ -504,18 +525,39 @@ export class Timeline {
     return this.chordsTop + this.dims.chords;
   }
 
-  // The time scale, under them.
-  get rulerTop() {
-    return this.barsHeight;
+  // The time scale under the tracks on a smartphone (2.22), over them on a
+  // computer.
+  get rulerBelow() {
+    return this.compact;
   }
 
-  // Everything over the tracks.
+  // The time scale: under the lanes, or under the tracks.
+  get rulerTop() {
+    return this.rulerBelow ? this.tracksBottom : this.barsHeight;
+  }
+
+  // Everything over the tracks: the head pane.
   get headHeight() {
-    return this.barsHeight + this.dims.ruler;
+    return this.barsHeight + (this.rulerBelow ? 0 : this.dims.ruler);
+  }
+
+  // The bottom of the tracks (and of the take being recorded).
+  get tracksBottom() {
+    return this.headHeight + this.rows.reduce((sum, r) => sum + this.rowHeight(r), 0) + (this.live ? this.live.height : 0);
   }
 
   get height() {
-    return this.headHeight + this.rows.reduce((sum, r) => sum + this.rowHeight(r), 0) + (this.live ? this.live.height : 0);
+    return this.tracksBottom + (this.rulerBelow ? this.dims.ruler : 0);
+  }
+
+  // Where the time scale meets the tracks: the loop's handles sit there, and
+  // the mark of the playhead.
+  get edgeY() {
+    return this.rulerBelow ? this.tracksBottom : this.headHeight;
+  }
+
+  _inRuler(y) {
+    return y >= this.rulerTop && y < this.rulerTop + this.dims.ruler;
   }
 
   get pps() {
@@ -616,13 +658,18 @@ export class Timeline {
     this.dpr = Math.min(3, window.devicePixelRatio || 1);
     this.width = w;
     const h = this.height;
+    const T = this.headHeight;
     this.main.style.height = `${h}px`;
-    for (const c of [this.base, this.top]) {
+    this.head.style.height = `${T}px`;
+    this.body.style.height = `${h - T}px`;
+    const size = (c, ch) => {
       c.width = Math.max(1, Math.round(w * this.dpr));
-      c.height = Math.max(1, Math.round(h * this.dpr));
+      c.height = Math.max(1, Math.round(ch * this.dpr));
       c.style.width = `${w}px`;
-      c.style.height = `${h}px`;
-    }
+      c.style.height = `${ch}px`;
+    };
+    for (const c of [this.hbase, this.htop]) size(c, T);
+    for (const c of [this.base, this.top]) size(c, h - T);
     const o = this.dims.overview;
     this.over.width = Math.max(1, Math.round(w * this.dpr));
     this.over.height = Math.round(o * this.dpr);
@@ -654,26 +701,35 @@ export class Timeline {
     });
   }
 
+  // The context of a pane's canvas, cleared, in the frame of the whole
+  // timeline (y from the top of the head pane down).
+  _pane(canvas, top, h) {
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, -top * this.dpr);
+    ctx.clearRect(0, top, this.width, h);
+    return ctx;
+  }
+
   draw() {
     this.queued = false;
-    const ctx = this.base.getContext("2d");
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.clearRect(0, 0, this.width, this.height);
+    const T = this.headHeight;
+    const head = this._pane(this.hbase, 0, T);
+    const ctx = this._pane(this.base, T, this.height - T);
     if (!(this.duration > 0) || !this.width) {
       this.drawTop();
       return;
     }
     if (this.showChords) {
-      this._notes(ctx);
-      ctx.save();
-      ctx.translate(0, this.sectionsTop);
-      this._sections(ctx);
-      ctx.restore();
-      this._numbers(ctx);
-      this._chords(ctx);
+      this._notes(head);
+      head.save();
+      head.translate(0, this.sectionsTop);
+      this._sections(head);
+      head.restore();
+      this._numbers(head);
+      this._chords(head);
     }
-    this._ruler(ctx);
-    let y = this.headHeight;
+    this._ruler(this.rulerBelow ? ctx : head);
+    let y = T;
     for (const row of this.rows) {
       this._row(ctx, row, y);
       y += this.rowHeight(row);
@@ -821,8 +877,10 @@ export class Timeline {
     ctx.fillRect(0, h - 1, W, 1);
   }
 
-  // The time scale, just over the tracks: the time every few seconds. The
-  // loop's handles sit on its bottom edge (drawTop()).
+  // The time scale, next to the tracks (over them, or under them on a
+  // smartphone): the time every few seconds. The loop's handles sit on its
+  // edge by the tracks (drawTop()). Under the tracks it is thicker, its
+  // ticks from the tracks down and the times in its middle.
   _ruler(ctx) {
     const y0 = this.rulerTop;
     const R = this.dims.ruler;
@@ -830,17 +888,19 @@ export class Timeline {
     ctx.fillStyle = C.ruler;
     ctx.fillRect(0, y0, W, R);
     const step = TIME_STEPS.find((s) => s * this.pps >= 64) || 600;
-    ctx.font = `500 11px ${FONT}`;
+    ctx.font = `500 ${this.rulerBelow ? 12 : 11}px ${FONT}`;
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = C.time;
+    const tick = this.rulerBelow ? 10 : 12;
+    const text = this.rulerBelow ? y0 + R / 2 + 8 : y0 + 12;
     for (let s = Math.floor(this.start / step) * step; s <= this.start + this.span; s += step) {
       const x = Math.round(this.x(s));
       if (x < -40) continue;
-      ctx.fillRect(x, y0 + 2, 1, 12);
-      ctx.fillText(fmtClock(s), x + 3, y0 + 12);
+      ctx.fillRect(x, y0 + (this.rulerBelow ? 0 : 2), 1, tick);
+      ctx.fillText(fmtClock(s), x + 3, text);
     }
     ctx.fillStyle = C.border;
-    ctx.fillRect(0, y0 + R - 1, W, 1);
+    ctx.fillRect(0, this.rulerBelow ? y0 : y0 + R - 1, W, 1);
   }
 
   _fit(ctx, text, w) {
@@ -955,7 +1015,9 @@ export class Timeline {
     const cols = Math.ceil(width * dpr);
     const perCol = 1 / (pxPerSec * dpr * bucketSec); // buckets per device pixel
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // In device pixels, keeping the shift of the pane drawn on (2.22: the
+    // tracks' pane starts under the lanes).
+    ctx.setTransform(1, 0, 0, 1, 0, ctx.getTransform().f);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     const base = t0 / bucketSec;
@@ -1106,12 +1168,20 @@ export class Timeline {
   // on their own canvas over the rest. The loop and the playhead cover the
   // tracks only, from their top edge (T) down.
   drawTop() {
-    const ctx = this.top.getContext("2d");
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.clearRect(0, 0, this.width, this.height);
-    if (!(this.duration > 0)) return;
-    const H = this.height;
     const T = this.headHeight;
+    const head = this._pane(this.htop, 0, T);
+    const body = this._pane(this.top, T, this.height - T);
+    if (!(this.duration > 0)) return;
+    // The same picture on both panes, each showing its part.
+    this._drawTop(head);
+    this._drawTop(body);
+  }
+
+  _drawTop(ctx) {
+    const T = this.headHeight;
+    const B = this.tracksBottom;
+    const E = this.edgeY;
+    const below = this.rulerBelow;
     const sel = this.selection;
     // The stretch chosen on the bar numbers, in their lane.
     const rg = this.range;
@@ -1152,16 +1222,16 @@ export class Timeline {
       const x2 = Math.round(this.x(lp.end));
       if (x2 >= -10 && x1 <= this.width + 10) {
         ctx.fillStyle = C.loopFill;
-        ctx.fillRect(x1, T, x2 - x1, H - T);
+        ctx.fillRect(x1, T, x2 - x1, B - T);
         ctx.fillStyle = C.loop;
-        ctx.fillRect(x1, T - 4, x2 - x1, 3);
+        ctx.fillRect(x1, below ? E + 1 : E - 4, x2 - x1, 3);
         const tab = this.dims.tab;
         for (const x of [x1, x2]) {
           ctx.fillStyle = C.loopGlow;
-          ctx.fillRect(x - 2.5, T, 5, H - T);
+          ctx.fillRect(x - 2.5, T, 5, B - T);
           ctx.fillStyle = C.loop;
-          ctx.fillRect(x - 1, T, 2, H - T);
-          this._roundRect(ctx, x - tab.w / 2, T - tab.h / 2 - 2, tab.w, tab.h, 3);
+          ctx.fillRect(x - 1, T, 2, B - T);
+          this._roundRect(ctx, x - tab.w / 2, below ? E - tab.h / 2 + 2 : E - tab.h / 2 - 2, tab.w, tab.h, 3);
         }
       }
     }
@@ -1169,13 +1239,14 @@ export class Timeline {
     const x = Math.round(this.x(this.scrub ?? this.position));
     if (x >= -4 && x <= this.width + 4) {
       ctx.fillStyle = "rgba(231, 189, 109, 0.18)";
-      ctx.fillRect(x - 2.5, T, 5, H - T);
+      ctx.fillRect(x - 2.5, T, 5, B - T);
       ctx.fillStyle = C.playhead;
-      ctx.fillRect(x - 1, T, 2, H - T);
+      ctx.fillRect(x - 1, T, 2, B - T);
+      // Its mark, on the edge of the time scale, pointing at the tracks.
       ctx.beginPath();
-      ctx.moveTo(x - 6, T);
-      ctx.lineTo(x + 6, T);
-      ctx.lineTo(x, T + 8);
+      ctx.moveTo(x - 6, E);
+      ctx.lineTo(x + 6, E);
+      ctx.lineTo(x, below ? E - 8 : E + 8);
       ctx.closePath();
       ctx.fill();
     }
@@ -1402,9 +1473,14 @@ export class Timeline {
     ov.addEventListener("pointercancel", end);
   }
 
+  // Where an event is, in the frame of the timeline: on the head pane (which
+  // may stand in view, sticky, over the tracks), from its own top; on the
+  // body pane, under the head.
   _point(e) {
-    const r = this.main.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const h = this.head.getBoundingClientRect();
+    if (h.height > 0 && e.clientY >= h.top && e.clientY < h.bottom) return { x: e.clientX - h.left, y: e.clientY - h.top };
+    const b = this.body.getBoundingClientRect();
+    return { x: e.clientX - b.left, y: e.clientY - b.top + this.headHeight };
   }
 
   // The row of a track at y: {row, top}, or null (over the tracks, or the
@@ -1612,13 +1688,14 @@ export class Timeline {
     const x2 = this.x(lp.end);
     const d = Math.min(Math.abs(x - x1), Math.abs(x - x2));
     const edge = Math.abs(x - x1) <= Math.abs(x - x2) ? "start" : "end";
-    const T = this.headHeight;
-    // The time scale: the handles, on its bottom edge.
-    if (y < T) return d <= (mouse ? 6 : 16) ? edge : null;
+    const E = this.edgeY;
+    // The time scale: the handles, on its edge by the tracks.
+    if (this._inRuler(y)) return d <= (mouse ? 6 : 16) ? edge : null;
     // The waveforms: a mouse grabs the edges all along them, a finger the
-    // part of the handles that reaches into the first row; the loop from
+    // part of the handles that reaches into the tracks; the loop from
     // inside it.
-    if (mouse ? d <= 6 : d <= 16 && y < T + this.dims.tab.h / 2) return edge;
+    const nearTab = this.rulerBelow ? y > E - this.dims.tab.h / 2 : y < E + this.dims.tab.h / 2;
+    if (mouse ? d <= 6 : d <= 16 && nearTab) return edge;
     return x > x1 && x < x2 ? "body" : null;
   }
 
@@ -1844,7 +1921,7 @@ export class Timeline {
     const looping = this.loop.on && this.loop.end > this.loop.start;
     // Shift-click on the time scale with the loop on: an edge of the loop to
     // the nearest beat.
-    if (e.shiftKey && looping && this.hasGrid && p.y >= this.rulerTop && p.y < this.headHeight) {
+    if (e.shiftKey && looping && this.hasGrid && this._inRuler(p.y)) {
       const t = this._nearestBeat(clamp(this.t(p.x), 0, this.duration));
       this._loopTo(t, t);
       return;
@@ -1897,7 +1974,7 @@ export class Timeline {
     const step = this.hasGrid ? this._rangeStep(e.pointerType) : null;
     if (zone === "start" || zone === "end") this.gesture = { kind: zone, id: e.pointerId, x0: p.x, step };
     else if (zone === "body") this.gesture = { kind: "body", id: e.pointerId, x0: p.x, t0: this.t(p.x), loop0: { ...this.loop }, step, moved: false };
-    else if (p.y >= this.headHeight) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
+    else if (p.y >= this.headHeight && p.y < this.tracksBottom) this.gesture = { kind: "scrub", id: e.pointerId, x0: p.x, y0: p.y, moved: false };
     // The time scale, or the bars while not editing: a tap places the
     // playhead (the bars: asks for the chord), dragging scrolls.
     else this.gesture = { kind: "press", bar: zone === "bars", id: e.pointerId, x0: p.x, y0: p.y, start0: this.start, samples: [{ x: p.x, t: e.timeStamp }] };

@@ -4540,13 +4540,22 @@ function relabel() {
   renderPlayer(player.song ? app.timeline.getView() : null);
 }
 
-// --appbar-h: the height of the bar at the top; --app-h: the window's.
+// --appbar-h: the height of the bar at the top; --app-h: the window's;
+// --tl-stick (2.22, a computer): where the lanes of the timeline stay in view,
+// under the bar at the top and the transport (sticky both).
 function trackAppBarHeight() {
   const bar = document.querySelector(".appbar");
+  const transport = $("transport");
   const root = document.documentElement.style;
-  const set = () => root.setProperty("--appbar-h", `${Math.round(bar.getBoundingClientRect().height)}px`);
+  const set = () => {
+    const a = Math.round(bar.getBoundingClientRect().height);
+    root.setProperty("--appbar-h", `${a}px`);
+    if (!phone && transport) root.setProperty("--tl-stick", `${a + Math.round(transport.getBoundingClientRect().height)}px`);
+  };
   const setApp = () => root.setProperty("--app-h", `${window.innerHeight}px`);
-  new ResizeObserver(set).observe(bar);
+  const watch = new ResizeObserver(set);
+  watch.observe(bar);
+  if (transport) watch.observe(transport);
   window.addEventListener("resize", setApp);
   set();
   setApp();
@@ -4566,10 +4575,13 @@ function registerServiceWorker() {
 // The chords of the bars selected, the bar, copy and paste and Clear chords
 // go in the tab Bars and chords, the zoom beside the overview. The phone keeps
 // them over the timeline, and has not the tabs Bars and chords, Tracks (the
-// clips are edited on a computer) and Help (its ? at the top right).
+// clips are edited on a computer) and Help (its ? at the top right); its
+// tracks go in the card of the timeline, under it (2.22).
 function placeForLayout() {
   if (phone) {
     for (const id of ["bars-card", "clips-card", "guide-card"]) $(id).hidden = true;
+    // The tracks in the card of the timeline, under it (2.22).
+    document.querySelector(".timeline-card").append(document.querySelector(".tracks-card"));
     return;
   }
   $("bars-chords-slot").append($("chord-slots"));

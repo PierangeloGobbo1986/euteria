@@ -784,7 +784,7 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 .tl-host { min-width: 0; }
 .tl-main {
   position: relative;
-  overflow: hidden;
+  overflow: clip; /* not hidden: the head pane may stay in view (sticky) inside it */
   border-radius: 8px;
   background: #131719;
   touch-action: pan-y;
@@ -793,6 +793,10 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
   -webkit-touch-callout: none;
 }
 .tl-main canvas { position: absolute; left: 0; top: 0; display: block; }
+/* The lanes over the tracks and the tracks, two panes (2.22); on a computer the
+   lanes stay in view under the transport while the page scrolls down the tracks. */
+.tl-headpane, .tl-bodypane { position: relative; }
+[data-layout=computer] .tl-headpane { position: sticky; top: var(--tl-stick, 0px); z-index: 4; }
 .tl-overview { display: block; margin-bottom: var(--tl-gap); border-radius: 6px; touch-action: none; cursor: pointer; }
 .grid-view { display: flex; align-items: center; gap: 6px; }
 .grid-view[hidden] { display: none; }
@@ -802,18 +806,19 @@ button.eye { display: inline-flex; align-items: center; justify-content: center;
 .tl-side .lane-eye { flex: none; width: 22px; height: 22px; border-radius: 6px; }
 .tl-side .lane-eye .icon { width: 16px; height: 16px; }
 button.eye .icon { width: 18px; height: 18px; }
-[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap) + var(--tl-head, 72px)); }
-/* Beside everything over the tracks: the names of the lanes of the sections,
-   of the chords and of the bar numbers, each in line with its lane, then,
-   beside the time scale, the buttons of the tracks. */
+[data-layout=computer] .tl-heads { position: relative; padding-top: calc(var(--tl-over, 26px) + var(--tl-gap)); }
+/* Beside everything over the tracks: the names of the lanes of the notes, of
+   the sections, of the chords and of the bar numbers, each in line with its
+   lane, then, beside the time scale, the buttons of the tracks. */
 .tl-side {
-  position: absolute;
-  top: calc(var(--tl-over, 26px) + var(--tl-gap));
-  left: 0;
-  right: 10px;
+  position: sticky; /* in view with the lanes it names (2.22) */
+  top: var(--tl-stick, 0px);
+  z-index: 4;
+  margin-right: 10px;
   height: var(--tl-head, 72px);
   display: flex;
   flex-direction: column;
+  background: var(--panel);
 }
 .tl-side .lane-name {
   flex: none;
@@ -849,6 +854,10 @@ button.eye .icon { width: 18px; height: 18px; }
 /* Over the timeline there is nothing left on a computer (2.14): the chords are edited in their
    tab, the zoom is beside the overview, and the help texts are in Shortcuts and in the tabs. */
 [data-layout=computer] .tl-toolbar, [data-layout=computer] .tl-hint { display: none; }
+/* The phone (2.22): no text under the timeline (the gestures are in the
+   Instructions), and the tracks in the same card, under the time scale. */
+[data-layout=phone] .tl-hint { display: none; }
+[data-layout=phone] .timeline-card .tracks-card { margin: 14px 0 0; padding: 0; border: 0; border-radius: 0; background: none; }
 .tl-side-tools > button, .tl-side .quick button { min-height: 0; height: 28px; padding: 0 10px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .tl-side .quick button { flex: 1 1 auto; padding: 0 6px; }
 .tl-heads .track {

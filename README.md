@@ -86,6 +86,9 @@ open, the keys of the player do nothing and the page under it stays still.
   of the timeline, with the overview, the bars, the chords and the tracks as rows (no line
   of help under them any more, 2.14); the column of the tracks starts with the zoom, beside
   the overview, then *All stems* and *Original only*, beside the bars and the time scale.
+  Scrolling down the tracks, the lanes over them (the notes, the sections, the chords, the
+  bar numbers and the time scale) and their names stay in view under the transport, as the
+  transport does under the bar at the top (2.22), and work there as in their place.
   The page is up to 1360 pixels wide (1280 before 2.14). Volumes and tempo also have
   sliders. Keys: Space play or pause, ← → 5 seconds, Home back to the start, L loop on or
   off, M metronome on or off, [ and ] loop start and end at the current position, R record
@@ -206,10 +209,15 @@ can be added to the page. No layout or style is given, so MuseScore keeps its ow
 detail typed is a change to save and one step to undo, kept in the browser until it is
 saved in the project (`music.chart_credits`).
 
-**The timeline** shows, from the top: the sections, the chords, the bar numbers under
-them (each number in line with its chord), the time scale, then the waveform with the
-bar grid over it, the loop and the playhead; on a computer the lanes are named beside
-them. Over it, in one row on a computer (in a few on the phone), are the tools of the
+**The timeline** shows, from the top: the notes (2.21), the sections, the chords, the bar
+numbers under them (each number in line with its chord), the time scale, then the
+waveform with the bar grid over it, the loop and the playhead; on a computer the lanes are
+named beside them. On the phone the time scale is under the waveform (2.22), 40 pixels
+high, for a finger to drag it, and the tracks follow in the same card (before 2.22, a card
+of their own, and a line of help under the timeline: the gestures are in the Instructions
+now). The lanes and the tracks are two panes of the timeline (2.22), each with its two
+canvases: on a computer the lanes stay in view (sticky) while the page scrolls down the
+tracks. Over it, in one row on a computer (in a few on the phone), are the tools of the
 chords and then *Zoom* (see *Editing the grid and the chords*). The loop and the playhead
 are drawn over the waveforms only, so that the bars and their chords stay free to be
 clicked. On a computer every
@@ -301,8 +309,9 @@ loop at the bar being played (or in the middle of the view if the playhead is el
 in view stays where it is. The edges of the loop are dragged, and the loop moved from
 inside it, by the same step as the stretch along the numbers (2.6.1: the eighth note when
 zoomed in enough, else the beat or the bar; before, they snapped to the nearest bar or
-beat; Alt or Option moves them freely): with a finger by their handles at the foot of the
-time scale, with a mouse also anywhere along them; on a computer [ and ] put the start or
+beat; Alt or Option moves them freely): with a finger by their handles on the edge of the
+time scale by the waveform (its foot on a computer, its top on the phone), with a mouse also
+anywhere along them; on a computer [ and ] put the start or
 the end of the loop at the playhead. While the song plays, the view follows the playhead,
 except for a few seconds after it was moved by hand.
 The eye (*Show*, in the tab *Bars and chords* on a computer; on the phone over the
@@ -313,10 +322,8 @@ is also at hand in the timeline (2.17): a small square button before the one of 
 notation (*DO RE MI…* or *C D E…*, beside *Chords* in the column of the tracks); with the
 bars and chords hidden their lanes go, and the eye waits
 beside the time scale, before *All stems*, to show them again (the focus of the keyboard
-goes with it). On the phone, when nothing
-is over the waveforms, the line under the timeline says why first: the song has no bars
-yet (*Detect tempo* finds them, on a computer; *Set first beat* makes them by hand), or
-they are hidden, and where the eye is. Bar numbers start from the number saved by
+goes with it). On the phone, until 2.22, when nothing was over the waveforms, the line
+under the timeline said why first (no bars yet, or hidden). Bar numbers start from the number saved by
 EUTERIA (Python). Each chord is written where its beat is (2.7: a short mark under one that
 starts inside its bar), and a name too long for its room uses the following empty bars.
 
