@@ -597,9 +597,18 @@ audio interface sound better. EUTERIA (Python) does not show the takes.
 **Separating the instruments** (computer, Chrome or Edge). A song without stems (an
 audio file, or a project holding only the Original Track) shows *Separate instruments*
 first in the *Song analysis* tab; once the song has its stems the button stays there,
-grey, and says the instruments are separated already. It first asks where to
-save the EUTERIA project (`.euteria`) it is going to make, so that a separation left to
-run on its own is saved when it ends. The first time, it downloads the separation model
+grey, and says the instruments are separated already. Where the project goes is settled
+first, so that a separation left to run on its own is saved when it ends (2.19.2): a song
+that is already a project saved in a folder gets its stems in that same file, written once
+the separation is over (EUTERIA asks once for the permission to write it); an audio file,
+or a project of the library, asks where to save the EUTERIA project (`.euteria`) it is
+going to make. Meanwhile the song's file is read whole: Chrome empties the file chosen in
+the save dialog as soon as the choice is confirmed, and the name suggested is the
+project's own, so a project renamed and saved, then separated, could be emptied before it
+was read ("The requested file could not be read") and then removed. Now the file chosen,
+if it is the song's own, gets the stems, or what it had back if the separation does not
+end; a separation that fails in place leaves the file as it was. The first time, it
+downloads the separation model
 (336 MB, or 669 MB for graphics cards without 16-bit floats), which then stays in the
 browser. A bar in the *Song analysis* panel shows the progress, the speed and the time left
 (the band of the messages, under the transport, shows them too, and the tab its percentage);

@@ -421,6 +421,8 @@ export const IT = {
   "The Original Track could not be encoded: {error}": "Impossibile codificare la traccia originale: {error}",
   "The {stem} stem could not be encoded: {error}": "Impossibile codificare lo stem {stem}: {error}",
   "The project cannot be saved there: {error}": "Impossibile salvare lì il progetto: {error}",
+  "Click Separate instruments again to choose where to save the project with the stems.": "Fai di nuovo clic su Separa strumenti per scegliere dove salvare il progetto con gli stem.",
+  "That is the song's own audio file: choose another name for the project.": "Quello è il file audio del brano: scegli un altro nome per il progetto.",
   "Reading the song…": "Lettura del brano…",
   "Downloading the separation model (about {mb} MB, only the first time)…": "Download del modello di separazione (circa {mb} MB, solo la prima volta)…",
   "Preparing the model on the graphics card…": "Preparazione del modello sulla scheda grafica…",

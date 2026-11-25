@@ -1860,7 +1860,7 @@ function buildControls() {
     practiceState,
     refreshPage: scheduleUi,
     waitTempo: () => detection.idle(),
-    takes: () => recording.forNewProject(),
+    takes: (file) => recording.forNewProject(file),
     openFile: async (file, handle) => {
       const song = await openSong(file, { source: "file", handle, separated: true });
       if (song) {

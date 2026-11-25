@@ -409,8 +409,8 @@ export class RecordingFlow {
 
   // The takes for a new project made from this song (the separation):
   // {takes, members}, their MP3 files read from the song's file if they are
-  // in it.
-  async forNewProject() {
+  // in it (`file`: that file as it was read, else the song's file itself).
+  async forNewProject(file = null) {
     await this.ready();
     const { app } = this.ctx;
     const takes = this.takes;
@@ -419,7 +419,7 @@ export class RecordingFlow {
     for (const take of takes) {
       if (take.mp3) members.push({ name: take.member, data: take.mp3 });
       else {
-        zip = zip || (await openZip(app.current.file));
+        zip = zip || (await openZip(file || app.current.file));
         members.push({ name: take.member, data: await zip.bytes(take.member) });
       }
     }

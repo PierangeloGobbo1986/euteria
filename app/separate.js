@@ -6,8 +6,13 @@
 // the Original Track, the grid, the chords and the practice settings in an
 // EUTERIA project (.euteria), which then opens in the player.
 //
-// Where the project goes is asked first, so that a separation left to run on
-// its own is saved when it ends; a tempo detection still running
+// Where the project goes is settled first, so that a separation left to run on
+// its own is saved when it ends (2.19.2): a project in a file EUTERIA may write
+// takes its stems in that file, written once the separation is over; anything
+// else asks where, in the save dialog, the song's file read whole meanwhile
+// (Chrome empties the file chosen there as soon as the choice is confirmed, and
+// that may be the song's own: it then gets the stems, or what it had back if
+// the separation does not end). A tempo detection still running
 // (app/detect.js) ends first, and its result goes into the project too. The
 // takes recorded over the song go into the new project with it. The model (336 MB, or 669 MB at full
 // precision for graphics cards without 16-bit floats) is downloaded the first
@@ -44,6 +49,35 @@ function separationSupport(phoneLayout) {
   if (!(browser.name === "Chrome" || browser.name === "Edge") || !("showSaveFilePicker" in window)) return { ok: false, reason: "browser" };
   if (!("gpu" in navigator)) return { ok: false, reason: "gpu" };
   return { ok: true, model: null };
+}
+
+// The open song is a project in a file of a folder (opened or saved there, not
+// the library's), which EUTERIA may be allowed to write.
+function inWritableFile(song, cur) {
+  return !!(song && song.kind === "project" && song.manifest && cur && cur.source === "file" && cur.handle && typeof cur.handle.createWritable === "function");
+}
+
+// Allowed to write the file of `handle` (asked, if not yet).
+async function mayWrite(handle) {
+  try {
+    if ((await handle.queryPermission({ mode: "readwrite" })) === "granted") return true;
+    return (await handle.requestPermission({ mode: "readwrite" })) === "granted";
+  } catch (_) {
+    return false;
+  }
+}
+
+// `data` (a Blob or bytes) written in the file of `handle`, in place of what
+// it had.
+async function writeAll(handle, data) {
+  const w = await handle.createWritable();
+  try {
+    await w.write(data);
+    await w.close();
+  } catch (error) {
+    await w.abort().catch(() => {});
+    throw error;
+  }
 }
 
 // The model for this graphics card: half precision where its shaders have
@@ -111,14 +145,17 @@ function encodeAll(jobs, onDone, signal) {
 
 export class SeparationFlow {
   // ctx: {app, player, phone, notice(text, kind, ms), openFile(file, handle)
-  // (resolves with the song), practiceState(), refreshPage(), takes()
+  // (resolves with the song), practiceState(), refreshPage(), takes(file)
   // (resolves with {takes, members}: the takes of the song, for the new
-  // project), waitTempo() (resolves when no tempo detection runs)}.
+  // project, those saved read from `file`, the song's file as read),
+  // waitTempo() (resolves when no tempo detection runs)}.
   constructor(ctx) {
     this.ctx = ctx;
     this.support = null;
     this.running = false;
     this.separator = null;
+    this.makeSeparator = () => new Separator(); // the automated tests give one of their own
+    this.askWhere = false; // the next click asks where at once (the permission asked used one up)
     this.signal = null;
     this.status = null; // {text (or a function giving it, in the language in use), kind}
     this.fraction = 0;
@@ -177,12 +214,20 @@ export class SeparationFlow {
 
   // ----- the run ---------------------------------------------------------------------
 
-  async start() {
-    const { app, player } = this.ctx;
-    if (this.running || !this.applicable || !this.supported || player.busy) return;
-    const song = player.song;
-    const cur = app.current;
-    // Where the project goes: asked first, while the click allows it.
+  // Where the project goes: {target, inPlace (the song's own file, written
+  // at the end), same (the target is the song's file), whole (the song's file
+  // as read while the dialog was open)}, or null (cancelled, or said why).
+  async where(song, cur) {
+    if (!this.askWhere && inWritableFile(song, cur)) {
+      if (await mayWrite(cur.handle)) return { target: cur.handle, inPlace: true, same: true, whole: null };
+      // Not allowed: the save dialog, if the click still allows it.
+    }
+    this.askWhere = false;
+    // Read at once, before the dialog can empty it.
+    const reading = cur.file.arrayBuffer().then(
+      (b) => new Uint8Array(b),
+      (error) => ({ error })
+    );
     let target;
     try {
       target = await window.showSaveFilePicker({
@@ -191,10 +236,53 @@ export class SeparationFlow {
         types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
       });
     } catch (error) {
+      if (error && error.name === "AbortError") return null;
+      if (error && (error.name === "SecurityError" || error.name === "NotAllowedError")) {
+        // The permission asked used the click up: the dialog opens with the next one.
+        this.askWhere = true;
+        this.say(() => tr("Click Separate instruments again to choose where to save the project with the stems."), "", 0);
+        return null;
+      }
       const why = (error && error.message) || error;
-      if (!error || error.name !== "AbortError") this.say(() => tr("The project cannot be saved there: {error}", { error: why }), "error");
-      return;
+      this.say(() => tr("The project cannot be saved there: {error}", { error: why }), "error");
+      return null;
     }
+    let whole = await reading;
+    let same = false;
+    try {
+      same = !!cur.handle && (await target.isSameEntry(cur.handle));
+    } catch (_) {}
+    if (whole && whole.error) {
+      // Emptied by the dialog before it was read: nothing left to separate.
+      if (same) {
+        this.say(() => tr("The separation failed: {error}", { error: tr("Its file could not be read: open the song again.") }), "error", 0);
+        return null;
+      }
+      whole = null; // read again where needed, and said there if it cannot be
+    }
+    if (same && (song.kind === "audio" || !song.manifest)) {
+      // The song's own audio file: back as it was, and read from there again.
+      try {
+        await writeAll(target, whole);
+        if (this.ctx.app.current === cur) cur.file = await target.getFile();
+      } catch (_) {}
+      this.say(() => tr("That is the song's own audio file: choose another name for the project."), "error", 0);
+      return null;
+    }
+    return { target, inPlace: false, same, whole };
+  }
+
+  async start() {
+    const { app, player } = this.ctx;
+    if (this.running || !this.applicable || !this.supported || player.busy) return;
+    const song = player.song;
+    const cur = app.current;
+    const place = await this.where(song, cur);
+    if (!place) return;
+    const { target, inPlace, same, whole } = place;
+    // The song's file to read from: as it was read while the dialog was open
+    // (it may be empty since), or itself.
+    const source = whole ? new File([whole], cur.file.name, { type: cur.file.type }) : cur.file;
     this.running = true;
     this.signal = { stopped: false, encoders: null };
     const signal = this.signal;
@@ -209,7 +297,7 @@ export class SeparationFlow {
         if (signal.stopped) throw stopped();
         this.say(tr("Reading the song…"), "", 0);
       }
-      const carried = await this.ctx.takes();
+      const carried = await this.ctx.takes(source);
       // The Original Track as a file: the audio file itself, or the member
       // of the project.
       let original;
@@ -217,11 +305,11 @@ export class SeparationFlow {
       let originalName = cur.file.name;
       let ext = extensionOf(cur.file.name);
       if (song.kind === "audio" || !song.manifest) {
-        original = new Uint8Array(await cur.file.arrayBuffer());
+        original = whole || new Uint8Array(await source.arrayBuffer());
       } else {
         const audio = song.manifest.audio || {};
         const member = audio.original_member;
-        original = await (await openZip(cur.file)).bytes(member);
+        original = await (await openZip(source)).bytes(member);
         info = (audio.tracks || {})[member] || null;
         originalName = audio.original_filename || member;
         ext = extensionOf(member); // the format of the audio itself
@@ -231,7 +319,7 @@ export class SeparationFlow {
       // The model, on the graphics card (the automated tests give a small one
       // in support.model).
       const model = this.support.model || (await modelForGpu());
-      const separator = (this.separator = new Separator());
+      const separator = (this.separator = this.makeSeparator());
       separator.onprogress = (m) => this.progress(m, model);
       const status = await separator.status(model);
       if (!status.cached) {
@@ -326,14 +414,7 @@ export class SeparationFlow {
         ...members.filter((m) => m.name !== originalMember),
         ...carried.members,
       ]);
-      const w = await target.createWritable();
-      try {
-        await w.write(blob);
-        await w.close();
-      } catch (error) {
-        await w.abort().catch(() => {});
-        throw error;
-      }
+      await writeAll(target, blob);
       const saved = await target.getFile();
       const back = JSON.parse(await (await openZip(saved)).text("manifest.json"));
       if (back.project_id !== manifest.project_id) throw new Error(tr("the file read back is not the one written"));
@@ -361,9 +442,14 @@ export class SeparationFlow {
       const wasStopped = signal.stopped || (error && (error.stopped || error.message === "Stopped."));
       this.running = false;
       this.cleanUp();
-      // Nothing was written: the empty file chosen goes away.
+      // Nothing was written. The song's own file is as it was, or gets back
+      // what it had (the dialog emptied it); another file chosen in the
+      // dialog, left empty, goes away.
       try {
-        if ((await target.getFile()).size === 0 && target.remove) await target.remove();
+        if (same && !inPlace && whole) {
+          await writeAll(target, whole);
+          if (app.current === cur) cur.file = await target.getFile(); // read from there again
+        } else if (!same && (await target.getFile()).size === 0 && target.remove) await target.remove();
       } catch (_) {}
       const why = (error && error.message) || error;
       this.say(() => (wasStopped ? tr("Separation stopped: nothing was saved.") : tr("The separation failed: {error}", { error: why })), wasStopped ? "" : "error", 0);
