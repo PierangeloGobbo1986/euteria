@@ -14,7 +14,11 @@ Phase 2 (the separation of the instruments in the app, on a computer) and the re
 of takes over a song (version 0.5 and later) are online and being tested. The version
 went from 0.12 to **2.0** in November 2026: with the separation, the takes, the tempo and
 chord detection, the metronome and the empty projects, the web app is EUTERIA's second
-version; the 0.x numbers below are those of its development releases.
+version; the 0.x numbers below are those of its development releases. **3.0** (November
+2026) opens the way to a repository shared by the community: the details of the song and of
+its recording first (3.0), then the analysis of a song (its bars, sections and chords)
+exported and imported on its own, lined up with the listener's own copy, then the
+community itself. Version 2 stays in the branch `v2` (2.23.0), to go back to if need be.
 
 - The app: https://pierangelogobbo1986.github.io/euteria/
 - Phase 0 test page (not linked from the app): https://pierangelogobbo1986.github.io/euteria/lab/
@@ -194,20 +198,36 @@ library. Each has a red ✕ that deletes it, and *Delete all* above the list del
 all (after a second tap). An audio file opens as a single track: tempo, key and loop
 work on the whole song, and *Export MP3* gives it at the tempo and in the key chosen.
 
+**The details of the song** (3.0.0) open the same tab, in the group *Song*: *Title* (the
+song's name until another is typed; emptied, the song's name again), *Subtitle* and
+*Lyricist* in one column, *Composer*, *Arranger* and *Copyright* in the next, the details
+of the chord chart (2.16, before 3.0 beside *Export for MuseScore*); then *Performer*,
+*Album* and *Year*, which recording the song is. In a window too narrow for the four
+groups of the tab in one row, the fields get narrower. On the phone they go two by two,
+each named over it, the recording first. As a song opens, what its audio file says of
+itself fills the fields still empty (`src/tags.js`): the artist (or the album's artist),
+the album, the year (four digits, from a date too), and the title when it is not the
+song's name (a file named *01 Back to Black.mp3* tagged *Back to Black*). It reads the ID3
+tags of MP3 and AAC (2.2, 2.3 and 2.4; ID3v1 at the end of an MP3 when there is nothing
+else; in WAV and AIFF, their ID3 chunk), the iTunes atoms of MP4 and M4A (wherever the
+file has them, at its end too), the Vorbis comments of FLAC, Ogg Vorbis and Opus, the
+INFO list of WAV and the NAME and AUTH chunks of AIFF; only the tags are read, the audio
+between them skipped. A project reads the tags of its Original Track's file. What the
+tags give is the song's own, not a change to save; it goes into the project at the next
+*Save*.
+
 *Export for MuseScore* (2.8), in the same tab, writes the bars and chords as a chord chart
 in MusicXML, in the key of now, with a new line after *Bars per line* and at each
-section. Beside them are the details of the chart (2.16): *Title* (the song's name until
-another is typed; emptied, the song's name again), *Subtitle* and *Lyricist* in one
-column, *Composer*, *Arranger* and *Copyright* in the other (on the phone the same two
-columns, each field named over it). The chart takes them where MuseScore reads them for
+section. The chart takes the details of the chart where MuseScore reads them for
 the frame at the top of the score: the title (`work-title`), the subtitle (`work-number`,
 which MuseScore shows as the subtitle when no movement number is given), the composer, the
 arranger and the lyricist (`creator`), the copyright (`rights`, at the foot of the first
 page). MuseScore puts the title, the subtitle, the composer and the lyricist in that frame,
 and the arranger in the project's properties (*File › Project properties*), from where it
-can be added to the page. No layout or style is given, so MuseScore keeps its own. Each
-detail typed is a change to save and one step to undo, kept in the browser until it is
-saved in the project (`music.chart_credits`).
+can be added to the page. No layout or style is given, so MuseScore keeps its own; the
+details of the recording are not written in it. Each detail typed is a change to save and
+one step to undo, kept in the browser until it is saved in the project
+(`music.chart_credits`, `music.recording`).
 
 **The timeline** shows, from the top: the notes (2.21), the sections, the chords, the bar
 numbers under them (each number in line with its chord), the time scale, then the
@@ -866,6 +886,9 @@ travel as files (for example over WhatsApp).
   holds those given of `title` (only when it is not the project's name), `subtitle`,
   `composer`, `arranger`, `lyricist` and `copyright` (one line each, up to 120
   characters); without it the chart is titled with the project's name.
+- **The recording** (3.0): `music.recording`, written by EUTERIA Web, holds those given of
+  `performer`, `album` and `year` (one line each); without it, the tags of the Original
+  Track's file give them, if it has any.
 - **The fine tuning** (2.18): `practice.transpose_cents`, written by EUTERIA Web when the
   song is moved by some cents (−50 to 50, on top of the key of `transpose_semitones`);
   without it, none. The song's own tuning, measured, is not saved: it is measured again.
@@ -1312,7 +1335,7 @@ file and kept (`app.baseFiles`), and they go back in as they were if it comes ba
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
   (`grid.js`), the clips of the tracks (`clips.js`), chord names read and transposed (`chordnames.js`), the chord chart in
-  MusicXML (`musicxml.js`), the tuning of a song measured (`tuning.js`), the metronome's
+  MusicXML (`musicxml.js`), what an audio file says of itself in its tags (`tags.js`), the tuning of a song measured (`tuning.js`), the metronome's
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
@@ -1361,7 +1384,13 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   track to another, 2.23), copying
   and pasting them from one project to another (2.11), the fine tuning in cents, with the
   song's own tuning measured (2.18).
-- **Phase 3**: band features.
+- **Phase 3** (version 3): a repository shared by the community, of the analyses of songs
+  (bars, sections, chords; never audio), on Firebase. Step 1: the details of the song and
+  of its recording, read from the tags of its file (3.0). Step 2: the analysis exported
+  and imported on its own, lined up with the listener's copy of the recording. Step 3:
+  the community: searching it (a dot when it knows the song open), downloading,
+  publishing (open to everyone, with a sign-in), as on the record or as an arrangement.
+  Then band features.
 
 ## Licence
 

@@ -15,6 +15,7 @@ import { openProject, toInt16, TRACK_TITLES, STEM_NAMES, BOOST_CEILING, stemsExp
 import { int16Peaks, PEAK_BUCKET } from "./peaks.js";
 import { clipsOf, clipsEnd, normalize, sameClips, bake, sourcesOf, EDGE_FADE_SECONDS } from "./clips.js";
 import { TuningMeter, TUNING, tuningExcerpts } from "./tuning.js";
+import { readTags } from "./tags.js";
 import { tr } from "./i18n.js";
 
 export const MIN_LOOP = 0.25; // seconds, as the engine
@@ -40,9 +41,11 @@ async function isZip(file) {
   return head[0] === 0x50 && head[1] === 0x4b;
 }
 
-// A plain audio file becomes a song with the Original Track only.
+// A plain audio file becomes a song with the Original Track only; what its
+// tags say of it (3.0: src/tags.js) comes with it.
 async function openAudio(file, context, onProgress) {
   onProgress(0, 1, "original");
+  const tags = await readTags(file);
   let buffer;
   try {
     buffer = await context.decodeAudioData(await file.arrayBuffer());
@@ -57,6 +60,7 @@ async function openAudio(file, context, onProgress) {
     manifest: null,
     title,
     songName: title,
+    tags,
     tracks: [{ key: "original", title: TRACK_TITLES.original, bus: "pitched", channels, length: buffer.length, gain: 1, on: true }],
     alignment: null,
     sampleRate: context.sampleRate,
@@ -289,6 +293,7 @@ export class Player {
       kind,
       manifest: song.manifest || null,
       alignment: song.alignment || null,
+      tags: song.tags || null, // what its audio file says of it (3.0, src/tags.js)
     };
     this.lost = [];
     this.stash.clear();

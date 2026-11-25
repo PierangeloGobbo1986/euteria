@@ -536,15 +536,20 @@ button.step-btn .icon { width: 18px; height: 18px; }
 [data-layout=computer] #ribbon .rbig.primary { background: var(--panel-alt); color: var(--gold); border-color: #6b5530; font-weight: 650; }
 [data-layout=computer] #ribbon .analysis-find { flex-wrap: nowrap; gap: 8px; margin: 0; }
 [data-layout=computer] #ribbon .chart-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-/* The details of the chart (2.16), right of Bars per line: two columns of three, each named at
-   its left, as high as the big buttons. */
-[data-layout=computer] #ribbon .chart-credits { display: grid; grid-template-columns: auto minmax(0, 150px) auto minmax(0, 150px); grid-template-rows: repeat(3, 22px); gap: 5px 8px; align-items: center; margin-left: 6px; }
+/* The details of the song (3.0, Song; 2.16 for those of the chart): three columns of three,
+   each named at its left, as high as the big buttons. Song takes the room the other groups
+   leave: in a narrower window its fields get narrower (not under 64 px) rather than the card
+   going on two rows. */
+[data-layout=computer] #ribbon .song-group { flex: 1 1 480px; max-width: max-content; }
+[data-layout=computer] #ribbon .chart-credits { display: grid; grid-template-columns: auto minmax(64px, 140px) auto minmax(64px, 140px) auto minmax(64px, 140px); grid-template-rows: repeat(3, 22px); gap: 5px 8px; align-items: center; }
 [data-layout=computer] #ribbon .credit { display: contents; }
 [data-layout=computer] #ribbon .credit .mini-label { font-size: 12px; text-align: right; }
 [data-layout=computer] #ribbon .credit:nth-child(-n+3) .mini-label { grid-column: 1; }
 [data-layout=computer] #ribbon .credit:nth-child(-n+3) input { grid-column: 2; }
-[data-layout=computer] #ribbon .credit:nth-child(n+4) .mini-label { grid-column: 3; padding-left: 6px; }
-[data-layout=computer] #ribbon .credit:nth-child(n+4) input { grid-column: 4; }
+[data-layout=computer] #ribbon .credit:nth-child(n+4):nth-child(-n+6) .mini-label { grid-column: 3; padding-left: 6px; }
+[data-layout=computer] #ribbon .credit:nth-child(n+4):nth-child(-n+6) input { grid-column: 4; }
+[data-layout=computer] #ribbon .credit:nth-child(n+7) .mini-label { grid-column: 5; padding-left: 6px; }
+[data-layout=computer] #ribbon .credit:nth-child(n+7) input { grid-column: 6; }
 [data-layout=computer] #ribbon .credit:nth-child(3n+1) > * { grid-row: 1; }
 [data-layout=computer] #ribbon .credit:nth-child(3n+2) > * { grid-row: 2; }
 [data-layout=computer] #ribbon .credit:nth-child(3n) > * { grid-row: 3; }
@@ -1145,7 +1150,7 @@ button.tuner-step .icon { width: 18px; height: 18px; }
 .chart-row .num { height: 36px; }
 .chart-row .num input { width: 2.2em; font-size: 15px; text-align: center; }
 [data-layout=phone] .chart-row .num { height: 44px; }
-/* The details of the chart (2.16): a text field each, named over it. */
+/* The details of the song (2.16, 3.0): a text field each, named over it. */
 .chart-credits input {
   appearance: none;
   -webkit-appearance: none;
@@ -1158,7 +1163,12 @@ button.tuner-step .icon { width: 18px; height: 18px; }
 }
 .chart-credits input:focus { border-color: var(--border-hi); outline: none; }
 .chart-credits input:disabled { opacity: .5; }
-[data-layout=phone] .chart-credits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 10px; flex-basis: 100%; margin-top: 4px; }
+/* The phone: two columns, the recording first (Title and Performer, Album and Year), then the
+   chart (Subtitle and Lyricist, Composer and Arranger, Copyright). */
+[data-layout=phone] .chart-credits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; flex-basis: 100%; margin-top: 4px; }
+[data-layout=phone] .credit:nth-child(7) { order: 1; }
+[data-layout=phone] .credit:nth-child(n+8) { order: 2; }
+[data-layout=phone] .credit:nth-child(-n+6):not(:first-child) { order: 3; }
 [data-layout=phone] .credit { display: flex; flex-direction: column; gap: 4px; }
 [data-layout=phone] .credit input { height: 44px; padding: 0 12px; font-size: 16px; border-radius: 10px; }
 #project-status.dirty { color: var(--gold); }

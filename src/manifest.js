@@ -7,7 +7,7 @@
 
 import { STEM_NAMES, TAKES_DIR, isTake, takeToManifest } from "./project.js";
 import { musicFields } from "./grid.js";
-import { CREDIT_FIELDS } from "./musicxml.js";
+import { CREDIT_FIELDS, RECORDING_FIELDS, readCredits } from "./musicxml.js";
 
 const EDITED_WITH = "EUTERIA Web";
 const WEB_FORMAT_VERSION = 4; // as the projects exported for the web app by EUTERIA (Python)
@@ -129,16 +129,29 @@ export function withBaseTracks(manifest, files, present) {
   return manifest;
 }
 
-// The details of the chord chart (2.16, src/musicxml.js) in
-// music.chart_credits: those given (the title only when it is not the
-// song's name). A state without them leaves the field as it is.
+// The details of the song (src/musicxml.js): those of the chord chart (2.16)
+// in music.chart_credits, those of the recording (3.0: performer, album,
+// year) in music.recording; those given (the title only when it is not the
+// song's name). A state without them leaves the fields as they are.
 function withCredits(music, credits) {
   if (credits === undefined) return music;
-  const given = {};
-  for (const k of CREDIT_FIELDS) if (credits && credits[k]) given[k] = credits[k];
-  if (Object.keys(given).length) music.chart_credits = given;
-  else delete music.chart_credits;
+  for (const [name, fields] of [
+    ["chart_credits", CREDIT_FIELDS],
+    ["recording", RECORDING_FIELDS],
+  ]) {
+    const given = {};
+    for (const k of fields) if (credits && credits[k]) given[k] = credits[k];
+    if (Object.keys(given).length) music[name] = given;
+    else delete music[name];
+  }
   return music;
+}
+
+// The details of the song a manifest gives (every field, null where none is).
+export function readDetails(manifest) {
+  const music = (manifest && manifest.music) || {};
+  const part = (v) => (v && typeof v === "object" ? v : {});
+  return readCredits({ ...part(music.chart_credits), ...part(music.recording) });
 }
 
 // The tempo and chord detection of the song (app/detect.js) in

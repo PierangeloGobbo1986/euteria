@@ -15,7 +15,7 @@ import { tuningHz, wrapCents } from "../src/tuning.js";
 import { Library, inspectFile, storageEstimate, requestPersistence, isPersisted, AUDIO_EXTENSIONS } from "../src/library.js";
 import { openZip } from "../src/zip.js";
 import { manifestPatch, buildProject, zipLayout, composeEdited, composeProject, crc32Blob } from "../src/zipwrite.js";
-import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes, withBaseTracks } from "../src/manifest.js";
+import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, manifestBytes, withBaseTracks, readDetails } from "../src/manifest.js";
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile, recentId, recentWritable } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake, trackNameOf, TRACK_NAME_MAX } from "../src/project.js";
@@ -25,7 +25,7 @@ import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, key
 import { countEvent, counted, toggleCounting } from "./counter.js";
 import { Timeline } from "./timeline.js";
 import { getNotation, setNotation } from "../src/chordnames.js";
-import { chartXml, CREDIT_FIELDS, readCredits, sameCredits, creditOf } from "../src/musicxml.js";
+import { chartXml, DETAIL_FIELDS, RECORDING_FIELDS, readCredits, sameCredits, creditOf } from "../src/musicxml.js";
 import { Editor } from "./editor.js";
 import { SectionMenu } from "./sectionmenu.js";
 import { sectionIndexAt } from "../src/sections.js";
@@ -714,7 +714,7 @@ function stepLabel(fields, a, b) {
   if (has("numbers")) return tr("the bar numbers");
   if (has("analysis")) return tr("the tempo and chord detection");
   if (has("title")) return tr("the name of the project");
-  if (has("credits")) return tr("the details of the chord chart");
+  if (has("credits")) return tr("the details of the song");
   const sync = named("sync:");
   if (sync) return tr("the Sync of {take}", { take: title(sync.slice(5)) });
   if (has("order")) return tr("the order of the tracks");
@@ -804,10 +804,18 @@ async function openSong(file, origin) {
     const saved = loadSettings(key);
     player.apply(saved || practiceFromManifest(song.manifest));
     app.tuning = { state: "idle" }; // measured again (renderTuning())
-    app.credits = readCredits(song.manifest && song.manifest.music && song.manifest.music.chart_credits);
+    // The details of the song (3.0: those of the recording too) and, in the
+    // fields still empty, what its audio file says of it: the song's own, not
+    // a change.
+    app.credits = withTags(readDetails(song.manifest), song);
     clipsAreSaved();
-    // The details of the chord chart typed since the song was last saved.
-    if (saved && saved.credits && typeof saved.credits === "object") app.credits = readCredits(saved.credits);
+    // The details typed since the song was last saved (kept before 3.0:
+    // without those of the recording, the song's then).
+    if (saved && saved.credits && typeof saved.credits === "object") {
+      const kept = readCredits(saved.credits);
+      for (const k of RECORDING_FIELDS) if (!(k in saved.credits)) kept[k] = app.credits[k];
+      app.credits = kept;
+    }
     // The names given to the tracks since the song was last saved.
     if (saved && saved.names && typeof saved.names === "object") for (const t of player.tracks) player.setTrackName(t.key, trackNameOf(saved.names[t.key]));
     app.baseFiles = baseFilesOf(song);
@@ -2704,11 +2712,14 @@ async function shareSelected() {
 // Bars per line (kept in this browser) and at each section: sent with the
 // share sheet on a smartphone that can share it, downloaded elsewhere.
 //
-// Beside them (2.16), the details of the chart: Title (the song's name until
-// another is typed; emptied, the song's name again), Subtitle, Lyricist,
-// Composer, Arranger, Copyright. Each change is one step to undo and a change
-// to save, kept in this browser until it is saved in the project
-// (music.chart_credits).
+// The details of the song (Song, the first group of the card; 2.16 for those
+// of the chart, 3.0 for the others): Title (the song's name until another is
+// typed; emptied, the song's name again), Subtitle, Lyricist, Composer,
+// Arranger, Copyright, at the top of the chart; Performer, Album and Year,
+// which recording it is. Each change is one step to undo and a change to
+// save, kept in this browser until it is saved in the project
+// (music.chart_credits, music.recording). The tags of the audio file
+// (src/tags.js) fill those still empty as the song opens (withTags()).
 
 const CHART_KEY = "euteria-chart-lines";
 const CHART_LINES = [1, 12];
@@ -2734,7 +2745,7 @@ function wireChart() {
   chartField.set(chartLines);
   $("chart-lines-box").append(chartField.el);
   $("export-chart").addEventListener("click", exportChart);
-  for (const k of CREDIT_FIELDS) {
+  for (const k of DETAIL_FIELDS) {
     const input = $(`credit-${k}`);
     input.addEventListener("change", () => setCredit(k, input.value));
     input.addEventListener("keydown", (e) => {
@@ -2748,6 +2759,24 @@ function wireChart() {
       }
     });
   }
+}
+
+// The details of a song with what the tags of its audio file say (3.0,
+// src/tags.js) in the fields still empty: the performer, the album, the year,
+// and the title when the song's name (its file's) says it otherwise.
+function withTags(details, song) {
+  const t = song.tags;
+  if (!t) return details;
+  const out = { ...details };
+  for (const [k, v] of [
+    ["performer", t.artist],
+    ["album", t.album],
+    ["year", t.year],
+  ])
+    if (!out[k] && v) out[k] = creditOf(v);
+  const title = creditOf(t.title);
+  if (!out.title && title && title !== song.title) out.title = title;
+  return out;
 }
 
 // What a field of the details shows: the detail, or for the title the song's name.
@@ -2772,7 +2801,7 @@ function setCredit(k, value) {
 // The fields show the details (the one being typed in is left alone, unless
 // `all`: undone, or the song changed).
 function renderCredits(all = false) {
-  for (const k of CREDIT_FIELDS) {
+  for (const k of DETAIL_FIELDS) {
     const input = $(`credit-${k}`);
     input.disabled = !player.song;
     if (!all && document.activeElement === input) continue;
@@ -2785,7 +2814,7 @@ async function exportChart() {
   if (!player.song || !app.grid.bars.length) return;
   editor.commitInput();
   // A detail being typed counts.
-  const typing = CREDIT_FIELDS.find((k) => document.activeElement === $(`credit-${k}`));
+  const typing = DETAIL_FIELDS.find((k) => document.activeElement === $(`credit-${k}`));
   if (typing) setCredit(typing, $(`credit-${typing}`).value);
   const c = app.credits;
   const title = c.title || player.song.title || "EUTERIA";

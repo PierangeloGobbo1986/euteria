@@ -8,6 +8,7 @@
 import { openZip } from "./zip.js";
 import { alignOriginal } from "./align.js";
 import { clipsFromManifest, clipsEnd } from "./clips.js";
+import { readTags } from "./tags.js";
 import { tr } from "./i18n.js";
 
 export const STEM_NAMES = ["vocals", "drums", "bass", "guitar", "piano", "other"];
@@ -217,12 +218,14 @@ export async function openProject(file, context, onProgress = () => {}) {
   const total = present.length + takeList.length;
 
   const tracks = [];
+  let tags = null; // what the Original Track's file says of the song (3.0, src/tags.js)
   for (let i = 0; i < present.length; i++) {
     const [key, member] = present[i];
     onProgress(i, total, key);
     const t0 = performance.now();
     const bytes = await zip.bytes(member);
     const size = bytes.byteLength;
+    if (key === "original") tags = await readTags(bytes); // before decoding takes the bytes
     const t1 = performance.now();
     const buffer = await context.decodeAudioData(bytes.buffer);
     const t2 = performance.now();
@@ -302,6 +305,7 @@ export async function openProject(file, context, onProgress = () => {}) {
     manifest,
     title: manifest.title || songName(manifest),
     songName: songName(manifest),
+    tags,
     tracks: inTrackOrder([...tracks, ...takes], practice.track_order),
     alignment,
     sampleRate: context.sampleRate,

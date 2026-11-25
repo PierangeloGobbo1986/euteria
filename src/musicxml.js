@@ -7,13 +7,15 @@
 // sections as rehearsal marks with a double bar line before them, a new line
 // every few bars and at each section (system breaks, which MuseScore keeps).
 //
-// The details of the chart (2.16, typed beside Export for MuseScore and saved
-// in the project as music.chart_credits): the title, a subtitle, the
-// composer, the arranger, the lyricist and the copyright, written where
-// MuseScore reads them for the frame at the top of the score: work-title,
-// work-number (its subtitle, with no movement number), the creators and the
-// rights (at the foot of the first page). No layout or style of the page is
-// given, so MuseScore keeps its own.
+// The details of the chart (2.16; 3.0: in Song, the first group of File export
+// and sharing, saved in the project as music.chart_credits): the title, a
+// subtitle, the composer, the arranger, the lyricist and the copyright,
+// written where MuseScore reads them for the frame at the top of the score:
+// work-title, work-number (its subtitle, with no movement number), the
+// creators and the rights (at the foot of the first page). No layout or style
+// of the page is given, so MuseScore keeps its own. The details of the
+// recording beside them (3.0: the performer, the album, the year) are not
+// written in the chart.
 //
 // The chords are written as the song shows them now: in the key it is moved
 // to (Key), in letters. A chord symbol is its root, its kind (major,
@@ -40,6 +42,11 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 // ----- the details of the chart ---------------------------------------------------------------
 
 export const CREDIT_FIELDS = ["title", "subtitle", "composer", "arranger", "lyricist", "copyright"];
+// Which recording the song is (3.0: saved as music.recording, read from the
+// tags of its audio file, src/tags.js).
+export const RECORDING_FIELDS = ["performer", "album", "year"];
+// Every detail of a song, as Song shows them.
+export const DETAIL_FIELDS = [...CREDIT_FIELDS, ...RECORDING_FIELDS];
 export const CREDIT_MAX = 120; // characters of each
 
 // One detail as it may be: one line, at most CREDIT_MAX characters; null if none.
@@ -52,11 +59,11 @@ export function creditOf(value) {
 // (the title: the song's name).
 export function readCredits(value) {
   const v = value && typeof value === "object" ? value : {};
-  return Object.fromEntries(CREDIT_FIELDS.map((k) => [k, creditOf(v[k])]));
+  return Object.fromEntries(DETAIL_FIELDS.map((k) => [k, creditOf(v[k])]));
 }
 
 // Whether two sets of details say the same.
-export const sameCredits = (a, b) => CREDIT_FIELDS.every((k) => ((a && a[k]) || null) === ((b && b[k]) || null));
+export const sameCredits = (a, b) => DETAIL_FIELDS.every((k) => ((a && a[k]) || null) === ((b && b[k]) || null));
 
 // ----- the chords ---------------------------------------------------------------------------
 
