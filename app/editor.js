@@ -27,11 +27,20 @@
 // in any key. Detect chords (Song analysis, wired in app/app.js) writes the
 // chords found in the song (app/detect.js, src/chords.js) on the beats of
 // every bar.
+//
+// The notes (2.21, src/notes.js): the field Note (in the tab Bars and chords
+// on a computer, under the chord fields on a smartphone) shows and takes the
+// note of the bars selected, those exactly. Bars are selected for it in the
+// lane of the notes (app/timeline.js says how); a computer puts the cursor in
+// the field at once, a smartphone at a tap again (the first one only
+// selects). Return keeps the note, Escape gives back the one before, an empty
+// note is taken away.
 
 import { h, numberField, fmtTime, fmtSigned, parseTime } from "./controls.js";
 import { chordView } from "../src/chordnames.js";
 import { barChords } from "../src/chords.js";
 import { setSection, sectionTitles, sectionIndexAt } from "../src/sections.js";
+import { noteOf, setNote } from "../src/notes.js";
 import {
   METERS,
   BPM_RANGE,
@@ -76,6 +85,7 @@ export class Editor {
     // The beat of the bar chosen (a click again on the bar, a field clicked,
     // Tab or ← → among the fields): Ctrl+C, ⌘C copy its chord alone (2.20).
     this.beatMode = false;
+    this.noteShown = ""; // the note the field showed (2.21)
     this.clipSections = []; // the sections copied with them (2.15), from their first bar
     this.target = null; // the bars whose chords the fields show
     this.shown = []; // what each field showed
@@ -200,6 +210,20 @@ export class Editor {
       input.addEventListener("pointerdown", () => (this.beatMode = true)); // a beat chosen
     });
     this._labelSlots();
+    // The note of the bars selected (2.21).
+    this.note = $("note-text");
+    this.note.addEventListener("blur", () => this.commitNote());
+    this.note.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        this.commitNote();
+        this.note.blur();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        this.note.value = this.noteShown;
+        this.note.blur();
+      }
+    });
   }
 
   // The names of the fields: the beat of each (in 6/8, beats 1 and 4).
@@ -215,7 +239,10 @@ export class Editor {
     this.slot = clamp(k, 0, this.slotCount - 1);
     if (this.ctx.showTools) this.ctx.showTools(); // a computer: the fields are in the tab Bars and chords
     const input = this.chord;
-    if (!input.disabled) input.focus();
+    // A smartphone: not scrolled at once, or the mouse events a tap sends
+    // after it would land elsewhere and take the focus away (it scrolls the
+    // field into view with the keyboard).
+    if (!input.disabled) input.focus(this.ctx.phone ? { preventScroll: true } : undefined);
     this._showSlot();
   }
 
@@ -343,6 +370,7 @@ export class Editor {
     this.ctx.timeline.setSelection(null);
     this._labelSlots();
     this.loadInput();
+    this.loadNote();
     this._showSlot();
     this.refresh();
   }
@@ -364,6 +392,7 @@ export class Editor {
     this.ctx.timeline.setSelection(null);
     this._labelSlots();
     this.loadInput();
+    this.loadNote();
     this._showSlot();
     this.ctx.refreshPage();
   }
@@ -391,6 +420,7 @@ export class Editor {
     this.ctx.timeline.setSelection(this.sel);
     this._labelSlots();
     this.loadInput();
+    this.loadNote();
     this._showSlot();
     this.ctx.refreshPage();
   }
@@ -438,6 +468,7 @@ export class Editor {
 
   select(sel, { reveal = false } = {}) {
     this.commitInput();
+    this.commitNote();
     this.beatMode = false;
     const n = this.grid.bars.length;
     this.sel = sel && n ? { anchor: clamp(sel.anchor ?? sel.lo, 0, n - 1), lo: clamp(sel.lo, 0, n - 1), hi: clamp(sel.hi, 0, n - 1) } : null;
@@ -445,6 +476,7 @@ export class Editor {
     if (this.sel && this.ctx.barsSelected) this.ctx.barsSelected(); // the clips selected let go
     if (reveal && this.sel) this.ctx.timeline.revealBars(this.sel.lo, this.sel.hi);
     this.loadInput();
+    this.loadNote();
     this._showSlot();
     this.refresh();
   }
@@ -457,6 +489,14 @@ export class Editor {
   // one only selects it).
   onSelect(sel, info = {}) {
     if (!this.on) return;
+    if (info.lane === "notes") {
+      // The lane of the notes (2.21): the field Note, at once on a computer,
+      // at a tap again on a smartphone.
+      this.select(sel);
+      if (sel && this.ctx.showTools) this.ctx.showTools();
+      if (info.done && sel && (!this.ctx.phone || info.again)) this.focusNote();
+      return;
+    }
     if (Number.isInteger(info.slot)) this.slot = info.slot;
     this.select(sel);
     if (info.done && info.again) this.beatMode = true;
@@ -567,6 +607,74 @@ export class Editor {
     });
     // The chords spread over the next beats show in their fields.
     if (edits.some(([, words]) => words.length > 1)) this.loadInput();
+  }
+
+  // ----- the notes (2.21) --------------------------------------------------------------
+
+  // The field Note shows the note of the bars selected (those exactly), and
+  // says which bars it is for.
+  loadNote() {
+    const sel = this.sel;
+    const note = sel ? noteOf(this.grid.notes, sel.lo, sel.hi) : null;
+    this.noteShown = note ? note.text : "";
+    if (document.activeElement !== this.note || !sel) this.note.value = this.noteShown;
+    const g = this.grid;
+    let place = tr("Select bars in the Notes lane to write a note");
+    if (sel) {
+      const from = barNumber(g, sel.lo);
+      const to = barNumber(g, sel.hi);
+      place = from === to ? tr("Note on bar {n}", { n: from }) : tr("Note on bars {from} to {to}", { from, to });
+    }
+    this.note.placeholder = place;
+    this.note.disabled = !sel;
+  }
+
+  // The cursor in the field Note (a computer: the tab Bars and chords opens),
+  // at the end of its text.
+  focusNote() {
+    if (!this.sel) return;
+    if (this.ctx.showTools) this.ctx.showTools();
+    const field = this.note;
+    field.disabled = false;
+    // Not scrolled at once: a tap's mouse events, which come after it, would
+    // land elsewhere and take the focus away (a smartphone scrolls it into
+    // view with the keyboard).
+    field.focus({ preventScroll: true });
+    const n = field.value.length;
+    try {
+      field.setSelectionRange(n, n);
+    } catch (_) {}
+  }
+
+  // What was typed in the field Note goes to the bars it is for.
+  commitNote() {
+    const sel = this.sel;
+    if (!sel || !this.note) return;
+    const text = this.note.value.replace(/\s+/g, " ").trim();
+    if (text === this.noteShown) return;
+    this.setNoteOf(sel.lo, sel.hi, text);
+  }
+
+  // Bars lo..hi given the note `text` (empty: theirs taken away); one step to
+  // undo.
+  setNoteOf(lo, hi, text) {
+    if (!this.ctx.player.song || !this.grid.bars.length) return;
+    const g = this.grid;
+    const notes = setNote(g.notes, lo, hi, text);
+    this.ctx.app.grid = { ...g, notes };
+    const note = noteOf(notes, Math.min(lo, hi), Math.max(lo, hi));
+    if (this.sel && this.sel.lo === Math.min(lo, hi) && this.sel.hi === Math.max(lo, hi)) this.noteShown = note ? note.text : "";
+    const from = barNumber(g, Math.min(lo, hi));
+    const to = barNumber(g, Math.max(lo, hi));
+    const said = note
+      ? from === to
+        ? tr("Note on bar {n} written.", { n: from })
+        : tr("Note on bars {from} to {to} written.", { from, to })
+      : from === to
+        ? tr("Note on bar {n} removed.", { n: from })
+        : tr("Note on bars {from} to {to} removed.", { from, to });
+    this._edited(said);
+    if (document.activeElement !== this.note && this.sel) this.note.value = this.noteShown;
   }
 
   // ----- edits ------------------------------------------------------------------------
@@ -893,6 +1001,7 @@ export class Editor {
     $("bar-prev").disabled = busy || !has || (!!sel && sel.lo <= 0);
     $("bar-next").disabled = busy || !has || (!!sel && sel.hi >= g.bars.length - 1);
     for (const input of this.slots) input.disabled = !sel;
+    this.note.disabled = !sel;
     $("chord-slots").classList.toggle("off", !sel);
     $("chord-copy").disabled = !sel;
     $("chord-paste").disabled = !sel || !this.clip.length;

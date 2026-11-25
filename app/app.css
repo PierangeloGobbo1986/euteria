@@ -600,6 +600,47 @@ button.step-btn .icon { width: 18px; height: 18px; }
 .rkey { font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--dim); }
 /* How to (2.14): what the mouse and the keys do, beside the tools of Bars and chords and of
    Tracks. */
+/* The note of the bars selected (2.21): a field of two lines, as wide as it is given. */
+.note-box { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.note-text {
+  display: block;
+  width: 100%;
+  resize: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--field);
+  color: var(--text);
+}
+.note-text::placeholder { color: var(--dim); }
+.note-text:focus { outline: none; border-color: #8fb3e0; }
+.note-text:disabled { opacity: .6; }
+[data-layout=computer] .note-label { display: none; }
+[data-layout=computer] #ribbon .note-group { flex: 1 1 320px; min-width: 260px; }
+[data-layout=computer] #ribbon .note-group .rgroup-row, [data-layout=computer] #ribbon .note-box { width: 100%; }
+[data-layout=computer] #ribbon .note-text { height: 54px; font-size: 13px; }
+[data-layout=phone] .note-box { width: 100%; }
+[data-layout=phone] .note-text { font-size: 16px; } /* no zoom on the focus (iOS) */
+/* What the lanes say under the mouse, whole (2.21). */
+.tl-tip {
+  position: fixed;
+  z-index: 60;
+  max-width: 360px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #1d2427;
+  border: 1px solid var(--border-hi);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-line;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+}
+.tl-tip[hidden] { display: none; }
 .howto { margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.35; color: var(--muted); }
 .howto li + li { margin-top: 3px; }
 .howto b { color: var(--text); font-weight: 650; }
@@ -724,11 +765,12 @@ input[type=range]:disabled { cursor: default; opacity: .5; }
 [data-layout=computer] .chord-edit .num .step { width: 34px; font-size: 18px; }
 [data-layout=computer] .chord-edit .num input { font-size: 15px; }
 /* Phone: the eye and the zoom, then the chord fields of the beats, then the
-   bar, copy and paste, then the notation and Clear chords. */
+   note (2.21), then the bar, copy and paste, then the notation and Clear chords. */
 [data-layout=phone] .chord-edit { display: contents; }
 [data-layout=phone] .chord-edit .grid-view { order: 1; }
 [data-layout=phone] .zoom-group { order: 2; margin-left: auto; }
 [data-layout=phone] .chord-edit .chord-slots { order: 3; flex: 1 1 100%; }
+[data-layout=phone] .chord-edit .note-box { order: 4; flex: 1 1 100%; } /* the note, under the chords (2.21) */
 [data-layout=phone] .chord-edit .bar-nav { order: 5; }
 [data-layout=phone] .chord-edit .clip { order: 6; }
 [data-layout=phone] .chord-edit .notation-btn { order: 7; }
@@ -783,6 +825,7 @@ button.eye .icon { width: 18px; height: 18px; }
   text-align: right;
   white-space: nowrap;
 }
+.tl-side .lane-notes { height: var(--tl-notes, 22px); line-height: var(--tl-notes-row, 22px); color: #9fb4d9; }
 .tl-side .lane-sections { height: var(--tl-sections, 22px); line-height: var(--tl-sections, 22px); }
 .tl-side .lane-bars { height: var(--tl-nums, 20px); line-height: var(--tl-nums, 20px); }
 .tl-side .lane-sections, .tl-side .lane-bars { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }

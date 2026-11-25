@@ -67,7 +67,9 @@ const HINTS = {
 };
 
 // Shortcuts (a computer, 2.14): the keys, and what the mouse does in the
-// timeline. How to edit the chords and the clips is in their tabs.
+// timeline; how to write the chords, the sections and the notes (2.21: what
+// the tab Bars and chords said under How to). How to edit the clips is in the
+// tab Tracks.
 function renderShortcuts() {
   const mod = MAC ? "⌘" : "Ctrl+";
   const keyboard = [
@@ -92,6 +94,10 @@ function renderShortcuts() {
     [tr("Time scale"), tr("Drag it: scrolls. Shift-click: the nearest edge of the loop moves to the nearest beat")],
     [tr("Zoom"), tr("Pinch, or Ctrl+wheel; in the overview, drag the frame of the view or of the loop")],
     [tr("Tracks"), tr("Click a name: on or off; double-click it (or F2): rename the track; drag ⠿ (or ↑ ↓ on it): moves it; double-click a volume: 100%")],
+    [tr("Chords"), tr("Click a bar: its first beat; again: the beat clicked ({copy} then copies its chord alone). Shift-click or drag: more bars. Tab: next beat; Return: next bar; ← →: other bars; Delete clears them", { copy: `${mod}C` })],
+    [tr("Sections"), tr("Click: a section (or a bar); again on the bars selected: their name")],
+    [tr("Notes"), tr("Click a bar or a note, or drag along bars, and write. After a section: a click on its bars, the note of the section; again, the note of one bar")],
+    [tr("Resting on a lane"), tr("The notes, the chords and the sections, whole")],
   ];
   const fill = (dl, rows) => {
     dl.textContent = "";
@@ -428,7 +434,7 @@ document.addEventListener("visibilitychange", () => {
 //
 // Undo and Redo, at the right of the song's name (Ctrl+Z, ⌘Z; Ctrl+Shift+Z,
 // ⇧⌘Z, Ctrl+Y), go back and forth through what changed in the song open
-// since it opened (app/history.js): its bars, chords and sections, its name,
+// since it opened (app/history.js): its bars, chords, sections and notes, its name,
 // its takes (recorded, deleted, their Sync), its tracks (on or off, volume,
 // order), the tempo, the key, the loop, the metronome and the speed training.
 // Not the view (zoom, scroll, the eye), the playhead or the notation of the
@@ -439,7 +445,7 @@ document.addEventListener("visibilitychange", () => {
 const sameList = (a, b) => a === b || (a.length === b.length && a.every((v, i) => v === b[i]));
 // The tempo, anchor and meter of a grid, which the metronome follows ("": no bars).
 const gridTempoKey = (g) => (g.bars.length > 0 && g.bpm > 0 ? `${g.bpm}|${g.bars[0]}|${g.meter}` : "");
-const GRID_FIELDS = ["chords", "sections", "grid", "numbers", "analysis"];
+const GRID_FIELDS = ["chords", "sections", "notes", "grid", "numbers", "analysis"];
 const METRO_FIELD = /^metro(\.|$)/;
 const TRAINER_FIELD = /^trainer(\.|$)/;
 const METRO_SWITCHES = ["on", "muteOn", "mode", "silence", "random", "countIn"];
@@ -506,13 +512,14 @@ function sameChords(a, b) {
   return true;
 }
 
-// What differs between two grids: the chords, the sections, the grid itself
+// What differs between two grids: the chords, the sections, the notes, the grid itself
 // (tempo, meter, first beat, its beats and bars), the numbers of the bars.
 function gridChanges(x, y) {
   if (x === y) return [];
   const out = [];
   if (!sameChords(x.chords, y.chords)) out.push("chords");
   if (JSON.stringify(x.sections) !== JSON.stringify(y.sections)) out.push("sections");
+  if (JSON.stringify(x.notes || []) !== JSON.stringify(y.notes || [])) out.push("notes");
   if (x.bpm !== y.bpm || x.meter !== y.meter || x.firstBeat !== y.firstBeat || !sameList(x.beats, y.beats) || !sameList(x.bars, y.bars)) out.push("grid");
   if (x.offset !== y.offset) out.push("numbers");
   return out;
@@ -681,6 +688,7 @@ function stepLabel(fields, a, b) {
   if (has("grid")) return tr("the grid"); // its chords may move with it
   if (has("chords")) return tr("the chords");
   if (has("sections")) return tr("the sections");
+  if (has("notes")) return tr("the notes");
   if (has("numbers")) return tr("the bar numbers");
   if (has("analysis")) return tr("the tempo and chord detection");
   if (has("title")) return tr("the name of the project");
@@ -4567,6 +4575,7 @@ function placeForLayout() {
   $("bars-chords-slot").append($("chord-slots"));
   $("bars-bar-slot").append(document.querySelector("#chord-edit .bar-nav"));
   $("bars-copy-slot").append($("chord-copy"), $("chord-paste"));
+  $("bars-note-slot").append($("note-box"));
   const clear = $("clear-chords");
   clear.classList.remove("small", "ghost");
   clear.classList.add("rbig");

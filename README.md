@@ -381,10 +381,11 @@ open:
 - **The tools of the chords**: on a computer the tab *Bars and chords* (2.14): *View* (the
   eye), *Chords of the bar* (the fields of the beats), *Bar* (‹ n ›), *Edit* (*Copy* and
   *Paste*, *Clear chords*: it removes every chord and keeps the grid, *Undo* brings them
-  back; a grid not wanted is hidden with the eye) and *How to*; on the phone (over the
-  timeline, 2.5) the eye and *Zoom*, then the fields of the
-  beats in a row of their own, then the bar with *Copy* and *Paste*, then the notation and
-  *Clear chords*. What they do (chords copied, pasted, cleared, bars renumbered) is said in
+  back; a grid not wanted is hidden with the eye) and *Note* (2.21, where *How to* was:
+  its lines are in *Shortcuts* now, under *Chords*, *Sections* and *Notes*); on the phone
+  (over the timeline, 2.5) the eye and *Zoom*, then the fields of the
+  beats in a row of their own, then the field *Note*, then the bar with *Copy* and *Paste*,
+  then the notation and *Clear chords*. What they do (chords copied, pasted, cleared, bars renumbered) is said in
   the band of the messages. A button beside *Chords*, in the column of the timeline (on the
   phone, beside *Clear chords*), switches every
   chord between letters and the Italian names, written in capitals so that the m of a minor
@@ -437,6 +438,26 @@ open:
   (BPM, ×2, ÷2, meter, first beat, a new tempo found), as the chords do, and are saved in the
   project as `music.sections` (`first_bar`, `last_bar`, and `kind` or `label`), which EUTERIA
   (Python) leaves alone.
+- **The notes** (2.21): a text over a bar or a run of bars (*play it loud, with
+  distortion*), in a lane of its own at the very top, over the sections (*Notes*, beside it
+  on a computer), with a line where each bar starts, always. Each note is a block along its
+  bars with its text, cut to fit; notes may overlap (one for a section, one for a bar of it,
+  never two on the same bars), and the lane then grows a row, the longer note over the
+  shorter. A click on a bar in the lane selects it and puts the cursor in the field *Note*
+  (the tab *Bars and chords*; on the phone, under the chord fields, where the first tap
+  selects and a tap again opens the keyboard); dragging along the lane, or shift-click,
+  selects more bars; a click on a note takes its bars. A section selected (in its lane: that
+  click leaves the keys free, Space still plays) and then a click on its bars in the lane of
+  the notes gives the note of the whole section; a click again there, the note of one bar.
+  The field shows and takes the note of the bars selected, those exactly, and says which;
+  Return keeps it, Escape gives back the one before, an empty note is taken away (one step
+  to undo, said in the band of the messages). The notes stay with their bars when the grid
+  is rebuilt, are saved in the project as `music.notes` (`first_bar`, `last_bar`, `text`,
+  up to 2000 characters), and stay in EUTERIA: *Copy* and *Paste* leave them, and the chord
+  chart for MuseScore has none. On a computer the mouse resting a moment on the lanes shows
+  what they say, whole, in a box beside it: the notes of the bar (each with its bars), its
+  chords with their beats (*Bar 12: Dm7 (1), G7 (3)*), the name of its section with its
+  bars; useful when the song is zoomed out and the lanes cut them short.
 
 Every edit is kept in the browser at once, so nothing is lost if the page closes; until
 it is saved, a dot on *Save* says so (on the phone, the line under the grid in *Song analysis* too). Leaving the song for the
