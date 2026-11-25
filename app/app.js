@@ -142,6 +142,11 @@ const app = {
   baseFiles: new Map(),
   baseKept: new Set(), // those of them in the song when it was last saved (a copy too)
   clipboard: null, // what Copy took, for Paste in this song or another: copyClips()
+  // Which came last, bars selected or a stretch of the bar numbers: Loop
+  // loops it (2.20; toggleLoop()).
+  picks: 0,
+  barsPick: 0,
+  rangePick: 0,
   copying: false,
   // The tuning of the open song (2.18, src/tuning.js), measured once its
   // panel is open: {state: "idle" | "measuring" | "done" | "none" (no clear
@@ -838,8 +843,9 @@ function applyDetection(analysis, fit, { tempo = false, chords = false } = {}) {
 // (src/metronome.js), and a round button in the transport, between Loop and
 // Rec (M on a computer): the metronome is only the click. Its volume, own
 // tempo, beats and what a silent bar silences are this browser's, for every
-// song; a song opens with the metronome off, a count-in of one bar, the
-// count-in only and no silent bars (songDefaults()). Its tempo
+// song; a song opens with the metronome off, the count-in Auto (2.20: two
+// bars when the song comes in before the downbeat, else one), the count-in
+// only and no silent bars (songDefaults()). Its tempo
 // follows the grid of the song (and the beats found in it) until it is given
 // one of its own, which changes the click only; a song without a grid has the
 // metronome's own tempo, from its start. The clicks are made again whenever
@@ -961,7 +967,7 @@ function wireMetronome() {
     metroChanged();
   });
   $("metro-count").addEventListener("change", (e) => {
-    metro.countIn = +e.target.value;
+    metro.countIn = e.target.value === "auto" ? "auto" : +e.target.value;
     metroChanged();
   });
   $("metro-mode").addEventListener("change", (e) => {
@@ -974,7 +980,7 @@ function wireMetronome() {
 function relabelMetronome() {
   const count = $("metro-count");
   count.textContent = "";
-  for (const n of COUNT_IN) count.append(new Option(n === 0 ? tr("Off") : trn(n, "{n} bar", "{n} bars"), String(n)));
+  for (const n of COUNT_IN) count.append(new Option(n === 0 ? tr("Off") : n === "auto" ? tr("Auto") : trn(n, "{n} bar", "{n} bars"), String(n)));
   count.value = String(metro.countIn);
   const mode = $("metro-mode");
   mode.textContent = "";
@@ -1828,6 +1834,7 @@ function buildControls() {
     // A stretch chosen on the bar numbers: with the loop on, the loop goes
     // there at once; else Loop loops it.
     onRange: (r) => {
+      app.rangePick = ++app.picks;
       if (player.loop.on) player.setLoop({ on: true, start: r.start, end: r.end });
       scheduleUi();
     },
@@ -1881,7 +1888,10 @@ function buildControls() {
     locked: () => detection.running,
     notice,
     step: stepBack,
-    barsSelected: () => app.timeline.clipSel.length && app.timeline.setClipSelection([]),
+    barsSelected: () => {
+      app.barsPick = ++app.picks;
+      if (app.timeline.clipSel.length) app.timeline.setClipSelection([]);
+    },
     showTools: showBarTools,
   });
   recording = new RecordingFlow({
@@ -2135,16 +2145,27 @@ function loopInView() {
   return { start, end: Math.min(d, start + width) };
 }
 
-// Loop: on the stretch chosen on the bar numbers (or the loop of before),
-// if it is in view; else as loopInView() says.
+// Loop: on the bars selected (a section, bars of the chords: 2.20) or the
+// stretch chosen on the bar numbers, whichever was chosen last, if it is in
+// view (or the loop of before); else as loopInView() says.
 function toggleLoop() {
   if (!player.song) return;
   if (player.loop.on) {
     player.setLoop({ ...player.loop, on: false });
     return;
   }
-  const r = app.timeline.range;
   const [v0, v1] = app.timeline.visibleRange();
+  const sel = editor && editor.on ? editor.sel : null;
+  const bars = app.grid.bars;
+  if (sel && bars.length && app.barsPick > app.rangePick) {
+    const a = bars[Math.min(sel.lo, bars.length - 1)];
+    const b = sel.hi + 1 < bars.length ? bars[sel.hi + 1] : player.song.duration;
+    if (b > v0 && a < v1) {
+      loopBars(sel.lo, sel.hi);
+      return;
+    }
+  }
+  const r = app.timeline.range;
   const chosen = r && r.end - r.start >= MIN_LOOP && r.end > v0 && r.start < v1;
   player.setLoop({ on: true, ...(chosen ? { start: r.start, end: r.end } : loopInView()) });
 }
@@ -3896,7 +3917,7 @@ function updateUi() {
   // anchor or meter change; its clicks made again when the grid or the beats
   // found change.
   if (metroFor.song !== song && song) {
-    // Off, a count-in of one bar, the count-in only, no silent bars.
+    // Off, the count-in Auto, the count-in only, no silent bars.
     songDefaults(metro);
     trainer.on = false;
     trainerPasses = 0;

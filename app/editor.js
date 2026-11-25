@@ -71,6 +71,11 @@ export class Editor {
     this.on = false;
     this.sel = null; // {anchor, lo, hi}: bar indexes
     this.clip = []; // chords copied: the slots of each bar (null for none)
+    this.clipChord = null; // a chord copied alone (2.20), as its field showed it
+    this.clipKind = "bars"; // what was copied last: "bars" or "chord"
+    // The beat of the bar chosen (a click again on the bar, a field clicked,
+    // Tab or ← → among the fields): Ctrl+C, ⌘C copy its chord alone (2.20).
+    this.beatMode = false;
     this.clipSections = []; // the sections copied with them (2.15), from their first bar
     this.target = null; // the bars whose chords the fields show
     this.shown = []; // what each field showed
@@ -192,6 +197,7 @@ export class Editor {
       });
       input.addEventListener("blur", () => this.commitInput(k));
       input.addEventListener("keydown", (e) => this._inputKey(e, k));
+      input.addEventListener("pointerdown", () => (this.beatMode = true)); // a beat chosen
     });
     this._labelSlots();
   }
@@ -254,8 +260,10 @@ export class Editor {
   // last one beat 1 of the next bar (Shift: back). ← → at an end of the text:
   // the beat beside. Escape: the chord as it was. Ctrl+C and Ctrl+V (⌘ on a
   // Mac) copy and paste the chords of the bars, unless part of the text is
-  // selected (copy) or nothing was copied (paste). Ctrl+Z undoes the last
-  // change to the song while nothing is typed in the field.
+  // selected (copy) or nothing was copied (paste); with a beat chosen
+  // (beatMode), Ctrl+C copies its chord alone, and a chord copied alone is
+  // pasted on the beat of the field (2.20). Ctrl+Z undoes the last change to
+  // the song while nothing is typed in the field.
   _inputKey(e, k) {
     const input = this.slots[k];
     const mod = e.metaKey || e.ctrlKey;
@@ -268,7 +276,10 @@ export class Editor {
       this.chord.select();
     } else if (e.key === "Tab" && !mod && !e.altKey) {
       const next = k + (e.shiftKey ? -1 : 1);
-      if (next >= 0 && next < n) return; // the browser goes on to that field
+      if (next >= 0 && next < n) {
+        this.beatMode = true; // the browser goes on to that field: a beat chosen
+        return;
+      }
       const i = this.sel ? (e.shiftKey ? this.sel.lo - 1 : this.sel.hi + 1) : -1;
       if (i < 0 || i >= this.grid.bars.length) return; // out of the fields
       e.preventDefault();
@@ -284,6 +295,7 @@ export class Editor {
       if (next < 0 || next >= n) return;
       e.preventDefault();
       this.focusSlot(next);
+      this.beatMode = true;
     } else if (e.key === "Escape") {
       e.preventDefault();
       input.value = this.shown[k] || "";
@@ -292,8 +304,14 @@ export class Editor {
       const all = input.selectionStart === input.selectionEnd || (input.selectionStart === 0 && input.selectionEnd === input.value.length);
       if (!all) return;
       e.preventDefault();
-      this.copy();
+      if (this.beatMode) this.copyChord(k);
+      else this.copy();
     } else if (mod && !e.altKey && !e.shiftKey && (e.key === "v" || e.key === "V")) {
+      if (this.clipKind === "chord" && this.clipChord !== null) {
+        e.preventDefault();
+        this.pasteChord(k);
+        return;
+      }
       if (!this.clip.length) return;
       e.preventDefault();
       this.paste();
@@ -420,6 +438,7 @@ export class Editor {
 
   select(sel, { reveal = false } = {}) {
     this.commitInput();
+    this.beatMode = false;
     const n = this.grid.bars.length;
     this.sel = sel && n ? { anchor: clamp(sel.anchor ?? sel.lo, 0, n - 1), lo: clamp(sel.lo, 0, n - 1), hi: clamp(sel.hi, 0, n - 1) } : null;
     this.ctx.timeline.setSelection(this.sel);
@@ -431,14 +450,20 @@ export class Editor {
   }
 
   // From the timeline: bars selected (by their numbers or their chords), and
-  // the beat the press was on (slot). On a computer a click puts the cursor
-  // in the field of that beat.
+  // the beat the press was on (slot): the first beat of a bar clicked, the
+  // beat clicked when the bar was selected already (again, 2.20). On a
+  // computer a click puts the cursor in the field of that beat; on a
+  // smartphone a tap again on the bar opens the keyboard there (the first
+  // one only selects it).
   onSelect(sel, info = {}) {
     if (!this.on) return;
     if (Number.isInteger(info.slot)) this.slot = info.slot;
     this.select(sel);
+    if (info.done && info.again) this.beatMode = true;
     if (sel && this.ctx.showTools) this.ctx.showTools(); // a computer: the tab Bars and chords
-    if (info.done && info.tap && info.pointerType === "mouse" && !this.ctx.phone && info.lane !== "sections") this.focusSlot(this.slot);
+    const tap = info.done && info.tap && info.lane !== "sections";
+    if (tap && info.pointerType === "mouse" && !this.ctx.phone) this.focusSlot(this.slot);
+    else if (tap && info.again && this.ctx.phone) this.focusSlot(this.slot);
   }
 
   // A bar tapped in the timeline while Bars and Chords is closed: it opens
@@ -451,8 +476,9 @@ export class Editor {
     const before = host.getBoundingClientRect().top;
     this.setOn(true);
     if (!this.on) return;
-    this.slot = Number.isInteger(slot) ? slot : 0;
     this.select({ anchor: index, lo: index, hi: index });
+    this.slot = Number.isInteger(slot) ? slot : 0;
+    this._showSlot();
     if (this.ctx.showTools) this.ctx.showTools(); // a computer: the tab Bars and chords
     const shift = host.getBoundingClientRect().top - before;
     if (shift) window.scrollBy(0, shift);
@@ -703,6 +729,7 @@ export class Editor {
     this.commitInput();
     if (!this.sel) return;
     const { lo, hi } = this.sel;
+    this.clipKind = "bars";
     this.clip = [];
     for (let i = lo; i <= hi; i++) {
       const slots = this.grid.chords.get(i);
@@ -712,6 +739,38 @@ export class Editor {
     this.clipSections = (this.grid.sections || []).filter((s) => s.lo >= lo && s.hi <= hi).map((s) => ({ ...s, lo: s.lo - lo, hi: s.hi - lo }));
     const n = this.clip.length;
     this.say(this.clipSections.length ? trn(n, "Chords and sections of {n} bar copied.", "Chords and sections of {n} bars copied.") : trn(n, "Chords of {n} bar copied.", "Chords of {n} bars copied."));
+  }
+
+  // The chord of beat k of the bars selected, as its field shows it (in the
+  // key of now), copied alone (2.20); also as text, for other apps.
+  copyChord(k) {
+    this.commitInput();
+    if (!this.sel) return;
+    const text = (this.slots[k].value || "").trim();
+    if (!text) {
+      this.say(tr("No chord on this beat to copy."));
+      return;
+    }
+    this.clipChord = text;
+    this.clipKind = "chord";
+    try {
+      if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+    } catch (_) {}
+    this.say(tr("Chord copied: {chord}.", { chord: text }));
+  }
+
+  // The chord copied alone, on beat k of the bars selected, as if typed in
+  // its field.
+  pasteChord(k) {
+    if (!this.sel || this.clipChord === null) return;
+    const n = this.sel.hi - this.sel.lo + 1;
+    const input = this.slots[k];
+    input.value = this.clipChord;
+    this.commitInput(k);
+    this.loadInput();
+    if (document.activeElement === input) input.select();
+    const beat = slotBeats(this.grid.meter)[k] + 1;
+    this.say(trn(n, "{chord} pasted on beat {beat} of {n} bar.", "{chord} pasted on beat {beat} of {n} bars.", { chord: this.clipChord, beat }));
   }
 
   // Into the bars selected, repeating the chords copied to fill them; one bar
@@ -745,6 +804,11 @@ export class Editor {
     if (mod && !e.altKey && !e.shiftKey && (e.key === "c" || e.key === "C") && this.sel && !String(window.getSelection() || "")) {
       e.preventDefault();
       this.copy();
+      return true;
+    }
+    if (mod && !e.altKey && !e.shiftKey && (e.key === "v" || e.key === "V") && this.sel && this.clipKind === "chord" && this.clipChord !== null) {
+      e.preventDefault();
+      this.pasteChord(this.slot);
       return true;
     }
     if (mod && !e.altKey && !e.shiftKey && (e.key === "v" || e.key === "V") && this.sel && this.clip.length) {

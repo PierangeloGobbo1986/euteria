@@ -89,6 +89,9 @@ export function runRenderWorker(message, onProgress) {
 
 // From before the song's sound, playback starts this long before it (seconds).
 const COUNT_LEAD_SECONDS = 0.05;
+// Auto count-in (2.20): the song comes in early (a pickup, a start inside a
+// bar) when it does so more than this part of a beat before the downbeat.
+const COUNT_EARLY_BEATS = 0.25;
 
 // First index of `list` (sorted) whose value is >= t.
 function lowerBound(list, t) {
@@ -116,7 +119,7 @@ export class Player {
     this.cents = 0; // the fine tuning, with the key (2.18)
     this.loop = { on: false, start: 0, end: 0 };
     // The metronome as the engine has it (setMetronome()), and the bars of
-    // count-in before playback and recording start.
+    // count-in before playback and recording start (0, 1, 2, or "auto").
     this.metronome = null;
     this.loopPasses = 0; // times the loop went round, as the engine counts them
     this.onloop = null; // (count): the loop went round count times
@@ -662,17 +665,19 @@ export class Player {
     } catch (_) {}
     let play = null;
     let countEnd = null;
+    let bars = 0;
     if (!this.playing) {
       play = this.position;
       if (play >= this.song.duration - 0.05) play = this.loop.on ? this.loop.start : 0;
       const start = this._countStart(play);
       play = start.at;
       countEnd = start.end;
+      bars = start.bars;
       this.position = play;
     }
     const id = ++this.recordId;
     this.recording = true;
-    this.engine.recStart({ ...params, id, play, countIn: play === null ? 0 : this.countIn, countEnd });
+    this.engine.recStart({ ...params, id, play, countIn: bars, countEnd });
     this.playing = true;
     this._wake(true);
     this._update();
@@ -735,10 +740,14 @@ export class Player {
   // beats of the count-in. From the playhead later on, or from the loop's
   // start, it ends on the downbeat of the bar that starts there, or else of
   // the next one: the song comes in at the playhead, the count-in going on
-  // over it up to that downbeat. {at, end}; end null: the count-in ends at
-  // `at` (the metronome has no bars, or the loop none from its start).
+  // over it up to that downbeat. {at, end, bars}; end null: the count-in ends
+  // at `at` (the metronome has no bars, or the loop none from its start).
+  // bars: those of the count-in, its setting; with Auto (2.20), two when the
+  // song comes in before the downbeat the count-in ends on (a pickup, or a
+  // start inside a bar), one when it comes in on it.
   _countStart(at) {
-    if (!(this.countIn > 0) || !this.song) return { at, end: null };
+    const on = this.countIn === "auto" || this.countIn > 0;
+    if (!on || !this.song) return { at, end: null, bars: 0 };
     let from = at;
     if (this.loop.on) {
       if (at < this.loop.start || at >= this.loop.end) at = from = this.loop.start;
@@ -751,8 +760,24 @@ export class Player {
       }
     }
     const end = this._downbeatFrom(from);
-    if (end === null || (this.loop.on && end >= this.loop.end)) return { at, end: null };
-    return { at, end };
+    if (end === null || (this.loop.on && end >= this.loop.end)) return { at, end: null, bars: this._countBars(false) };
+    return { at, end, bars: this._countBars(end - from > this._beatAt(end) * COUNT_EARLY_BEATS) };
+  }
+
+  // The bars of the count-in: its setting; Auto, two when the song comes in
+  // early (before the downbeat), else one.
+  _countBars(early) {
+    if (this.countIn === "auto") return early ? 2 : 1;
+    return this.countIn > 0 ? this.countIn : 0;
+  }
+
+  // The beat of the metronome's clicks at `t` (seconds), half a second
+  // without clicks.
+  _beatAt(t) {
+    const times = this.metronome && this.metronome.times;
+    if (!times || times.length < 2) return 0.5;
+    const k = clamp(lowerBound(times, t), 1, times.length - 1);
+    return times[k] - times[k - 1];
   }
 
   // The first downbeat of the metronome's clicks from `t` on, one up to half a
@@ -779,7 +804,7 @@ export class Player {
     const start = this._countStart(at);
     at = start.at;
     this.position = at;
-    this.engine.play(at, this.countIn, start.end);
+    this.engine.play(at, start.bars, start.end);
     this.playing = true;
     this._wake(true);
     this._update();

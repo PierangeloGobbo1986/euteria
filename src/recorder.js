@@ -17,8 +17,11 @@
 // - Tempo and key: a take recorded while the song played slower, faster or
 //   transposed is brought back to the song's own tempo and key
 //   (src/render-worker.js), so that it then follows them as the stems do.
-// - With the loop on, each pass is a take, up to three, then playback stops
-//   (a first pass shorter than a second does not count).
+// - With the loop on, each pass is a take: the recording goes on until it is
+//   stopped, and the last three whole passes are kept (2.20; before, it
+//   stopped after three). A pass cut short (the first, from inside the loop;
+//   the last, by Stop) is kept only if no pass is whole. Only the passes that
+//   may still be kept stay in memory.
 // - Level: a take comes in far quieter than a mastered song, so once recorded
 //   it is raised to sit a little under the song, its peaks held under full
 //   scale (src/level.js).
@@ -39,7 +42,8 @@ import { tr } from "./i18n.js";
 
 const INPUT_KEY = "euteria.input";
 const SYNC_KEY = "euteria.inputSync";
-const LOOP_TAKES = 3;
+const LOOP_TAKES = 3; // the passes of the loop kept, the last whole ones
+const WHOLE_PASS_SECONDS = 0.02; // a pass this much shorter than the loop is still whole
 const MIN_TAKE_SECONDS = 1;
 const KEEP_OPEN_MS = 20000; // the input stays open a while after a take, ready for the next one
 const CHECK_MS = 8000; // the level shown after an input is chosen
@@ -418,12 +422,12 @@ export class Recorder {
     const sr = ctx.sampleRate;
     const seconds = (ctx.baseLatency || 0) + (ctx.outputLatency || 0) + (input.latency || 0);
     const latency = this.latencyOverride != null ? this.latencyOverride : Math.round(seconds * sr);
-    this.current = { id: 0, song, label: input.label, sync: this.syncFor(input.label), begin: null, chunks: [], frames: 0, bytes: 0, full: false, gain: 0 };
+    this.current = { id: 0, song, label: input.label, sync: this.syncFor(input.label), begin: null, chunks: [], frames: 0, dropped: 0, bytes: 0, full: false, gain: 0, passes: 0 };
     const cur = this.current;
     this.state = "recording";
     const id = await player.startRecording({
       latency,
-      takes: player.loop.on ? LOOP_TAKES : 0,
+      takes: 0, // with the loop on too: until stopped (2.20)
       minFirst: Math.round(MIN_TAKE_SECONDS * sr),
       tail: latency + 256,
     });
@@ -460,12 +464,35 @@ export class Recorder {
       cur.frames += m.frames;
       cur.bytes += m.frames * 2 * m.channels.length;
       this.addLive(chunk, m.frames);
+      this.prune(cur);
       if (!cur.full && this.usedBytes() + cur.bytes >= this.budget) this.room(cur.bytes + 4 * this.player.context.sampleRate); // a second more, stereo
       if (!cur.full && this.usedBytes() + cur.bytes >= this.budget) {
         cur.full = true;
         this.player.stopRecording();
       }
     } else if (m.type === "rec-end") this.finish(cur, m);
+  }
+
+  // With the loop on, the audio of the passes that can no longer be kept goes
+  // (2.20): those before the last LOOP_TAKES before the pass being recorded.
+  prune(cur) {
+    const b = cur.begin;
+    const loop = b && b.loop;
+    if (!loop || !loop.on || !(loop.b > loop.a)) return;
+    const span = loop.b - loop.a;
+    const r = b.rate;
+    const U0 = b.e0 - b.latency * r;
+    // Pass m starts at input sample startOf(m) (as passes() cuts them).
+    const startOf = (m) => (m <= 0 ? 0 : Math.ceil((loop.b + (m - 1) * span - U0) / r));
+    let m = Math.max(0, Math.floor((cur.frames * r + U0 - loop.b) / span) + 1);
+    while (m > 0 && startOf(m) > cur.frames) m--;
+    while (startOf(m + 1) <= cur.frames) m++;
+    const keep = startOf(m - LOOP_TAKES);
+    while (cur.chunks.length > 1 && cur.dropped + cur.chunks[0][0].length <= keep) {
+      const c = cur.chunks.shift();
+      cur.dropped += c[0].length;
+      cur.bytes -= c[0].length * 2 * c.length;
+    }
   }
 
   // end: the engine's "rec-end" ({reason, inHops, outHops}: the loudness of
@@ -483,7 +510,7 @@ export class Recorder {
       if (cur.song !== player.song) return; // the song was closed meanwhile
       for (const t of tracks) player.addTake(t);
       this.endLive(); // before the takes are drawn: their rows replace it
-      if (this.ontakes) this.ontakes(tracks, cur.full ? "full" : reason, cur.gain);
+      if (this.ontakes) this.ontakes(tracks, cur.full ? "full" : reason, cur.gain, cur.passes);
     } catch (error) {
       this.say(tr("The take could not be kept. {error}", { error: (error && error.message) || error }), "error");
     } finally {
@@ -600,9 +627,11 @@ export class Recorder {
     const begin = cur.begin;
     const sr = begin.sampleRate;
     const n = cur.frames;
+    // The audio kept: input samples cur.dropped..n (the passes before went, prune()).
+    const D = cur.dropped;
     let channels = [];
     for (let c = 0; c < begin.channels; c++) {
-      const all = new Int16Array(n);
+      const all = new Int16Array(n - D);
       let at = 0;
       for (const chunk of cur.chunks) {
         all.set(chunk[c], at);
@@ -615,8 +644,10 @@ export class Recorder {
     const r = begin.rate;
     const U0 = begin.e0 - begin.latency * r;
     const end = cur.song.duration * sr;
-    const pieces = [];
-    passes(n, U0, r, begin.loop).forEach((p, i) => {
+    const loop = begin.loop;
+    const span = loop && loop.on ? loop.b - loop.a : 0;
+    let pieces = [];
+    passes(n, U0, r, loop).forEach((p, i) => {
       let { k0, k1, song0 } = p;
       // The take begins where playback started with it, and never before the song.
       const from = Math.max(0, i === 0 && begin.from !== null && begin.from !== undefined ? begin.from : 0);
@@ -627,8 +658,17 @@ export class Recorder {
       }
       const over = song0 + (k1 - k0) * r - end;
       if (over > 0) k1 -= Math.floor(over / r);
-      if ((k1 - k0) * r >= MIN_TAKE_SECONDS * sr) pieces.push({ k0, k1, song0 });
+      const whole = span > 0 && (k1 - k0) * r >= span - WHOLE_PASS_SECONDS * sr;
+      if ((k1 - k0) * r >= MIN_TAKE_SECONDS * sr) pieces.push({ k0, k1, song0, whole });
     });
+    // With the loop on: the last whole passes (2.20), or what there is if
+    // none is whole; only what is still in memory.
+    if (span > 0) {
+      const whole = pieces.filter((p) => p.whole);
+      cur.passes = whole.length;
+      if (whole.length) pieces = whole.slice(-LOOP_TAKES);
+    }
+    pieces = pieces.filter((p) => p.k0 >= D).map((p) => ({ ...p, k0: p.k0 - D, k1: p.k1 - D }));
     const numbers = player.takes.map((t) => +((/(\d+)\s*$/.exec(t.title) || [])[1] || 0));
     let next = Math.max(0, ...numbers) + 1;
     const out = [];

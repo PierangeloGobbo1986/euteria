@@ -65,9 +65,9 @@ open, the keys of the player do nothing and the page under it stays still.
   permission). The transport stays in view as the page scrolls, the song's name at its
   top (its tracks and length on the same line, *Undo* and *Redo* at the right end of it; a
   click on the name renames the project, see Saving). Over the name are the tabs of the
-  song's tools (2.12), as the ribbon of a word processor: *Song analysis*, *Bars and
-  chords*, *Tracks*, *Tempo and key*, *Metronome*, *Recording*, *File export and sharing*
-  and *Help* (2.14). A click opens the panel of a tab
+  song's tools (2.12), as the ribbon of a word processor: *Song analysis*, *Tempo and
+  key*, *Metronome*, *Bars and chords*, *Tracks*, *Recording*, *File export and sharing*
+  and *Help* (2.14; in this order since 2.20). A click opens the panel of a tab
   under the transport, a click again closes it; one at a time, and the one open stays open
   from one visit to the next (in that browser). Each panel is one band, as high as the
   others: its groups side by side with their names over them, the numbers small, with ▲▼
@@ -219,7 +219,8 @@ on the waveforms: a tap or a click places the playhead (the yellow line), draggi
 inside the loop moves the loop and keeps its length, dragging from anywhere else drags
 the playhead, to place it exactly. A tap or a click on the time scale places the
 playhead too; a tap or a click on a chord, or on a beat of the chord lane, selects its
-bar, to write its chords (with a mouse, the cursor goes in the field of that beat).
+bar, to write its chords (with a mouse, the cursor goes in the field of its first beat;
+a click again on the bar, in the field of the beat clicked: 2.20).
 Dragging the time scale scrolls (with
 momentum on a touch screen). A drag that selects bars (on the chords or the sections), takes
 a stretch of the bar numbers, or moves clips or the loop, scrolls the view when it reaches an
@@ -292,7 +293,9 @@ on a number takes that bar; dragging along the numbers takes a stretch by the ei
 eighths are too close together, by the beat or by the bar: zooming in brings the eighths
 back); shift-click takes in more bars. The stretch is marked in the lane of the numbers,
 and *Loop*, in the transport (the key L on a computer), loops it; with the loop on, a new
-stretch is the loop at once. *Loop* with no stretch chosen, or one out of view, starts the
+stretch is the loop at once. Bars selected (a section, or bars of the chord lane) chosen
+after the stretch are looped instead (2.20: a section selected, then *Loop*). *Loop* with no
+stretch chosen, or one out of view, starts the
 loop at the bar being played (or in the middle of the view if the playhead is elsewhere),
 16 seconds long, at most half of what is in view, in whole bars; a loop already placed and
 in view stays where it is. The edges of the loop are dragged, and the loop moved from
@@ -341,9 +344,14 @@ open:
   tempo* makes the grid from the tempo found (below).
 - **The chords** (2.7: beat by beat): a bar has a field for each beat a chord may start on,
   four in 4/4, three in 3/4, two in 6/8 (beats 1 and 4), side by side over the timeline,
-  each with the number of its beat while empty. A tap or a click on a chord, or on a beat,
-  in its lane selects its bar and that beat (lit in the bar and under its field; on a
-  chord's name, that chord's beat, even where the name runs over the next beats); dragging
+  each with the number of its beat while empty. A tap or a click on a bar in the chord lane
+  selects it with its first beat (2.20); a tap or a click again on the bar selected takes the
+  beat it is on (lit in the bar and under its field; on a chord's name, that chord's beat,
+  even where the name runs over the next beats), and on a smartphone opens the keyboard
+  there (the first tap only selects). With a beat chosen so (or a field clicked, or Tab and
+  ← → among the fields), Ctrl+C or ⌘C copies its chord alone, and Ctrl+V or ⌘V puts a chord
+  copied alone on the beat of the field, in every bar selected; after a first click they
+  copy and paste the bars, as before (*Copy* and *Paste* always do). Dragging
   along the chords (or shift-click) selects several bars (the bar numbers are for the
   loop). No bar is selected when a song opens, so the keys stay the transport's (← → five
   seconds) until a bar is chosen; ‹ and › start from the bar at the playhead, and Escape
@@ -575,9 +583,11 @@ Tested on synthetic takes (quarter notes, straight and swung eighths, comping, f
 240 BPM, from 40 ms early to 220 ms late, a distorted sound) and on the test songs moved
 by known amounts: found within 2 ms, or no answer.
 
-With the loop on, each pass is a take: after the third one the song stops, back at the
-start of the loop (a first pass shorter than a second, when *Record* is pressed near the
-end of the loop, does not count). While recording, jumps, tempo, key and the loop wait,
+With the loop on, each pass is a take, and the recording goes on until it is stopped
+(2.20; before, the song stopped after the third pass): the last three whole passes are
+kept, and the message says how many were recorded. A pass cut short (the first, when
+*Record* is pressed inside the loop; the last, by *Stop*) is kept only if no pass is whole;
+the audio of the passes that can no longer be kept is let go as the recording goes on. While recording, jumps, tempo, key and the loop wait,
 as they would move the song under the take; volumes and tracks on stay free. A take can
 be recorded with the song slower or transposed: it is then brought back to the song's
 own tempo and key, so that it follows tempo and key afterwards as the stems do, and
@@ -691,8 +701,10 @@ silent, then a beat again, for example the first beat accented, or only 2 and 4.
 tempo field says the song's tempo; changed, the click goes steadily at its own tempo,
 from the first bar, and *Follow the song* brings it back (a new tempo of the grid does
 too). A song without bars clicks at the metronome's own tempo from its start, with the
-meter in *Song analysis*. The second group has the *Count-in* (*Off*, 1 or 2 bars; 1 by
-default) of clicks before the song starts, before playback and before a take, with the
+meter in *Song analysis*. The second group has the *Count-in* (*Off*, *Auto*, 1 or 2 bars;
+*Auto* by default, 2.20: two bars when the song comes in more than a quarter of a beat
+before the downbeat the count-in ends on, a pickup or a start inside a bar, else one) of
+clicks before the song starts, before playback and before a take, with the
 beats as set, heard only with the metronome *On* (the same for the key M and the round
 button), and *Plays*, *Count-in only* (the default, 2.7.1: the metronome counts the bars
 in, then goes quiet) or *Whole song*. *Silent bars* is a group of its own in the tab,
@@ -717,7 +729,7 @@ click is heard even when the way out to the ears wakes up a little late (Bluetoo
 earphones, a phone): otherwise the first click could be lost, and the count-in would seem to
 end on the song's first downbeat. The volume, the metronome's own tempo, the beats (per meter) and *What to mute* are
 kept in this browser, the same for every song. The rest is not: every song opens with the
-metronome *Off*, a count-in of 1 bar, *Count-in only* (2.7.1; *Whole song* from 2.5 to 2.7)
+metronome *Off*, the count-in *Auto* (2.20; before, 1 bar), *Count-in only* (2.7.1; *Whole song* from 2.5 to 2.7)
 and the silent bars *Off* (when switched
 on: *Clicks for* 4 *bars, then mute for* 2, *Random* off), whatever was set before (2.1.2: a
 *Random* left on from an earlier session no longer silences bars unannounced). (The settings kept before 2.0

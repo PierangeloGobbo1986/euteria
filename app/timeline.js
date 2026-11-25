@@ -41,9 +41,10 @@
 //
 // The chords are for the chords, each on the beat where it starts: while the
 // grid and the chords are edited, a tap or a click on a chord selects its
-// bar, and says the beat it was on (its slot, src/grid.js), dragging along
-// them (or shift-click) selects several; otherwise a tap on a bar asks for
-// its chord to be edited (onBarTap) and dragging scrolls. The beat being
+// bar, with its first beat; a tap or a click again on that bar says the beat
+// it was on (its slot, src/grid.js; 2.20), dragging along them (or
+// shift-click) selects several; otherwise a tap on a bar asks for its chord
+// to be edited (onBarTap), from its first beat, and dragging scrolls. The beat being
 // written is marked in the bars selected (setActiveSlot). The chords are
 // shown in the key the song is played in (setChordShift, src/chordnames.js).
 //
@@ -1176,8 +1177,16 @@ export class Timeline {
     const el = this.main;
     el.addEventListener("pointerdown", (e) => this._down(e));
     el.addEventListener("pointermove", (e) => this._move(e));
-    el.addEventListener("pointerup", (e) => this._up(e, false));
+    el.addEventListener("pointerup", (e) => {
+      if (e.pointerType !== "mouse") this.touchUpAt = performance.now();
+      this._up(e, false);
+    });
     el.addEventListener("pointercancel", (e) => this._up(e, true));
+    // The mouse events a browser sends after a tap would take the focus from
+    // the chord field the tap put it in (2.20: a tap again on a bar opens the
+    // keyboard there).
+    this.touchUpAt = -Infinity;
+    el.addEventListener("mousedown", (e) => performance.now() - this.touchUpAt < 1000 && e.preventDefault());
     el.addEventListener("pointerleave", (e) => !this.pointers.size && e.pointerType === "mouse" && this._hover(-1, -1));
     el.addEventListener("wheel", (e) => this._wheel(e), { passive: false });
     // Two fingers on the timeline zoom it, not the page.
@@ -1641,8 +1650,11 @@ export class Timeline {
     if (zone === "chords") {
       const i = this.barIndexAt(p.x);
       const anchor = e.shiftKey && this.selection ? this.selection.anchor : i;
-      const slot = this._slotAtX(i, p.x);
-      this.gesture = { kind: "select", id: e.pointerId, x0: p.x, anchor, slot, moved: false };
+      // A click on the bar already selected, alone, takes the beat clicked;
+      // on another bar, its first beat (2.20).
+      const again = !e.shiftKey && !!this.selection && this.selection.lo === i && this.selection.hi === i;
+      const slot = again ? this._slotAtX(i, p.x) : 0;
+      this.gesture = { kind: "select", id: e.pointerId, x0: p.x, anchor, slot, again, moved: false };
       this._select(anchor, i, false, slot);
       return;
     }
@@ -1809,7 +1821,7 @@ export class Timeline {
       this._clipUp(g, cancelled);
       if (pt && e.pointerType === "mouse") this._hover(pt.x, pt.y); // the knobs of the clip now selected
     } else if (g.kind === "select") {
-      if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled, slot: g.slot });
+      if (this.selection) this.onSelect({ ...this.selection }, { done: true, tap: !g.moved, pointerType: e.pointerType, cancelled, slot: g.moved ? 0 : g.slot, again: g.again && !g.moved });
     } else if (g.kind === "range") {
       if (this.range && !cancelled) this.onRange({ ...this.range });
     } else if (g.kind === "section") {
@@ -1844,7 +1856,7 @@ export class Timeline {
       if (!cancelled && pt) {
         if (g.bar) {
           const i = this.barIndexAt(pt.x);
-          this.onBarTap(i, { pointerType: e.pointerType, slot: this._slotAtX(i, pt.x) });
+          this.onBarTap(i, { pointerType: e.pointerType, slot: 0 }); // its first beat (2.20)
         }
         else this.onSeek(clamp(this.t(pt.x), 0, this.duration));
       }

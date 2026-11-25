@@ -38,7 +38,9 @@ const BEATS = { "4/4": 4, "3/4": 3, "6/8": 6 };
 export const ACCENT = 1;
 export const BEAT = 0;
 export const SILENT = 2;
-export const COUNT_IN = [0, 1, 2];
+// The count-in: off, Auto (2.20: two bars when the song comes in before the
+// downbeat, a pickup or a start inside a bar, else one), one or two bars.
+export const COUNT_IN = [0, "auto", 1, 2];
 // What the metronome plays once on: the count-in only (the clicks that count the
 // bars in before the song or a take), or the whole song.
 export const MODES = ["count", "song"];
@@ -73,7 +75,7 @@ export function defaultMetronome() {
     mode: "count", // what it plays: the count-in only, or the whole song
     silence: "all", // what they silence
     random: false, // silent bars at random, in the same proportion
-    countIn: 1, // bars before the song starts (with the metronome on)
+    countIn: "auto", // bars before the song starts (with the metronome on): 0, "auto", 1, 2
   };
 }
 
@@ -103,8 +105,8 @@ export function saveMetronome(s) {
   } catch (_) {}
 }
 
-// A song opens: the metronome off, a count-in of one bar, the count-in only,
-// the silent bars off.
+// A song opens: the metronome off, the count-in Auto, the count-in only, the
+// silent bars off.
 export function songDefaults(s) {
   const d = defaultMetronome();
   for (const k of PER_SONG) s[k] = d[k];

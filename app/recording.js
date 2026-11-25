@@ -60,7 +60,7 @@ export class RecordingFlow {
     r.onchange = () => ctx.refreshPage();
     r.onmessage = (text, kind) => ctx.notice(text, kind, kind === "error" ? 0 : 6000);
     r.onlevel = () => this.paintLevel();
-    r.ontakes = (tracks, reason, raisedDb) => this.added(tracks, reason, raisedDb);
+    r.ontakes = (tracks, reason, raisedDb, passes) => this.added(tracks, reason, raisedDb, passes);
     r.onlive = () => this.paintLive();
     this.liveQueued = false;
     this.buildMeter();
@@ -147,7 +147,8 @@ export class RecordingFlow {
   // ----- takes ------------------------------------------------------------------------
 
   // raisedDb: how much the takes were raised to sit with the song.
-  added(tracks, reason, raisedDb = 0) {
+  // passes: the whole passes of the loop recorded (the last ones kept, 2.20).
+  added(tracks, reason, raisedDb = 0, passes = 0) {
     const { notice, takesChanged } = this.ctx;
     if (!tracks.length) {
       notice(reason === "full" ? tr("There is no more room for takes in this song: delete one with its ✕ first.") : tr("The take was shorter than a second: nothing was kept."), "error", 6000);
@@ -168,6 +169,7 @@ export class RecordingFlow {
         : raised
           ? tr("{first} to {last} added, raised {db} dB to sit with the song.", { first, last, db })
           : tr("{first} to {last} added.", { first, last });
+    if (passes > tracks.length) text = `${tr("{passes} passes of the loop recorded: the last {n} kept.", { passes, n: tracks.length })} ${text}`;
     if (reason === "full") text += ` ${tr("There is no more room for takes in this song.")}`;
     // Late or early against the bars: Align puts the takes in time.
     const late = this.delay(tracks);
