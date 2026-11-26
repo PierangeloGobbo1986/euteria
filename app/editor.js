@@ -817,6 +817,27 @@ export class Editor {
     this._edited();
   }
 
+  // The grid of an analysis imported (3.1, src/shared.js sharedGrid()), in
+  // place of the song's, with its chords and sections (the song's notes
+  // came along at their times), and shown. built: kept as the tempo
+  // detection keeps one, by its tempo and anchor. A change to save, one step.
+  imported(grid, built) {
+    const { app, player, timeline } = this.ctx;
+    if (!player.song) return;
+    this.commitInput();
+    this.on = false;
+    timeline.setEditing(false);
+    app.grid = grid;
+    this.built = built;
+    this.sel = null;
+    app.gridVisible = true;
+    timeline.setGridVisible(true);
+    this._labelSlots();
+    this.loadInput();
+    this.loadNote();
+    this._edited();
+  }
+
   // The selected bar gets number n; the others follow (bar_number_offset).
   renumber(n) {
     if (!this.sel || !Number.isInteger(n)) return;

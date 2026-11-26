@@ -140,6 +140,7 @@
     <p id="recent-empty" class="hint" hidden>The songs you open are listed here, to open them again with one click.</p>
   </section>
   <input id="open-input" type="file" hidden>
+  <input id="analysis-input" type="file" hidden>
 
   <!-- The player -->
   <section id="player-view" class="view" hidden>
@@ -240,6 +241,15 @@
               <div class="analysis-find">
                 <button id="find-chords" type="button" class="small find-btn rbig" title="Find the chords of the song and write them in the bars" hidden>Detect chords</button>
               </div>
+            </div>
+            <!-- An analysis someone shared (3.1, src/shared.js): its bars, sections and chords come
+                 into the song open, lined up with its audio. -->
+            <div class="rgroup import-group">
+              <h3 class="rgroup-title">Import</h3>
+              <div class="analysis-find">
+                <button id="import-analysis" type="button" class="small rbig">Analysis from a file…</button>
+              </div>
+              <p class="hint rtip">An analysis someone shared with Share analysis (File export and sharing): its bars, sections and chords come into this song in place of its own, lined up with your copy of the recording. Undo takes it away.</p>
             </div>
           </div>
           <div class="rpanel-foot">
@@ -487,6 +497,7 @@
               <h3 class="rgroup-title">Project</h3>
               <div class="row">
                 <button id="share-song" type="button" class="primary rbig">Share project…</button>
+                <button id="share-analysis" type="button" class="rbig" title="The bars, sections and chords of the song and its details, without the audio: a small file for whoever has the same recording, who imports it into theirs (Song analysis, Import)">Share analysis…</button>
                 <button id="save-as" type="button" class="rbig">Save as new project…</button>
               </div>
               <p id="project-hint" class="hint rtip">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
@@ -650,6 +661,17 @@
     </div>
   </form>
 </dialog>
+<!-- A question with a yes and a no (3.1: an analysis made on another recording). -->
+<dialog id="ask-dialog" class="leave-dialog" aria-labelledby="ask-title">
+  <form method="dialog">
+    <p id="ask-title"></p>
+    <p id="ask-hint" class="hint"></p>
+    <div class="row">
+      <button id="ask-ok" value="ok" class="primary"></button>
+      <button value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
 <!-- The instructions (the button at the top right), in both languages: the page shows the
      one of the language in use (app.css, by the lang of the page). -->
 <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title">
@@ -679,6 +701,7 @@
             <li><b>Mixer.</b> Ogni traccia, che sia uno stem, l’originale o una take, ha il suo volume fino al 200% e si può accendere o spegnere. Tutti gli stem e Solo originale lo fanno in un colpo. Puoi cambiare l’ordine delle tracce e dare a ognuna un nome tuo.</li>
             <li><b>Tempo e griglia.</b> Rileva il tempo del brano e lo divide in battute. Accanto puoi correggere i BPM, il metro e il primo beat se per caso la rilevazione automatica è sfalsata. Per il primo beat, porta la barra di play sul primo battere di una battuta e premi Imposta primo beat. ×2 e ÷2 servono se il programma ha trovato la metà o il doppio del tempo. Questa funzione funziona solo sul computer.</li>
             <li><b>Accordi.</b> Rileva accordi scrive gli accordi che sente, battuta per battuta. Sono suggerimenti da controllare a orecchio, ma offrono un buon punto di partenza. Questa funzione funziona solo sul computer.</li>
+            <li><b>Importa.</b> Analisi da un file porta in questo brano battute, sezioni e accordi che qualcuno ha condiviso con Condividi analisi. EUTERIA confronta il ritmo delle due copie della registrazione e sposta le battute dove cade la musica nella tua, anche se il tuo file comincia qualche decimo di secondo prima o dopo. Se l’analisi è di un’altra registrazione (una versione live, un altro montaggio), te lo dice e puoi importarla comunque. Funziona anche sullo smartphone, e Annulla la toglie.</li>
           </ul>
         </li>
         <li><b>Tempo e tonalità.</b>
@@ -692,7 +715,7 @@
         <li><b>Battute e accordi.</b> Gli accordi si possono scrivere manualmente battuta per battuta nelle caselle dei tempi della battuta. Il primo clic su una battuta della riga accordi mette il cursore sul primo tempo; un secondo clic sulla stessa battuta sceglie il tempo cliccato. Dopo il secondo clic, Cmd+C (Ctrl+C) copia solo quell’accordo e Cmd+V (Ctrl+V) lo incolla nel tempo dove sta il cursore; dopo il primo clic copiano e incollano la battuta intera. Su smartphone il primo tocco seleziona la battuta e il secondo apre la tastiera. Se cambi la tonalità (vedi sopra), gli accordi la seguono automaticamente. Il bottone DO RE MI… passa dai nomi italiani alle lettere americane. Nella riga più in alto della timeline segni la struttura del brano: Intro, Strofa, Ritornello e gli altri, le lettere A, B, C, D del jazz o un nome tuo. Un nome che si ripete si numera da solo (Strofa 1, Strofa 2). Con Copia e Incolla ripeti un giro di accordi su tutto il brano; se copi una sezione intera, viene copiato anche il suo nome. Nella riga Note, la più in alto, scrivi le tue note (per esempio “suonare forte con distorsione”): clicca una battuta, o trascina su più battute, e scrivi nel campo Nota; Invio la conferma. Dopo aver selezionato una sezione, un clic sulle sue battute nella riga Note scrive la nota della sezione, un altro clic la nota di una sola battuta. Le note restano in EUTERIA: non si copiano con gli accordi e non vanno nello spartito per MuseScore. Sul computer, se fermi il mouse sulle note, sugli accordi o sulle sezioni, compare il testo per intero.</li>
         <li><b>Tracce.</b> Puoi tagliarle, spostarle, accorciarle, sfumarle e copiarle, anche in un altro brano, dove arrivano come take. Due clip sovrapposte suonano insieme. Una clip si può anche trascinare in su o in giù, su un’altra traccia: per esempio per riunire in una sola take i pezzi migliori di take diverse, o per prendere pezzi della batteria. La clip porta con sé il suo audio e segue la traccia in cui la metti: si accende, si spegne e cambia volume con lei. La batteria, anche spostata, non cambia tonalità. Se poi elimini la traccia da cui viene, quell’audio resta comunque nel brano. La traccia Originale non dà e non riceve clip. L’audio originale non viene mai toccato, quindi tutto si può annullare. Puoi selezionarne più assieme con Shift, cliccando sulla barra superiore della traccia, e le operazioni si applicano a tutte le tracce selezionate.</li>
         <li><b>Registrazione.</b> Scegli l’ingresso e premi il tasto rosso: la take si aggiunge in fondo alle tracce. Con il loop acceso ogni giro diventa una take: la registrazione continua finché premi Stop e tiene gli ultimi tre giri completi. Finita la take, il volume viene regolato rispetto al brano; se registri oltre la fine, il brano si allunga. Con le cuffie Bluetooth la take può arrivare in ritardo. Se il brano ha le battute, il messaggio lo dice e Allinea la rimette a tempo; altrimenti la correggi con Sync. La correzione vale anche per le take successive dallo stesso ingresso.</li>
-        <li><b>Esportazione e condivisione.</b> Condividi progetto manda il file del brano, con battute, accordi e impostazioni, dallo smartphone (email, WhatsApp, File, AirDrop). Salva come nuovo progetto lo salva con un altro nome e lascia com’era quello di prima. Nel gruppo Brano scrivi titolo, sottotitolo, paroliere, compositore, arrangiatore e copyright, che vanno in testa allo spartito, e interprete, album e anno della registrazione. Se il file audio contiene già questi dati (i tag degli MP3, per esempio), EUTERIA li inserisce da sola. Restano salvati con il brano. Esporta per MuseScore crea uno spartito con battute e accordi, nella tonalità selezionata. Esporta MP3 crea un file con le tracce accese, così come suonano: lo trovi nella lista sotto il pulsante, che si svuota quando chiudi l’app.</li>
+        <li><b>Esportazione e condivisione.</b> Condividi progetto manda il file del brano, con battute, accordi e impostazioni, dallo smartphone (email, WhatsApp, File, AirDrop). Condividi analisi manda solo battute, sezioni, accordi e dati del brano, senza audio, in un file piccolo: chi ha la stessa registrazione lo importa nella sua con Analisi da un file. Le note restano tue. Salva come nuovo progetto lo salva con un altro nome e lascia com’era quello di prima. Nel gruppo Brano scrivi titolo, sottotitolo, paroliere, compositore, arrangiatore e copyright, che vanno in testa allo spartito, e interprete, album e anno della registrazione. Se il file audio contiene già questi dati (i tag degli MP3, per esempio), EUTERIA li inserisce da sola. Restano salvati con il brano. Esporta per MuseScore crea uno spartito con battute e accordi, nella tonalità selezionata. Esporta MP3 crea un file con le tracce accese, così come suonano: lo trovi nella lista sotto il pulsante, che si svuota quando chiudi l’app.</li>
         <li><b>Caffè.</b> Quello no, non lo fa… ;)</li>
       </ol>
       <h3>EUTERIA su smartphone</h3>
@@ -722,6 +745,7 @@
             <li><b>Mixer.</b> Every track, whether a stem, the original or a take, has its own volume up to 200% and can be turned on or off. All stems and Original only do it in one go. You can change the order of the tracks and give each one a name of your own.</li>
             <li><b>Tempo and grid.</b> Detects the tempo of the song and divides it into bars. Beside it you can correct the BPM, the meter and the first beat if the automatic detection happens to be off. For the first beat, put the playhead on the first beat of a bar and press Set first beat. ×2 and ÷2 are for when the app has found half or double the tempo. This feature works only on the computer.</li>
             <li><b>Chords.</b> Detect chords writes the chords it hears, bar by bar. They are suggestions to check by ear, but they offer a good starting point. This feature works only on the computer.</li>
+            <li><b>Import.</b> Analysis from a file brings into this song the bars, sections and chords that someone shared with Share analysis. EUTERIA compares the rhythm of the two copies of the recording and moves the bars to where the music falls in yours, even if your file starts a few tenths of a second earlier or later. If the analysis is of another recording (a live version, another edit), it tells you, and you can import it anyway. It works on the smartphone too, and Undo takes it away.</li>
           </ul>
         </li>
         <li><b>Tempo and key.</b>
@@ -735,7 +759,7 @@
         <li><b>Bars and chords.</b> Chords can be written by hand, bar by bar, in the boxes for the beats of the bar. The first click on a bar of the chord lane puts the cursor on the first beat; a second click on the same bar picks the beat you clicked. After the second click, Cmd+C (Ctrl+C) copies that chord alone and Cmd+V (Ctrl+V) pastes it on the beat where the cursor is; after the first click they copy and paste the whole bar. On a smartphone the first tap selects the bar and the second opens the keyboard. If you change the key (see above), the chords follow it automatically. The DO RE MI… button switches between Italian names and American letters. In the top row of the timeline you mark the structure of the song: Intro, Verse, Chorus and the others, the jazz letters A, B, C, D or a name of your own. A name that repeats is numbered by itself (Verse 1, Verse 2). With Copy and Paste you repeat a chord progression over the whole song; if you copy a whole section, its name is copied too. In the Notes lane, the top one, you write your own notes (for example “play loud with distortion”): click a bar, or drag along several bars, and write in the Note field; Return keeps it. After selecting a section, a click on its bars in the Notes lane writes the note of the section, a further click the note of a single bar. Notes stay in EUTERIA: they are not copied with the chords and do not go into the score for MuseScore. On the computer, resting the mouse on the notes, the chords or the sections shows their whole text.</li>
         <li><b>Tracks.</b> You can cut, move, shorten, fade and copy them, even into another song, where they arrive as takes. Two overlapping clips play together. A clip can also be dragged up or down onto another track: for example to gather the best pieces of different takes in one take, or to take pieces of the drums. The clip brings its audio with it and follows the track you put it in: it is switched on and off and changes volume with it. The drums, even moved, do not change key. If you then delete the track it came from, that audio stays in the song all the same. The Original Track neither gives nor takes clips. The original audio is never touched, so everything can be undone. You can select several at once with Shift, clicking on the top bar of the track, and the operations apply to all the selected tracks.</li>
         <li><b>Recording.</b> Choose the input and press the red button: the take is added at the bottom of the tracks. With the loop on, every pass becomes a take: the recording goes on until you press Stop and keeps the last three complete passes. When the take is over, its volume is adjusted to the song; if you record past the end, the song is extended. With Bluetooth headphones the take may arrive late. If the song has bars, the message says so and Align puts it back in time; otherwise you correct it with Sync. The correction also applies to the next takes from the same input.</li>
-        <li><b>Export and sharing.</b> Share project sends the file of the song, with bars, chords and settings, from the smartphone (email, WhatsApp, Files, AirDrop). Save as new project saves it under another name and leaves the previous one as it was. In the Song group you write the title, subtitle, lyricist, composer, arranger and copyright, which go at the top of the score, and the performer, album and year of the recording. If the audio file already holds these details (the tags of an MP3, for example), EUTERIA fills them in by itself. They stay saved with the song. Export for MuseScore creates a score with bars and chords, in the selected key. Export MP3 creates a file with the tracks that are on, as they sound: you find it in the list under the button, which empties when you close the app.</li>
+        <li><b>Export and sharing.</b> Share project sends the file of the song, with bars, chords and settings, from the smartphone (email, WhatsApp, Files, AirDrop). Share analysis sends only the bars, sections, chords and details of the song, without audio, in a small file: whoever has the same recording imports it into theirs with Analysis from a file. Your notes stay yours. Save as new project saves it under another name and leaves the previous one as it was. In the Song group you write the title, subtitle, lyricist, composer, arranger and copyright, which go at the top of the score, and the performer, album and year of the recording. If the audio file already holds these details (the tags of an MP3, for example), EUTERIA fills them in by itself. They stay saved with the song. Export for MuseScore creates a score with bars and chords, in the selected key. Export MP3 creates a file with the tracks that are on, as they sound: you find it in the list under the button, which empties when you close the app.</li>
         <li><b>Coffee.</b> No, it doesn’t make that… ;)</li>
       </ol>
       <h3>EUTERIA on a smartphone</h3>

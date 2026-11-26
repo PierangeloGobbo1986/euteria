@@ -474,6 +474,9 @@ button.step-btn .icon { width: 18px; height: 18px; }
 #find-chords { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg fill='black' stroke='none'%3E%3Cellipse cx='9' cy='18.2' rx='3.3' ry='2.3' transform='rotate%28-22 9 18.2%29'/%3E%3Cellipse cx='9' cy='12.6' rx='3.3' ry='2.3' transform='rotate%28-22 9 12.6%29'/%3E%3Cellipse cx='9' cy='7' rx='3.3' ry='2.3' transform='rotate%28-22 9 7%29'/%3E%3C/g%3E%3Cpath d='M12.1 17.6V2.5'/%3E%3C/svg%3E"); }
 #share-song { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7.5 7.5 12 3l4.5 4.5'/%3E%3Cpath d='M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7'/%3E%3C/svg%3E"); }
 #save-as { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5M12 11v6M9 14h6'/%3E%3C/svg%3E"); }
+/* 3.1: the analysis shared (a page of bars and chords), and one brought in (an arrow into a tray). */
+#share-analysis { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5M8.5 12h7M8.5 15h7M8.5 18h4'/%3E%3C/svg%3E"); }
+#import-analysis { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v11M7.5 9.5 12 14l4.5-4.5'/%3E%3Cpath d='M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4'/%3E%3C/svg%3E"); }
 #export-chart { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6.5h18M3 10h18M3 13.5h18M3 17h18' stroke-width='1.3'/%3E%3Cpath d='M15.6 17V4.5l3 1.2'/%3E%3Cellipse cx='13.7' cy='17.1' rx='2.4' ry='1.8' fill='black' stroke='none' transform='rotate%28-20 13.7 17.1%29'/%3E%3C/svg%3E"); }
 #export { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7.5 10.5 12 15l4.5-4.5'/%3E%3Cpath d='M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2'/%3E%3C/svg%3E"); }
 #tab-analysis { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 3.5l1.9 5.6 5.6 1.9-5.6 1.9L11 18.5l-1.9-5.6L3.5 11l5.6-1.9z'/%3E%3Cpath d='M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z' fill='black'/%3E%3C/svg%3E"); }
@@ -536,6 +539,10 @@ button.step-btn .icon { width: 18px; height: 18px; }
 [data-layout=computer] #ribbon .rbig.primary { background: var(--panel-alt); color: var(--gold); border-color: #6b5530; font-weight: 650; }
 [data-layout=computer] #ribbon .analysis-find { flex-wrap: nowrap; gap: 8px; margin: 0; }
 [data-layout=computer] #ribbon .chart-lines { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+/* 3.1: Bars per line on two lines, and the buttons of Project a little narrower (three of them,
+   Share analysis added), so that the card stays in one row at 1280 px. */
+[data-layout=computer] #ribbon .chart-lines .mini-label { white-space: normal; max-width: 64px; line-height: 1.15; }
+[data-layout=computer] #ribbon .project-group .rbig { max-width: 112px; }
 /* The details of the song (3.0, Song; 2.16 for those of the chart): three columns of three,
    each named at its left, as high as the big buttons. Song takes the room the other groups
    leave: in a narrower window its fields get narrower (not under 64 px) rather than the card
@@ -921,7 +928,7 @@ button.eye .icon { width: 18px; height: 18px; }
 .analysis-find { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 12px; }
 .analysis-find:not(:has(> :not([hidden]))) { display: none; }
 [data-layout=computer] .analysis-find .find-btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
-[data-layout=phone] .analysis-find .find-btn { min-height: 44px; }
+[data-layout=phone] .analysis-find .find-btn, [data-layout=phone] #import-analysis { min-height: 44px; }
 .tempo-bpm { margin: 0; color: var(--dim); font-size: 13px; white-space: nowrap; }
 .analysis-card .edit-panel { background: none; border: 0; padding: 0; margin: 0; }
 .analysis-card .grid-edit { display: flex; flex-direction: column; gap: 8px; }

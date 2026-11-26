@@ -32,6 +32,8 @@ import { sectionIndexAt } from "../src/sections.js";
 import { SeparationFlow } from "./separate.js";
 import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
+import { songAudio } from "../src/beats.js";
+import { soundPrint, lineUp, analysisJson, readShared, sharedGrid, isAnalysisFile, MATCH, PRINT_FPS, ANALYSIS_EXT } from "../src/shared.js";
 import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { History } from "./history.js";
@@ -149,6 +151,12 @@ const app = {
   baseFiles: new Map(),
   baseKept: new Set(), // those of them in the song when it was last saved (a copy too)
   clipboard: null, // what Copy took, for Paste in this song or another: copyClips()
+  // The fingerprint of the open song's audio (3.1, src/shared.js), worked out
+  // once: {song, value ({print, start}, or null: no audio)}; and whether an
+  // analysis is being made or imported.
+  print: null,
+  printing: false,
+  sharingAnalysis: false,
   // Which came last, bars selected or a stretch of the bar numbers: Loop
   // loops it (2.20; toggleLoop()).
   picks: 0,
@@ -1696,6 +1704,11 @@ async function pickFile(kind) {
 }
 
 async function openHandle(handle) {
+  if (isAnalysisFile(handle)) {
+    // An analysis (3.1): into the song open.
+    importAnalysis(await handle.getFile().catch(() => null));
+    return;
+  }
   if (!(await confirmLeave())) return;
   let file;
   try {
@@ -1802,6 +1815,10 @@ function wireDrop() {
 }
 
 async function openDropped(file, handlePromise) {
+  if (isAnalysisFile(file)) {
+    importAnalysis(file); // an analysis (3.1): into the song open
+    return;
+  }
   let handle = await handlePromise;
   if (handle && handle.kind !== "file") handle = null;
   if (!(await confirmLeave())) return;
@@ -2845,6 +2862,190 @@ async function exportChart() {
     }
   } else downloadBlob(file, name);
   notice(said, "ok", 8000);
+}
+
+// ----- the analysis shared on its own (3.1, src/shared.js) ------------------------------
+//
+// Share analysis (File export and sharing) makes a small file of the bars,
+// the sections, the chords and the details of the song, with the fingerprint
+// of its audio, and hands it on (the share sheet of the phone, or a
+// download). Analysis from a file (Song analysis) puts one into the song open,
+// lined up with its audio; the Open of a file does too. One step to undo.
+
+// The fingerprint of the song open, worked out once a song (its audio as the
+// tempo detection reads it): {print, start}, or null without audio (or its
+// file unreadable for now, as while it is saved: `again` tries once more).
+async function songPrint({ again = false } = {}) {
+  const song = player.song;
+  if (!song) return null;
+  if (app.print && app.print.song === song && (app.print.value || !again)) return app.print.value;
+  let value = null;
+  try {
+    value = await soundPrint(await songAudio(song, app.current.file));
+  } catch (_) {
+    value = null;
+  }
+  if (player.song === song) app.print = { song, value };
+  return value;
+}
+
+// Its title, as the details give it.
+const shownTitle = () => app.credits.title || (player.song && player.song.title) || "EUTERIA";
+
+// The file of the analysis of the song open, its fingerprint worked out.
+function analysisFile() {
+  const title = shownTitle();
+  const data = analysisJson({
+    details: { ...app.credits, title },
+    duration: player.song.duration,
+    grid: app.grid,
+    print: app.print && app.print.song === player.song ? app.print.value : null,
+    app: `EUTERIA Web ${VERSION}`.trim(),
+  });
+  return new File([JSON.stringify(data)], `${safeName(title)}${ANALYSIS_EXT}`, { type: "application/json" });
+}
+
+// The share sheet needs the tap: with the fingerprint ready (worked out as
+// File export and sharing opens), the file goes at once; otherwise once it is
+// ready, at a tap on Share in the message.
+function shareAnalysis() {
+  const song = player.song;
+  if (!song || !app.grid.bars.length || app.sharingAnalysis) return;
+  editor.commitInput();
+  const typing = DETAIL_FIELDS.find((k) => document.activeElement === $(`credit-${k}`));
+  if (typing) setCredit(typing, $(`credit-${typing}`).value);
+  if (app.print && app.print.song === song && app.print.value) {
+    sendAnalysis(analysisFile());
+    return;
+  }
+  app.sharingAnalysis = true;
+  scheduleUi();
+  notice(tr("Preparing the analysis of {title}…", { title: shownTitle() }), "", 0);
+  songPrint({ again: true }).then(() => {
+    app.sharingAnalysis = false;
+    scheduleUi();
+    if (player.song !== song) return;
+    const file = analysisFile();
+    if (shareMode() === "share") offerAnalysis(file);
+    else sendAnalysis(file);
+  });
+}
+
+function offerAnalysis(file) {
+  notice(tr("The analysis of {title} is ready.", { title: shownTitle() }), "ok", 0, null, { label: tr("Share"), run: () => sendAnalysis(file) });
+}
+
+async function sendAnalysis(file) {
+  const said = tr("Analysis ready: {name}. Whoever has the same recording imports it into theirs with Analysis from a file, in Song analysis.", { name: file.name });
+  if (shareMode() === "share") {
+    try {
+      await navigator.share({ files: [file], title: shownTitle() });
+      notice(tr("Shared."), "ok", 4000);
+      countEvent("analysis-shared");
+      return;
+    } catch (error) {
+      if (error && error.name === "AbortError") return; // closed without sending
+      if (error && error.name === "NotAllowedError") {
+        offerAnalysis(file); // the tap no longer counted
+        return;
+      }
+    }
+  }
+  downloadBlob(file, file.name);
+  notice(said, "ok", 10000);
+  countEvent("analysis-shared");
+}
+
+function pickAnalysis() {
+  if (!player.song || app.sharingAnalysis || player.busy) return;
+  $("analysis-input").click();
+}
+
+// An analysis read and put into the song open: lined up with its audio (the
+// two fingerprints), or, when it does not line up, as it is if wanted. The
+// details of the song it does not have come with it.
+async function importAnalysis(file) {
+  const song = player.song;
+  if (!song) {
+    notice(tr("Open the song first (its audio), then import the analysis into it."), "error", 8000);
+    return;
+  }
+  if (app.sharingAnalysis || player.busy) return;
+  if (editor.locked) {
+    notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
+    return;
+  }
+  let shared;
+  try {
+    shared = readShared(await file.text());
+  } catch (error) {
+    notice(error.message, "error", 8000);
+    return;
+  }
+  const title = shared.details.title || file.name.replace(/\.[^.]*$/, "");
+  app.sharingAnalysis = true;
+  scheduleUi();
+  try {
+    let delta = 0;
+    let how = shared.print ? "no-audio" : "no-print";
+    let part = false;
+    if (shared.print) {
+      notice(tr("Lining up the analysis of {title} with this song…", { title }), "", 0);
+      const mine = await songPrint({ again: true });
+      if (player.song !== song) return;
+      if (mine) {
+        const fit = lineUp(shared.print.print, mine.print, { near: mine.start - shared.print.start });
+        if (fit.score >= MATCH) {
+          delta = fit.lag / PRINT_FPS;
+          how = Math.abs(delta) < 0.005 ? "same" : "moved";
+          part = Math.abs(fit.parts[0] - fit.parts[1]) > 0.15;
+        } else {
+          notice("");
+          const yes = await askYes({
+            title: tr("Another recording?"),
+            hint: tr("The analysis of {title} does not match the audio of this song (likeness {p}%): it was probably made on another recording (a live version, another edit). Import it all the same, as it is?", { title, p: Math.round(fit.score * 100) }),
+            ok: tr("Import"),
+          });
+          if (!yes || player.song !== song) return;
+          how = "as-is";
+        }
+      }
+    }
+    const { grid, built } = sharedGrid(shared, delta, song.duration, app.grid);
+    editor.imported(grid, built);
+    for (const k of DETAIL_FIELDS) if (shared.details[k] && !app.credits[k]) setCredit(k, shared.details[k]);
+    const shift = new Intl.NumberFormat(lang(), { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "always" }).format(delta);
+    let said = {
+      moved: tr("Analysis of {title} imported: its bars moved by {shift} s to line up with this song.", { title, shift }),
+      same: tr("Analysis of {title} imported: it lines up with this song as it is.", { title }),
+      "as-is": tr("Analysis of {title} imported as it is: check its bars against the song.", { title }),
+      "no-audio": tr("Analysis of {title} imported as it is: this song has no audio to line it up with.", { title }),
+      "no-print": tr("Analysis of {title} imported as it is: it has no fingerprint to line it up with.", { title }),
+    }[how];
+    if (part) said = `${said} ${tr("Part of this song does not match the analysis (another edit?): check its bars.")}`;
+    notice(`${said} ${tr("Undo takes it away.")}`, part || how === "as-is" ? "" : "ok", 12000);
+    countEvent("analysis-imported");
+  } finally {
+    app.sharingAnalysis = false;
+    scheduleUi();
+  }
+}
+
+// A question with a yes and a no (#ask-dialog): resolves with the yes.
+function askYes({ title, hint = "", ok }) {
+  const dialog = $("ask-dialog");
+  $("ask-title").textContent = title;
+  $("ask-hint").textContent = hint;
+  $("ask-ok").textContent = ok;
+  return new Promise((resolve) => {
+    const done = () => {
+      dialog.removeEventListener("close", done);
+      resolve(dialog.returnValue === "ok");
+    };
+    dialog.returnValue = "";
+    dialog.addEventListener("close", done);
+    dialog.showModal();
+  });
 }
 
 function renderChart() {
@@ -4069,6 +4270,19 @@ function updateUi() {
   if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
   shareProj.disabled = !song || busy || app.saving || app.sharing || takesBusy;
   $("save-as").disabled = !song || busy || app.saving || app.sharing || takesBusy;
+  // Share analysis (3.1): the share sheet of the phone, or a download; its
+  // fingerprint worked out as the card opens.
+  const shareA = $("share-analysis");
+  const shareAText = app.sharingAnalysis ? tr("Preparing…") : shareWay === "share" ? tr("Share analysis…") : tr("Download analysis");
+  if (shareA.textContent !== shareAText) shareA.textContent = shareAText;
+  shareA.disabled = !song || busy || app.sharingAnalysis || !app.grid.bars.length;
+  const shareATip = song && !app.grid.bars.length ? tr("This song has no bars yet: the analysis is made of them.") : tr("The bars, sections and chords of the song and its details, without the audio: a small file for whoever has the same recording, who imports it into theirs (Song analysis, Import)");
+  if (shareA.title !== shareATip) shareA.title = shareATip;
+  $("import-analysis").disabled = !song || busy || app.sharingAnalysis;
+  if (song && app.grid.bars.length && ribbon && ribbon.current === "export" && !(app.print && app.print.song === song) && !app.printing && !app.saving && !busy) {
+    app.printing = true;
+    songPrint().finally(() => (app.printing = false));
+  }
   const projectHint =
     shareWay === "share"
       ? inLibrary
@@ -4169,7 +4383,8 @@ function wire() {
     $(id).addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];
       e.target.value = "";
-      if (file) addSong(file);
+      if (file && isAnalysisFile(file)) importAnalysis(file); // into the song open (3.1)
+      else if (file) addSong(file);
     });
   }
   if (library) confirmTap($("lib-clear"), () => tr("Tap again to delete every song"), deleteAll);
@@ -4177,6 +4392,13 @@ function wire() {
   $("back").addEventListener("click", goHome);
   $("save-top").addEventListener("click", () => saveSong());
   $("share-song").addEventListener("click", shareProject);
+  $("share-analysis").addEventListener("click", shareAnalysis);
+  $("import-analysis").addEventListener("click", pickAnalysis);
+  $("analysis-input").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (file) importAnalysis(file);
+  });
   $("save-as").addEventListener("click", saveAsNew);
   $("new-project").addEventListener("click", newEmptyProject);
   $("new-project-phone").addEventListener("click", newEmptyProject);
@@ -4208,7 +4430,8 @@ function wire() {
   $("open-input").addEventListener("change", async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
-    if (file && (await confirmLeave())) openSong(file, { source: "file" });
+    if (file && isAnalysisFile(file)) importAnalysis(file); // into the song open (3.1)
+    else if (file && (await confirmLeave())) openSong(file, { source: "file" });
   });
 
   // The tools of the song (the ribbon); Keys; the MP3 files exported. A click

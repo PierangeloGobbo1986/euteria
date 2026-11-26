@@ -216,6 +216,34 @@ between them skipped. A project reads the tags of its Original Track's file. Wha
 tags give is the song's own, not a change to save; it goes into the project at the next
 *Save*.
 
+**The analysis shared on its own** (3.1.0). *Share analysis…*, in the group *Project* of
+the same tab, makes a small file (`.euteria-analysis`, JSON, some tens of kilobytes) with
+the bars, the sections and the chords of the song and its details, without any audio and
+without the notes (they stay in EUTERIA): on the phone the share sheet takes it (Safari;
+elsewhere, and on a computer, *Download analysis* saves it), to send to whoever has the
+same recording. With it goes a fingerprint of the recording (`src/shared.js`): how much
+its sound rises, 50 times a second (from the log-mel spectrogram the tempo detection
+reads), in 4 bits a frame, and where its sound starts. It is worked out as the tab opens
+(a second or two), so that the share sheet still opens at the tap; otherwise a message
+offers *Share* once it is ready. *Analysis from a file…*, in the group *Import* of *Song
+analysis* (on the phone too), reads one into the song open, in place of its bars, sections
+and chords (one step to undo); a file opened with *Open*, or dropped, does the same. The
+listener's copy gives its own fingerprint, and the two are lined up: the correlation of
+the two curves (smoothed over five frames, so that copies a fraction of a frame apart
+still match) over lags of up to 30 seconds either way, the best of its peaks, between
+frames too. A song made of the same bars over and over lines up almost as well a bar or a
+beat away, so among the peaks one a second further from where the two sounds start must
+be 0.02 more alike to win. The grid moves by the lag found: a copy that starts some
+tenths of a second earlier or later (another rip, another encoder, a fade cut) gets the
+bars where its music is, numbered as in the analysis, the chords and the sections on
+their bars, the notes of the song (if it had a grid) at the times they were. A grid at a
+steady tempo (every grid EUTERIA Web makes) is built again from its first bar in the copy,
+as the tempo detection builds one. Below a likeness of 0.5 the analysis was made on
+another recording (a live version, another edit): a question says so, and it may come in
+as it is. When the two halves of the song do not match alike, part of it differs (an edit
+that cuts a passage): the message says to check the bars. The details of the song that it
+does not have yet come with the analysis.
+
 *Export for MuseScore* (2.8), in the same tab, writes the bars and chords as a chord chart
 in MusicXML, in the key of now, with a new line after *Bars per line* and at each
 section. The chart takes the details of the chart where MuseScore reads them for
@@ -889,6 +917,15 @@ travel as files (for example over WhatsApp).
 - **The recording** (3.0): `music.recording`, written by EUTERIA Web, holds those given of
   `performer`, `album` and `year` (one line each); without it, the tags of the Original
   Track's file give them, if it has any.
+
+**The analysis file** (3.1, `.euteria-analysis`) is JSON: `format` (`"euteria-analysis"`),
+`version` (1), `app`, `created`, `details` (those given of the details of the song, the
+title always), `duration` (seconds), `music` (as `manifest.music` has them: `bpm`,
+`time_signature`, `first_beat`, `beats`, `bars`, `bar_number_offset`, `chords`,
+`sections`; never `notes`) and `fingerprint`: `{kind: "onsets", fps: 50, frames, data
+(the frames two to a byte, 4 bits each, base64), start (the frame the sound starts at)}`,
+or `null` for a song without audio. A file of a newer version is refused, with the advice
+to update the app.
 - **The fine tuning** (2.18): `practice.transpose_cents`, written by EUTERIA Web when the
   song is moved by some cents (−50 to 50, on top of the key of `transpose_semitones`);
   without it, none. The song's own tuning, measured, is not saved: it is measured again.
@@ -1335,7 +1372,7 @@ file and kept (`app.baseFiles`), and they go back in as they were if it comes ba
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
   (`grid.js`), the clips of the tracks (`clips.js`), chord names read and transposed (`chordnames.js`), the chord chart in
-  MusicXML (`musicxml.js`), what an audio file says of itself in its tags (`tags.js`), the tuning of a song measured (`tuning.js`), the metronome's
+  MusicXML (`musicxml.js`), what an audio file says of itself in its tags (`tags.js`), the analysis shared on its own and its fingerprint (`shared.js`), the tuning of a song measured (`tuning.js`), the metronome's
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
@@ -1387,7 +1424,7 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
 - **Phase 3** (version 3): a repository shared by the community, of the analyses of songs
   (bars, sections, chords; never audio), on Firebase. Step 1: the details of the song and
   of its recording, read from the tags of its file (3.0). Step 2: the analysis exported
-  and imported on its own, lined up with the listener's copy of the recording. Step 3:
+  and imported on its own, lined up with the listener's copy of the recording (3.1). Step 3:
   the community: searching it (a dot when it knows the song open), downloading,
   publishing (open to everyone, with a sign-in), as on the record or as an arrangement.
   Then band features.
