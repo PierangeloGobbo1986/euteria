@@ -35,6 +35,7 @@ import { gridFromBeats } from "../src/tempo.js";
 import { analysisJson, readShared, pasteShared, shiftPaste, isAnalysisFile, ANALYSIS_EXT } from "../src/shared.js";
 import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
+import { CommunityFlow } from "./community-flow.js";
 import { History } from "./history.js";
 import { Ribbon } from "./ribbon.js";
 import { clipsToManifest, scaleClips, sameClips, clipsOf, cut as cutClip, remove as removeClips } from "../src/clips.js";
@@ -178,6 +179,7 @@ let sectionMenu = null; // app/sectionmenu.js
 let separation = null; // app/separate.js
 let detection = null; // app/detect.js
 let recording = null; // app/recording.js
+let community = null; // app/community-flow.js (3.3)
 
 // The project's name changed and not saved yet (the bar at the top).
 const retitled = () => {
@@ -2154,6 +2156,20 @@ function buildControls() {
     },
     showTools: showBarTools,
   });
+  // The community (3.3): searched and published in its window; the analysis
+  // goes in and out as Share analysis and Analysis from a file have it.
+  community = new CommunityFlow({
+    app,
+    player,
+    notice,
+    paste: pasteAnalysis,
+    analysisData,
+    details: songDetails,
+    askYes,
+    countEvent,
+    refreshPage: scheduleUi,
+  });
+  community.wire();
   recording = new RecordingFlow({
     app,
     player,
@@ -3096,6 +3112,13 @@ function commitDetails() {
   editor.commitInput();
   const typing = DETAIL_FIELDS.find((k) => document.activeElement === $(`credit-${k}`));
   if (typing) setCredit(typing, $(`credit-${typing}`).value);
+}
+
+// The details of the song open the community goes by: its title (the
+// song's name until another is given), performer, album and year.
+function songDetails() {
+  commitDetails();
+  return { title: shownTitle(), performer: app.credits.performer || "", album: app.credits.album || "", year: app.credits.year || "" };
 }
 
 function shareAnalysis() {
@@ -4463,6 +4486,20 @@ function updateUi() {
   const shareATip = song && !app.grid.bars.length ? tr("This song has no bars yet: the analysis is made of them.") : tr("The bars, sections and chords of the song and its details, without the audio: a small file for whoever has the same recording, who imports it into theirs (Song analysis, Import)");
   if (shareA.title !== shareATip) shareA.title = shareATip;
   $("import-analysis").disabled = !song || busy || app.sharingAnalysis;
+  // The community (3.3): searched from Song analysis, published from here
+  // (bars, and the title and performer the community finds songs by).
+  $("community-search").disabled = !song || busy;
+  const publish = $("community-publish");
+  const performer = !!(app.credits.performer || "").trim();
+  publish.disabled = !song || busy || !app.grid.bars.length || !performer;
+  const publishTip = !song
+    ? ""
+    : !app.grid.bars.length
+      ? tr("This song has no bars yet: the analysis is made of them.")
+      : !performer
+        ? tr("Write the performer in Song (this tab) first: the community finds songs by their title and performer.")
+        : tr("Publish the analysis of this song in the community: its bars, sections and chords and its details, never its audio");
+  if (publish.title !== publishTip) publish.title = publishTip;
   // The arrows of the import (3.2): while what it pasted is as it left it.
   const shifting = pasteActive();
   $("paste-shift").hidden = !shifting;
@@ -4578,6 +4615,8 @@ function wire() {
   $("share-song").addEventListener("click", shareProject);
   $("share-analysis").addEventListener("click", shareAnalysis);
   $("import-analysis").addEventListener("click", pickAnalysis);
+  $("community-search").addEventListener("click", () => community.openSearch());
+  $("community-publish").addEventListener("click", () => community.openPublish());
   // The arrows of the import (3.2): a bar (chords and sections) or a beat (the chords) earlier or later.
   $("shift-bar-back").addEventListener("click", () => shiftImport(-1, 0));
   $("shift-beat-back").addEventListener("click", () => shiftImport(0, -1));
@@ -5157,6 +5196,9 @@ window.euteria = {
   },
   get recording() {
     return recording;
+  },
+  get community() {
+    return community;
   },
   get ribbon() {
     return ribbon;

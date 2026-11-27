@@ -247,6 +247,7 @@
             <div class="rgroup import-group">
               <h3 class="rgroup-title">Import</h3>
               <div class="analysis-find">
+                <button id="community-search" type="button" class="small rbig">Search the community…</button>
                 <button id="import-analysis" type="button" class="small rbig">Analysis from a file…</button>
                 <!-- 3.2: what the import pasted, moved a bar (chords and sections) or a beat (chords) at a time -->
                 <div id="paste-shift" class="paste-shift" role="group" aria-label="Move what was imported" hidden>
@@ -256,7 +257,7 @@
                   <button id="shift-bar-on" type="button" class="small" title="One bar later: the chords and the sections imported">»</button>
                 </div>
               </div>
-              <p class="hint rtip">An analysis someone shared with Share analysis (File export and sharing): its chords and sections are pasted onto the bars of this song (a song without bars takes its bars too). If they do not fall in place, the arrows that come up move them by a beat or a bar. Undo takes it away.</p>
+              <p class="hint rtip">The analysis of this song that someone published in the community, or shared with you with Share analysis (File export and sharing): its chords and sections are pasted onto the bars of this song (a song without bars takes its bars too). If they do not fall in place, the arrows that come up move them by a beat or a bar. Undo takes it away.</p>
             </div>
           </div>
           <div class="rpanel-foot">
@@ -505,6 +506,7 @@
               <div class="row">
                 <button id="share-song" type="button" class="primary rbig">Share project…</button>
                 <button id="share-analysis" type="button" class="rbig" title="The bars, sections and chords of the song and its details, without the audio: a small file for whoever has the same recording, who imports it into theirs (Song analysis, Import)">Share analysis…</button>
+                <button id="community-publish" type="button" class="rbig">Publish to the community…</button>
                 <button id="save-as" type="button" class="rbig">Save as new project…</button>
               </div>
               <p id="project-hint" class="hint rtip">Saves the song and sends its file (.euteria), with its bars, chords and practice settings, by email, WhatsApp and so on.</p>
@@ -679,6 +681,80 @@
     </div>
   </form>
 </dialog>
+<!-- The community (3.3, app/community-flow.js): one window, four views (search, publish,
+     signing in, the account). -->
+<dialog id="community-dialog" class="help-dialog community-dialog" aria-labelledby="community-title">
+  <div class="help-head">
+    <h2 id="community-title">Community</h2>
+    <div class="community-who">
+      <span id="community-user" class="community-user" hidden></span>
+      <button id="community-account" type="button" class="small ghost" hidden>Account</button>
+      <button id="community-signin" type="button" class="small" hidden>Sign in</button>
+    </div>
+    <button id="community-close" class="help-close" type="button" aria-label="Close"><span aria-hidden="true" translate="no">✕</span></button>
+  </div>
+  <div class="help-body community-body">
+    <section id="cv-search" class="cview">
+      <form id="community-form" class="community-form" role="search">
+        <input id="community-query" class="name-input" type="search" placeholder="Title or performer" aria-label="Title or performer" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <button id="community-go" type="submit" class="primary">Search</button>
+      </form>
+      <p id="community-status" class="hint community-status" aria-live="polite"></p>
+      <ul id="community-results" class="community-results"></ul>
+      <p class="hint community-about">The analyses that people publish with EUTERIA: the bars, sections and chords of a song and its details, never its audio. Import pastes them onto the bars of your song, as Analysis from a file does.</p>
+    </section>
+    <section id="cv-publish" class="cview" hidden>
+      <p id="publish-song" class="publish-song"></p>
+      <p id="publish-what" class="hint publish-what"></p>
+      <p id="publish-again" class="hint publish-again" hidden></p>
+      <fieldset class="publish-kind">
+        <legend>What it is</legend>
+        <label><input type="radio" name="publish-kind" value="record" checked> <span>As on the record</span></label>
+        <label><input type="radio" name="publish-kind" value="arrangement"> <span>My own arrangement</span></label>
+      </fieldset>
+      <label class="cfield"><span>Description</span><textarea id="publish-note" maxlength="1000" rows="3"></textarea></label>
+      <label class="cfield"><span>Public name</span><input id="publish-name" class="name-input" type="text" maxlength="40" autocomplete="nickname" spellcheck="false"></label>
+      <p class="hint">Only this goes online: the bars, sections and chords of the song and its details, with your public name. Never its audio, never your notes.</p>
+      <p id="publish-status" class="hint community-status" aria-live="polite"></p>
+      <div class="row">
+        <button id="publish-go" type="button" class="primary">Publish</button>
+        <button id="publish-cancel" type="button">Cancel</button>
+      </div>
+    </section>
+    <section id="cv-signin" class="cview" hidden>
+      <p class="hint">You sign in to publish, to like and to report; searching and importing need no account. Your email never shows in the community: only the public name you choose does.</p>
+      <button id="signin-google" type="button" class="primary signin-google">Sign in with Google</button>
+      <p class="signin-or">or with an email and a password</p>
+      <form id="signin-form" class="signin-form">
+        <input id="signin-email" class="name-input" type="email" placeholder="Email" aria-label="Email" autocomplete="email" spellcheck="false">
+        <input id="signin-password" class="name-input" type="password" placeholder="Password (6 characters or more)" aria-label="Password (6 characters or more)" autocomplete="current-password">
+        <div class="row">
+          <button id="signin-go" type="submit" class="primary">Sign in</button>
+          <button id="signin-create" type="button">Create account</button>
+          <button id="signin-forgot" type="button" class="ghost">Forgot the password?</button>
+        </div>
+      </form>
+      <div id="signin-verify" class="signin-verify" hidden>
+        <p id="signin-verify-text"></p>
+        <div class="row">
+          <button id="signin-checked" type="button" class="primary">I opened the link</button>
+          <button id="signin-resend" type="button">Send it again</button>
+        </div>
+      </div>
+      <p id="signin-status" class="hint community-status" aria-live="polite"></p>
+    </section>
+    <section id="cv-account" class="cview" hidden>
+      <p id="account-who"></p>
+      <div class="row">
+        <button id="account-signout" type="button">Sign out</button>
+        <button id="account-back" type="button">Back to the search</button>
+      </div>
+      <p class="hint">Deleting the account deletes with it the analyses you published, for everyone. It cannot be undone.</p>
+      <button id="account-delete" type="button" class="danger">Delete the account</button>
+      <p id="account-status" class="hint community-status" aria-live="polite"></p>
+    </section>
+  </div>
+</dialog>
 <!-- The instructions (the button at the top right), in both languages: the page shows the
      one of the language in use (app.css, by the lang of the page). -->
 <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title">
@@ -689,7 +765,7 @@
   <div id="help-body" class="help-body" tabindex="-1" autofocus>
     <div class="help-text" lang="it" translate="no">
       <h3>Benvenuti in EUTERIA!</h3>
-      <p>EUTERIA separa una canzone nei suoi strumenti (stem) e serve soprattutto per lo studio dei brani e per le trascrizioni. Puoi togliere uno strumento e suonare al suo posto sopra il brano e registrarti mentre lo fai; puoi ascoltare solo quello strumento per trascrivere un assolo o un riff sfruttando la funzione di loop e rallentamento del tempo. Il metronomo avanzato aiuta a studiare il brano passo dopo passo. Puoi indicare la struttura e gli accordi ed esportarli per MuseScore. Una volta aperti e caricati i brani, EUTERIA funziona anche senza connessione. Non ci sono server né account: i brani restano sui tuoi dispositivi.</p>
+      <p>EUTERIA separa una canzone nei suoi strumenti (stem) e serve soprattutto per lo studio dei brani e per le trascrizioni. Puoi togliere uno strumento e suonare al suo posto sopra il brano e registrarti mentre lo fai; puoi ascoltare solo quello strumento per trascrivere un assolo o un riff sfruttando la funzione di loop e rallentamento del tempo. Il metronomo avanzato aiuta a studiare il brano passo dopo passo. Puoi indicare la struttura e gli accordi ed esportarli per MuseScore. Una volta aperti e caricati i brani, EUTERIA funziona anche senza connessione. I brani restano sui tuoi dispositivi: EUTERIA non ha server per loro e non chiede account. Solo la Comunità, se la usi, tiene online le analisi che le persone pubblicano (battute, sezioni, accordi e dati del brano, mai l’audio), su Firebase di Google, e per pubblicare chiede un accesso.</p>
       <h3>Come è fatta EUTERIA</h3>
       <p>Dalla Libreria (schermata principale) apri un progetto *.euteria o importi un file audio (MP3, M4A, WAV…); sul computer puoi anche trascinarli nel riquadro. Un file audio importato diventa subito un progetto, con l’audio dentro: sul computer EUTERIA chiede dove salvarlo, partendo dal nome del file, sullo smartphone lo mette nella libreria. Il file audio originale non viene mai toccato. Nuovo progetto vuoto crea un progetto senza audio in cui registrare, con metronomo e battute già pronti.</p>
       <p>In alto c’è la barra di riproduzione, con il nome del brano (un clic lo cambia) e, a destra, Annulla e Ripeti operazione.</p>
@@ -708,7 +784,8 @@
             <li><b>Mixer.</b> Ogni traccia, che sia uno stem, l’originale o una take, ha il suo volume fino al 200% e si può accendere o spegnere. Tutti gli stem e Solo originale lo fanno in un colpo. Puoi cambiare l’ordine delle tracce e dare a ognuna un nome tuo.</li>
             <li><b>Tempo e griglia.</b> Rileva il tempo del brano e lo divide in battute. Accanto puoi correggere i BPM, il metro e il primo beat se per caso la rilevazione automatica è sfalsata. Per il primo beat, porta la barra di play sul primo battere di una battuta e premi Imposta primo beat. ×2 e ÷2 servono se il programma ha trovato la metà o il doppio del tempo. Questa funzione funziona solo sul computer.</li>
             <li><b>Accordi.</b> Rileva accordi scrive gli accordi che sente, battuta per battuta. Sono suggerimenti da controllare a orecchio, ma offrono un buon punto di partenza. Questa funzione funziona solo sul computer.</li>
-            <li><b>Importa.</b> Analisi da un file porta in questo brano gli accordi e le sezioni che qualcuno ha condiviso con Condividi analisi. Vengono incollati sulle battute del tuo brano, quindi prima trova il tempo (Rileva tempo) o imposta le battute a mano; un brano senza battute prende quelle dell’analisi. Se gli accordi non cadono al posto giusto (il tuo file comincia un po’ prima o dopo, o le battute sono numerate in un altro modo), le frecce che compaiono accanto al pulsante li spostano: ‹ e › di un movimento (solo gli accordi), « e » di una battuta (accordi e sezioni). Se le tue battute sono al doppio o alla metà del tempo dell’analisi, EUTERIA te lo dice, così le correggi prima con ×2 o ÷2. Funziona anche sullo smartphone, e Annulla toglie l’importazione insieme agli spostamenti.</li>
+            <li><b>Importa.</b> Cerca nella comunità e Analisi da un file portano in questo brano gli accordi e le sezioni che qualcuno ha pubblicato nella comunità o ti ha mandato con Condividi analisi. Vengono incollati sulle battute del tuo brano, quindi prima trova il tempo (Rileva tempo) o imposta le battute a mano; un brano senza battute prende quelle dell’analisi. Se gli accordi non cadono al posto giusto (il tuo file comincia un po’ prima o dopo, o le battute sono numerate in un altro modo), le frecce che compaiono accanto al pulsante li spostano: ‹ e › di un movimento (solo gli accordi), « e » di una battuta (accordi e sezioni). Se le tue battute sono al doppio o alla metà del tempo dell’analisi, EUTERIA te lo dice, così le correggi prima con ×2 o ÷2. Funziona anche sullo smartphone, e Annulla toglie l’importazione insieme agli spostamenti.</li>
+            <li><b>Comunità.</b> Cerca nella comunità apre una finestra e cerca subito il titolo e l’interprete del brano (li scrivi nel gruppo Brano, in Esportazione e condivisione); puoi cambiare le parole e cercare di nuovo. Per ogni analisi trovata vedi il disco, la durata accanto a quella del tuo file (se coincide, è quasi sicuramente la stessa registrazione), se è come nel disco o un arrangiamento, chi l’ha pubblicata, quanti mi piace ha e la descrizione. Importa la incolla sulle tue battute, come Analisi da un file. Per cercare e importare non serve un account; per pubblicare, mettere mi piace e segnalare un’analisi sbagliata serve un accesso, con Google oppure con email e password (in quel caso arriva un link per verificare l’indirizzo). La tua email non compare mai: nella comunità si vede solo il nome pubblico che scegli. Da Account esci o elimini l’account, con le analisi che hai pubblicato.</li>
           </ul>
         </li>
         <li><b>Tempo e tonalità.</b>
@@ -722,7 +799,7 @@
         <li><b>Battute e accordi.</b> Gli accordi si possono scrivere manualmente battuta per battuta nelle caselle dei tempi della battuta. Il primo clic su una battuta della riga accordi mette il cursore sul primo tempo; un secondo clic sulla stessa battuta sceglie il tempo cliccato. Dopo il secondo clic, Cmd+C (Ctrl+C) copia solo quell’accordo e Cmd+V (Ctrl+V) lo incolla nel tempo dove sta il cursore; dopo il primo clic copiano e incollano la battuta intera. Su smartphone il primo tocco seleziona la battuta e il secondo apre la tastiera. Se cambi la tonalità (vedi sopra), gli accordi la seguono automaticamente. Il bottone DO RE MI… passa dai nomi italiani alle lettere americane. Nella riga più in alto della timeline segni la struttura del brano: Intro, Strofa, Ritornello e gli altri, le lettere A, B, C, D del jazz o un nome tuo. Un nome che si ripete si numera da solo (Strofa 1, Strofa 2). Con Copia e Incolla ripeti un giro di accordi su tutto il brano; se copi una sezione intera, viene copiato anche il suo nome. Nella riga Note, la più in alto, scrivi le tue note (per esempio “suonare forte con distorsione”): clicca una battuta, o trascina su più battute, e scrivi nel campo Nota; Invio la conferma. Dopo aver selezionato una sezione, un clic sulle sue battute nella riga Note scrive la nota della sezione, un altro clic la nota di una sola battuta. Le note restano in EUTERIA: non si copiano con gli accordi e non vanno nello spartito per MuseScore. Sul computer, se fermi il mouse sulle note, sugli accordi o sulle sezioni, compare il testo per intero.</li>
         <li><b>Tracce.</b> Puoi tagliarle, spostarle, accorciarle, sfumarle e copiarle, anche in un altro brano, dove arrivano come take. Due clip sovrapposte suonano insieme. Una clip si può anche trascinare in su o in giù, su un’altra traccia: per esempio per riunire in una sola take i pezzi migliori di take diverse, o per prendere pezzi della batteria. La clip porta con sé il suo audio e segue la traccia in cui la metti: si accende, si spegne e cambia volume con lei. La batteria, anche spostata, non cambia tonalità. Se poi elimini la traccia da cui viene, quell’audio resta comunque nel brano. La traccia Originale non dà e non riceve clip. L’audio originale non viene mai toccato, quindi tutto si può annullare. Puoi selezionarne più assieme con Shift, cliccando sulla barra superiore della traccia, e le operazioni si applicano a tutte le tracce selezionate.</li>
         <li><b>Registrazione.</b> Scegli l’ingresso e premi il tasto rosso: la take si aggiunge in fondo alle tracce. Con il loop acceso ogni giro diventa una take: la registrazione continua finché premi Stop e tiene gli ultimi tre giri completi. Finita la take, il volume viene regolato rispetto al brano; se registri oltre la fine, il brano si allunga. Con le cuffie Bluetooth la take può arrivare in ritardo. Se il brano ha le battute, il messaggio lo dice e Allinea la rimette a tempo; altrimenti la correggi con Sync. La correzione vale anche per le take successive dallo stesso ingresso.</li>
-        <li><b>Esportazione e condivisione.</b> Condividi progetto manda il file del brano, con battute, accordi e impostazioni, dallo smartphone (email, WhatsApp, File, AirDrop). Condividi analisi manda solo battute, sezioni, accordi e dati del brano, senza audio, in un file piccolo: chi ha la stessa registrazione lo importa nella sua con Analisi da un file. Le note restano tue. Salva come nuovo progetto lo salva con un altro nome e lascia com’era quello di prima. Nel gruppo Brano scrivi titolo, sottotitolo, paroliere, compositore, arrangiatore e copyright, che vanno in testa allo spartito, e interprete, album e anno della registrazione. Se il file audio contiene già questi dati (i tag degli MP3, per esempio), EUTERIA li inserisce da sola. Restano salvati con il brano. Esporta per MuseScore crea uno spartito con battute e accordi, nella tonalità selezionata. Esporta MP3 crea un file con le tracce accese, così come suonano: lo trovi nella lista sotto il pulsante, che si svuota quando chiudi l’app.</li>
+        <li><b>Esportazione e condivisione.</b> Condividi progetto manda il file del brano, con battute, accordi e impostazioni, dallo smartphone (email, WhatsApp, File, AirDrop). Condividi analisi manda solo battute, sezioni, accordi e dati del brano, senza audio, in un file piccolo: chi ha la stessa registrazione lo importa nella sua con Analisi da un file. Pubblica nella comunità mette la stessa analisi online, per tutti: scegli se è come nel disco o un arrangiamento tuo, aggiungi una descrizione e il nome pubblico; se pubblichi di nuovo lo stesso brano, la tua analisi si aggiorna. Servono le battute, e il titolo e l’interprete nel gruppo Brano. Le note restano tue. Salva con nome lo salva con un altro nome e lascia com’era quello di prima. Nel gruppo Brano scrivi titolo, sottotitolo, paroliere, compositore, arrangiatore e copyright, che vanno in testa allo spartito, e interprete, album e anno della registrazione. Se il file audio contiene già questi dati (i tag degli MP3, per esempio), EUTERIA li inserisce da sola. Restano salvati con il brano. Esporta per MuseScore crea uno spartito con battute e accordi, nella tonalità selezionata. Esporta MP3 crea un file con le tracce accese, così come suonano: lo trovi nella lista sotto il pulsante, che si svuota quando chiudi l’app.</li>
         <li><b>Caffè.</b> Quello no, non lo fa… ;)</li>
       </ol>
       <h3>EUTERIA su smartphone</h3>
@@ -733,7 +810,7 @@
     </div>
     <div class="help-text" lang="en" translate="no">
       <h3>Welcome to EUTERIA!</h3>
-      <p>EUTERIA splits a song into its instruments (stems) and is meant above all for studying songs and transcribing them. You can take out an instrument and play its part yourself over the song, recording yourself as you do it; you can listen to that instrument alone to transcribe a solo or a riff, using the loop and the slow-down of the tempo. The advanced metronome helps you study the song step by step. You can mark the structure and the chords and export them for MuseScore. Once it is open and the songs are loaded, EUTERIA also works without a connection. There are no servers and no accounts: the songs stay on your devices.</p>
+      <p>EUTERIA splits a song into its instruments (stems) and is meant above all for studying songs and transcribing them. You can take out an instrument and play its part yourself over the song, recording yourself as you do it; you can listen to that instrument alone to transcribe a solo or a riff, using the loop and the slow-down of the tempo. The advanced metronome helps you study the song step by step. You can mark the structure and the chords and export them for MuseScore. Once it is open and the songs are loaded, EUTERIA also works without a connection. The songs stay on your devices: EUTERIA has no servers for them and asks for no account. Only the Community, if you use it, keeps online the analyses that people publish (bars, sections, chords and the details of the song, never audio), on Google’s Firebase, and publishing needs a sign-in.</p>
       <h3>How EUTERIA is laid out</h3>
       <p>From the Library (the main screen) you open a *.euteria project or import an audio file (MP3, M4A, WAV…); on the computer you can also drag them onto the panel. An imported audio file becomes a project straight away, with the audio inside: on the computer EUTERIA asks where to save it, starting from the name of the file; on the smartphone it goes into the library. The original audio file is never touched. New empty project creates a project without audio, ready for recording, with the metronome and the bars already in place.</p>
       <p>At the top is the playback bar, with the name of the song (one click changes it) and, on the right, Undo and Redo.</p>
@@ -752,7 +829,8 @@
             <li><b>Mixer.</b> Every track, whether a stem, the original or a take, has its own volume up to 200% and can be turned on or off. All stems and Original only do it in one go. You can change the order of the tracks and give each one a name of your own.</li>
             <li><b>Tempo and grid.</b> Detects the tempo of the song and divides it into bars. Beside it you can correct the BPM, the meter and the first beat if the automatic detection happens to be off. For the first beat, put the playhead on the first beat of a bar and press Set first beat. ×2 and ÷2 are for when the app has found half or double the tempo. This feature works only on the computer.</li>
             <li><b>Chords.</b> Detect chords writes the chords it hears, bar by bar. They are suggestions to check by ear, but they offer a good starting point. This feature works only on the computer.</li>
-            <li><b>Import.</b> Analysis from a file brings into this song the chords and sections that someone shared with Share analysis. They are pasted onto the bars of your song, so first find its tempo (Detect tempo) or set the bars by hand; a song without bars takes those of the analysis. If the chords do not fall in place (your file starts a little earlier or later, or the bars are numbered differently), the arrows that appear beside the button move them: ‹ and › by one beat (the chords only), « and » by one bar (chords and sections). If your bars are at double or half the tempo of the analysis, EUTERIA tells you, so you can fix them first with ×2 or ÷2. It works on the smartphone too, and Undo takes away the import together with the moves.</li>
+            <li><b>Import.</b> Search the community and Analysis from a file bring into this song the chords and sections that someone published in the community or sent you with Share analysis. They are pasted onto the bars of your song, so first find its tempo (Detect tempo) or set the bars by hand; a song without bars takes those of the analysis. If the chords do not fall in place (your file starts a little earlier or later, or the bars are numbered differently), the arrows that appear beside the button move them: ‹ and › by one beat (the chords only), « and » by one bar (chords and sections). If your bars are at double or half the tempo of the analysis, EUTERIA tells you, so you can fix them first with ×2 or ÷2. It works on the smartphone too, and Undo takes away the import together with the moves.</li>
+            <li><b>Community.</b> Search the community opens a window and searches at once for the title and the performer of the song (you write them in the Song group, in Export and sharing); you can change the words and search again. For each analysis found you see the record, its length beside that of your file (when they match, it is almost surely the same recording), whether it is as on the record or an arrangement, who published it, how many likes it has and its description. Import pastes it onto your bars, as Analysis from a file does. Searching and importing need no account; publishing, liking and reporting a wrong analysis need a sign-in, with Google or with an email and a password (then a link comes to check the address). Your email never shows: in the community only the public name you choose does. From Account you sign out or delete the account, with the analyses you published.</li>
           </ul>
         </li>
         <li><b>Tempo and key.</b>
@@ -766,7 +844,7 @@
         <li><b>Bars and chords.</b> Chords can be written by hand, bar by bar, in the boxes for the beats of the bar. The first click on a bar of the chord lane puts the cursor on the first beat; a second click on the same bar picks the beat you clicked. After the second click, Cmd+C (Ctrl+C) copies that chord alone and Cmd+V (Ctrl+V) pastes it on the beat where the cursor is; after the first click they copy and paste the whole bar. On a smartphone the first tap selects the bar and the second opens the keyboard. If you change the key (see above), the chords follow it automatically. The DO RE MI… button switches between Italian names and American letters. In the top row of the timeline you mark the structure of the song: Intro, Verse, Chorus and the others, the jazz letters A, B, C, D or a name of your own. A name that repeats is numbered by itself (Verse 1, Verse 2). With Copy and Paste you repeat a chord progression over the whole song; if you copy a whole section, its name is copied too. In the Notes lane, the top one, you write your own notes (for example “play loud with distortion”): click a bar, or drag along several bars, and write in the Note field; Return keeps it. After selecting a section, a click on its bars in the Notes lane writes the note of the section, a further click the note of a single bar. Notes stay in EUTERIA: they are not copied with the chords and do not go into the score for MuseScore. On the computer, resting the mouse on the notes, the chords or the sections shows their whole text.</li>
         <li><b>Tracks.</b> You can cut, move, shorten, fade and copy them, even into another song, where they arrive as takes. Two overlapping clips play together. A clip can also be dragged up or down onto another track: for example to gather the best pieces of different takes in one take, or to take pieces of the drums. The clip brings its audio with it and follows the track you put it in: it is switched on and off and changes volume with it. The drums, even moved, do not change key. If you then delete the track it came from, that audio stays in the song all the same. The Original Track neither gives nor takes clips. The original audio is never touched, so everything can be undone. You can select several at once with Shift, clicking on the top bar of the track, and the operations apply to all the selected tracks.</li>
         <li><b>Recording.</b> Choose the input and press the red button: the take is added at the bottom of the tracks. With the loop on, every pass becomes a take: the recording goes on until you press Stop and keeps the last three complete passes. When the take is over, its volume is adjusted to the song; if you record past the end, the song is extended. With Bluetooth headphones the take may arrive late. If the song has bars, the message says so and Align puts it back in time; otherwise you correct it with Sync. The correction also applies to the next takes from the same input.</li>
-        <li><b>Export and sharing.</b> Share project sends the file of the song, with bars, chords and settings, from the smartphone (email, WhatsApp, Files, AirDrop). Share analysis sends only the bars, sections, chords and details of the song, without audio, in a small file: whoever has the same recording imports it into theirs with Analysis from a file. Your notes stay yours. Save as new project saves it under another name and leaves the previous one as it was. In the Song group you write the title, subtitle, lyricist, composer, arranger and copyright, which go at the top of the score, and the performer, album and year of the recording. If the audio file already holds these details (the tags of an MP3, for example), EUTERIA fills them in by itself. They stay saved with the song. Export for MuseScore creates a score with bars and chords, in the selected key. Export MP3 creates a file with the tracks that are on, as they sound: you find it in the list under the button, which empties when you close the app.</li>
+        <li><b>Export and sharing.</b> Share project sends the file of the song, with bars, chords and settings, from the smartphone (email, WhatsApp, Files, AirDrop). Share analysis sends only the bars, sections, chords and details of the song, without audio, in a small file: whoever has the same recording imports it into theirs with Analysis from a file. Publish to the community puts the same analysis online, for everyone: choose whether it is as on the record or an arrangement of your own, add a description and your public name; publish the same song again and your analysis is updated. It needs the bars, and the title and the performer in the Song group. Your notes stay yours. Save as new project saves it under another name and leaves the previous one as it was. In the Song group you write the title, subtitle, lyricist, composer, arranger and copyright, which go at the top of the score, and the performer, album and year of the recording. If the audio file already holds these details (the tags of an MP3, for example), EUTERIA fills them in by itself. They stay saved with the song. Export for MuseScore creates a score with bars and chords, in the selected key. Export MP3 creates a file with the tracks that are on, as they sound: you find it in the list under the button, which empties when you close the app.</li>
         <li><b>Coffee.</b> No, it doesn’t make that… ;)</li>
       </ol>
       <h3>EUTERIA on a smartphone</h3>

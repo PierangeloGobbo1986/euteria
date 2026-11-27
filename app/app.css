@@ -477,6 +477,8 @@ button.step-btn .icon { width: 18px; height: 18px; }
 /* 3.1: the analysis shared (a page of bars and chords), and one brought in (an arrow into a tray). */
 #share-analysis { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5M8.5 12h7M8.5 15h7M8.5 18h4'/%3E%3C/svg%3E"); }
 #import-analysis { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v11M7.5 9.5 12 14l4.5-4.5'/%3E%3Cpath d='M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4'/%3E%3C/svg%3E"); }
+#community-search { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='8' r='3'/%3E%3Cpath d='M3.5 19a5.5 5.5 0 0 1 9.6-3.6'/%3E%3Ccircle cx='16.5' cy='15.5' r='3'/%3E%3Cpath d='m18.7 17.7 2.3 2.3'/%3E%3C/svg%3E"); }
+#community-publish { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 18H6.5a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.6 8.1 4.5 4.5 0 0 1 17.5 18H17'/%3E%3Cpath d='M12 20v-8M8.8 14.8 12 11.6l3.2 3.2'/%3E%3C/svg%3E"); }
 #export-chart { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6.5h18M3 10h18M3 13.5h18M3 17h18' stroke-width='1.3'/%3E%3Cpath d='M15.6 17V4.5l3 1.2'/%3E%3Cellipse cx='13.7' cy='17.1' rx='2.4' ry='1.8' fill='black' stroke='none' transform='rotate%28-20 13.7 17.1%29'/%3E%3C/svg%3E"); }
 #export { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7.5 10.5 12 15l4.5-4.5'/%3E%3Cpath d='M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2'/%3E%3C/svg%3E"); }
 #tab-analysis { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 3.5l1.9 5.6 5.6 1.9-5.6 1.9L11 18.5l-1.9-5.6L3.5 11l5.6-1.9z'/%3E%3Cpath d='M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z' fill='black'/%3E%3C/svg%3E"); }
@@ -543,11 +545,17 @@ button.step-btn .icon { width: 18px; height: 18px; }
    Share analysis added), so that the card stays in one row at 1280 px. */
 [data-layout=computer] #ribbon .chart-lines .mini-label { white-space: normal; max-width: 64px; line-height: 1.15; }
 [data-layout=computer] #ribbon .project-group .rbig { max-width: 112px; }
+/* 3.3: four buttons in Project (Publish to the community added), narrower still, Export for
+   MuseScore too, and the basis of Song smaller, so that the card stays in one row at 1280 px
+   (Song's fields narrower there); Song never narrower than what it holds: in a narrower window
+   the groups go on two rows rather than over one another. */
+[data-layout=computer] #ribbon .project-group .rbig { max-width: 95px; min-width: 80px; }
+[data-layout=computer] #ribbon .chart-group .rbig { max-width: 100px; }
 /* The details of the song (3.0, Song; 2.16 for those of the chart): three columns of three,
    each named at its left, as high as the big buttons. Song takes the room the other groups
    leave: in a narrower window its fields get narrower (not under 64 px) rather than the card
    going on two rows. */
-[data-layout=computer] #ribbon .song-group { flex: 1 1 480px; max-width: max-content; }
+[data-layout=computer] #ribbon .song-group { flex: 1 1 380px; min-width: min-content; max-width: max-content; }
 [data-layout=computer] #ribbon .chart-credits { display: grid; grid-template-columns: auto minmax(64px, 140px) auto minmax(64px, 140px) auto minmax(64px, 140px); grid-template-rows: repeat(3, 22px); gap: 5px 8px; align-items: center; }
 [data-layout=computer] #ribbon .credit { display: contents; }
 [data-layout=computer] #ribbon .credit .mini-label { font-size: 12px; text-align: right; }
@@ -928,7 +936,7 @@ button.eye .icon { width: 18px; height: 18px; }
 .analysis-find { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 12px; }
 .analysis-find:not(:has(> :not([hidden]))) { display: none; }
 [data-layout=computer] .analysis-find .find-btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
-[data-layout=phone] .analysis-find .find-btn, [data-layout=phone] #import-analysis { min-height: 44px; }
+[data-layout=phone] .analysis-find .find-btn, [data-layout=phone] #import-analysis, [data-layout=phone] #community-search { min-height: 44px; }
 /* 3.2: the arrows of the import. On a computer two by two beside Analysis from a file, as high as
    it (a beat on top, a bar under it); on the phone four in a row, « ‹ › ». */
 .paste-shift { display: grid; grid-template-columns: repeat(4, 48px); grid-auto-rows: 44px; gap: 6px; }
@@ -1395,3 +1403,45 @@ html[lang=it] .help-text[lang=en], html:not([lang=it]) .help-text[lang=it] { dis
 .section-actions > :only-child { grid-column: 1 / -1; }
 .section-remove { justify-content: center; }
 .section-menu .current { border-color: var(--gold); background: #2a2519; }
+
+/* ----- the community (3.3): a window as the instructions', with its views ----- */
+.community-dialog { width: min(640px, calc(100vw - 24px)); }
+.community-dialog .help-head h2 { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.community-who { flex: none; display: flex; align-items: center; gap: 8px; }
+.community-user { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; }
+.community-body .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.community-form { display: flex; gap: 8px; align-items: center; }
+.community-form .name-input { flex: 1 1 auto; min-width: 0; margin: 0; }
+.community-form button { flex: none; min-height: 44px; }
+.community-status { margin: 10px 0; min-height: 1.2em; }
+.community-status.error { color: var(--danger, #e06c6c); }
+.community-status.ok { color: var(--ok, #7cc48a); }
+.community-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cres { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-alt); }
+.cres-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.cres-title { font-size: 16px; }
+.cres-perf { color: var(--text); }
+.cres-meta, .cres-by { margin-top: 3px; color: var(--muted); font-size: 13px; }
+.cres-note { margin: 8px 0 0; font-size: 14px; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cres-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cres-like.on { color: var(--gold); border-color: #6b5530; }
+.cres-report { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.cres-report select, .cres-report input { min-height: 36px; padding: 0 10px; border: 1px solid var(--border-hi); border-radius: 9px; background: var(--field); color: var(--text); font: inherit; font-size: 14px; }
+.cres-report input { flex: 1 1 160px; min-width: 0; }
+.community-about { margin-top: 16px; }
+.publish-song { margin: 0; font-size: 17px; font-weight: 650; }
+.publish-what { margin: 4px 0 0; }
+.publish-again { margin: 8px 0 0; color: var(--gold); }
+.publish-kind { margin: 14px 0 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.publish-kind legend { padding: 0; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+.publish-kind label { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.cfield { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; color: var(--muted); font-size: 13px; }
+.cfield .name-input { margin: 0; }
+.cfield textarea { padding: 10px 12px; border: 1px solid var(--border-hi); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; font-size: 15px; resize: vertical; }
+.cview > .hint:first-child { margin: 0 0 14px; }
+.signin-google { min-height: 44px; margin-top: 4px; }
+.signin-or { margin: 16px 0 8px; color: var(--muted); font-size: 13px; }
+.signin-form .name-input { margin: 0 0 8px; }
+.signin-verify p { margin: 0; }
+[data-layout=phone] .community-who .community-user { max-width: 110px; }
+[data-layout=phone] .cres-actions button, [data-layout=phone] .community-body .row button { min-height: 44px; }

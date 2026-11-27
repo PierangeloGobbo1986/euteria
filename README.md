@@ -940,6 +940,50 @@ travel as files (for example over WhatsApp).
   `performer`, `album` and `year` (one line each); without it, the tags of the Original
   Track's file give them, if it has any.
 
+**The community** (3.3.0, `src/community.js`, `app/community-flow.js`). *Search the
+community…*, in the group *Import* of *Song analysis*, and *Publish to the community…*, in the
+group *Project* of *File export and sharing*, open one window with four views. Nothing of the
+community is asked for before the window opens (no search when a song opens): then the SDK of
+Firebase is loaded from Google's site (13.3.0: Firebase Authentication and the Lite SDK of Cloud
+Firestore, some 400 KB, cross-origin modules that `sw.js` leaves alone). *Search*: the title and
+the performer of the song (*Song*, in *File export and sharing*) searched at once, the words free
+to change. Each record holds the words of its title and performer (lower case, no accents, no
+brackets, no featured artist, no track number, no little words: `wordsOf()`), and a search reads
+those holding the longest word typed (at most 50), then keeps those holding them all, the same
+title and performer first, then those of about the same length as the song (within 3 s), then
+the most liked, then the newest. Each analysis shows its song and recording, its length beside
+the song's, as on the record or an arrangement, who published it (the public name) and when,
+its likes and what its author says of it; *Import* pastes it onto the song's bars (as *Analysis
+from a file*, its arrows too), ♡ likes it, *Report* sends a reason and a word, *Delete* (one's
+own) removes it after asking. *Publish*: off without bars or without the performer (the tooltip
+says which); the song, what it holds (bars, sections, chords), as on the record or *My own
+arrangement*, a description, the public name (the one used last, or the account's); what goes
+online is the analysis as *Share analysis* makes it (never audio, never the notes) with the
+details of the song. The same song published again by its author, of the same kind, updates it
+(*Update*, with the date it was published). *Sign in*: with Google (its window opens straight
+from the click, the SDK being loaded as the view opens), or an email and a password: a new
+account gets a link to check its address (*I opened the link* reads the account again), needed
+to publish; *Forgot the password?* sends a link to choose a new one. Searching and importing need
+no account. *Account*: who is signed in, *Sign out*, *Delete the account* (with what it
+published; Firebase deletes only an account signed in a few minutes before, otherwise the window
+says to sign in again first). Errors are said in words (no connection, the free quota of the day
+used up, a refusal of the rules, a wrong password, Google's window blocked).
+
+The data, in Cloud Firestore: `analyses/{id}` `{v, title, performer, album, year, words,
+titleKey, duration, bpm, meter, kind ("record" or "arrangement"), note, analysis (the
+`.euteria-analysis` as JSON text), owner, ownerName, created, updated, likes}`,
+`analyses/{id}/likes/{uid}`, `reports/{id}` `{analysis, by, reason, at}` and `users/{uid}`
+`{name, lastPublish}`. The rules (`firestore.rules`, pasted in the console of Firebase): anyone
+reads the analyses; only someone signed in with an address checked (a Google account always is)
+writes, and only their own; every field checked (sizes, kinds); a new analysis at most a minute
+after the previous one (the user's `lastPublish`, written in the same batch); a like at most per
+person, its count moved by one with the like itself; reports written by whoever is signed in and
+read only in the console, where the owner of the project deletes what must go. The web settings
+of Firebase in `src/community.js` are public by design: the rules guard the data. The free plan
+(Spark) is enough: 50,000 reads and 20,000 writes a day. The tests stand a fake driver in for
+Firebase, whose servers they cannot reach, and load the real SDK from its npm copy to check that
+the Firebase driver starts.
+
 **The analysis file** (3.1, `.euteria-analysis`) is JSON: `format` (`"euteria-analysis"`),
 `version` (1), `app`, `created`, `details` (those given of the details of the song, the
 title always), `duration` (seconds), `music` (as `manifest.music` has them: `bpm`,
@@ -1446,9 +1490,10 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
   (bars, sections, chords; never audio), on Firebase. Step 1: the details of the song and
   of its recording, read from the tags of its file (3.0). Step 2: the analysis exported
   and imported on its own (3.1), pasted onto the song's own bars and moved by its arrows,
-  and an audio file imported as a project at once (3.2). Step 3: the community: searching
-  it (only when asked), downloading, publishing (open to everyone, with a sign-in), as on
-  the record or as an arrangement. Then band features.
+  and an audio file imported as a project at once (3.2). Step 3: the community (3.3):
+  searching it (only when asked), importing, publishing (open to everyone, with a sign-in:
+  Google, or email and password), as on the record or as an arrangement; likes and reports.
+  Then band features.
 
 ## Licence
 

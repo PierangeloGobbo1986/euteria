@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v61";
+const CACHE = "euteria-app-v62";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",
@@ -23,6 +23,7 @@ const SHELL = [
   "app/app.css",
   "app/app.js",
   "app/controls.js",
+  "app/community-flow.js",
   "app/counter.js",
   "app/detect.js",
   "app/editor.js",
@@ -46,6 +47,7 @@ const SHELL = [
   "src/chordnames.js",
   "src/chords.js",
   "src/clips.js",
+  "src/community.js",
   "src/device.js",
   "src/encode-worker.js",
   "src/engine.js",

@@ -1,0 +1,123 @@
+rules_version = '2';
+
+// EUTERIA Web, the community (3.3): the rules of Cloud Firestore, pasted in the
+// console of Firebase (Firestore Database, Rules, Publish). The analyses of songs
+// that people publish (bars, sections, chords and the details of the song; never
+// audio, never notes) are read by anyone; only someone signed in, with an address
+// checked (a Google account always is), writes, and only their own. A publication
+// a minute at most; a like at most per person and analysis; reports written by
+// whoever is signed in and read only in the console. Anything else is refused.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function checked() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function text(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    function me() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function likeOf(id) {
+      return /databases/$(database)/documents/analyses/$(id)/likes/$(request.auth.uid);
+    }
+
+    // An analysis as its author writes it (created or updated now).
+    function analysis(d) {
+      return d.keys().hasOnly(['v', 'title', 'performer', 'album', 'year', 'words', 'titleKey', 'duration', 'bpm', 'meter', 'kind', 'note', 'analysis', 'owner', 'ownerName', 'created', 'updated', 'likes'])
+        && d.keys().hasAll(['v', 'title', 'performer', 'words', 'titleKey', 'duration', 'kind', 'analysis', 'owner', 'ownerName', 'created', 'updated', 'likes'])
+        && d.v == 1
+        && text(d.title, 200) && d.title.size() > 0
+        && text(d.performer, 200) && d.performer.size() > 0
+        && (!('album' in d) || text(d.album, 200))
+        && (!('year' in d) || text(d.year, 10))
+        && d.words is list && d.words.size() <= 40
+        && text(d.titleKey, 200)
+        && d.duration is number && d.duration > 0 && d.duration < 36000
+        && (!('bpm' in d) || d.bpm == null || (d.bpm is number && d.bpm > 0 && d.bpm < 1000))
+        && (!('meter' in d) || text(d.meter, 8))
+        && d.kind in ['record', 'arrangement']
+        && (!('note' in d) || text(d.note, 1000))
+        && text(d.analysis, 300000) && d.analysis.size() > 0
+        && text(d.ownerName, 40) && d.ownerName.size() > 0
+        && d.likes is int && d.likes >= 0
+        && d.updated == request.time;
+    }
+
+    match /analyses/{id} {
+      allow read: if true;
+
+      // A new one: by its author, no likes yet, and their record says it was
+      // published now, more than a minute after the last one.
+      allow create: if checked()
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.likes == 0
+        && request.resource.data.created == request.time
+        && analysis(request.resource.data)
+        && getAfter(me()).data.lastPublish == request.time
+        && (!exists(me()) || get(me()).data.get('lastPublish', timestamp.value(0)) < request.time - duration.value(60, 's'));
+
+      // Its author: everything but who it is, when it was made and its likes.
+      allow update: if checked()
+        && resource.data.owner == request.auth.uid
+        && request.resource.data.owner == resource.data.owner
+        && request.resource.data.created == resource.data.created
+        && request.resource.data.likes == resource.data.likes
+        && analysis(request.resource.data);
+
+      // A like given or taken back: the count up or down by one, with the like
+      // itself, in the same write.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+        && ((request.resource.data.likes == resource.data.likes + 1 && !exists(likeOf(id)) && existsAfter(likeOf(id)))
+          || (request.resource.data.likes == resource.data.likes - 1 && exists(likeOf(id)) && !existsAfter(likeOf(id))));
+
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+
+      match /likes/{uid} {
+        allow read: if signedIn() && uid == request.auth.uid;
+        allow create: if signedIn() && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['at'])
+          && request.resource.data.at == request.time
+          && getAfter(/databases/$(database)/documents/analyses/$(id)).data.likes == get(/databases/$(database)/documents/analyses/$(id)).data.likes + 1;
+        allow delete: if signedIn() && uid == request.auth.uid
+          && (!exists(/databases/$(database)/documents/analyses/$(id))
+            || getAfter(/databases/$(database)/documents/analyses/$(id)).data.likes == get(/databases/$(database)/documents/analyses/$(id)).data.likes - 1);
+      }
+    }
+
+    // A report of an analysis: written by whoever is signed in, read only in
+    // the console.
+    match /reports/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['analysis', 'by', 'reason', 'at'])
+        && request.resource.data.by == request.auth.uid
+        && text(request.resource.data.analysis, 64)
+        && text(request.resource.data.reason, 500)
+        && request.resource.data.at == request.time;
+    }
+
+    // Each user's record: the public name, when they last published.
+    match /users/{uid} {
+      allow read, delete: if signedIn() && uid == request.auth.uid;
+      allow create: if signedIn() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'lastPublish'])
+        && (!('name' in request.resource.data) || text(request.resource.data.name, 40))
+        && (!('lastPublish' in request.resource.data) || request.resource.data.lastPublish == request.time);
+      allow update: if signedIn() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'lastPublish'])
+        && (!('name' in request.resource.data) || text(request.resource.data.name, 40))
+        && (!('lastPublish' in request.resource.data)
+          || request.resource.data.lastPublish == request.time
+          || request.resource.data.lastPublish == resource.data.get('lastPublish', null));
+    }
+  }
+}

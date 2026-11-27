@@ -86,3 +86,12 @@ License, https://github.com/librosa/librosa), with the coefficients of the
 `kaiser_fast` filter of resampy 0.2.2 (ISC License, https://github.com/bmcfee/resampy)
 at the ratio 1/2.
 
+
+### Firebase JavaScript SDK 13.3.0
+
+The community (3.3): Firebase Authentication and the Lite SDK of Cloud Firestore,
+loaded from Google's servers (`https://www.gstatic.com/firebasejs/13.3.0/`) only when
+the community window opens; not part of this repository.
+
+- Copyright Google LLC. Apache License 2.0.
+- https://github.com/firebase/firebase-js-sdk
