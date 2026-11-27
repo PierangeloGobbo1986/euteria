@@ -129,6 +129,19 @@ export class History {
     }
   }
 
+  // What fn changes joins the last step (the same action going on a moment
+  // later: the arrows of an import, 3.2), not a step of its own.
+  extend(fn) {
+    this.flush();
+    const last = this.undos[this.undos.length - 1];
+    this.absorb(fn);
+    if (!last || this.settling || this.busy || !this.base) return;
+    for (const f of this.changes(last.state, this.base)) if (!last.fields.includes(f)) last.fields.push(f);
+    this.redos = [];
+    this.onkeep(this.states());
+    this.onchange();
+  }
+
   // The step to make, now.
   flush() {
     clearTimeout(this.timer);

@@ -19,7 +19,7 @@ import { savedManifest, newProjectManifest, emptyProjectManifest, newProjectId, 
 import { recentSupported, listRecent, addRecent, removeRecent, recentFile, recentId, recentWritable } from "../src/recent.js";
 import { settingsKey, practiceFromManifest, loadSettings, saveSettings, forgetSettings } from "../src/settings.js";
 import { TRACK_TITLES, STEM_NAMES, sliderToGain, gainToSlider, isTake, trackNameOf, TRACK_NAME_MAX } from "../src/project.js";
-import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid } from "../src/grid.js";
+import { readGrid, emptyGrid, applyGridEdits, extendGrid, newGrid, slotCount } from "../src/grid.js";
 import { detectHandheld } from "../src/device.js";
 import { h, fmtTime, fmtSize, fmtSigned, extensionOf, safeName, numberField, keyField, tunerField, confirmTap, icon, setIcon } from "./controls.js";
 import { countEvent, counted, toggleCounting } from "./counter.js";
@@ -32,8 +32,7 @@ import { sectionIndexAt } from "../src/sections.js";
 import { SeparationFlow } from "./separate.js";
 import { TempoDetection, readAnalysis, hasBeats, hasChords } from "./detect.js";
 import { gridFromBeats } from "../src/tempo.js";
-import { songAudio } from "../src/beats.js";
-import { soundPrint, lineUp, analysisJson, readShared, sharedGrid, isAnalysisFile, MATCH, PRINT_FPS, ANALYSIS_EXT } from "../src/shared.js";
+import { analysisJson, readShared, pasteShared, shiftPaste, isAnalysisFile, ANALYSIS_EXT } from "../src/shared.js";
 import { loadMetronome, saveMetronome, songDefaults, metronomeClicks, steadyClicks, clicksUntil, beatsPerBar, nextBeatKind, ACCENT, SILENT, COUNT_IN, MODES, MAX_BARS, VOLUME_MAX, BPM_MIN, BPM_MAX, SILENCE } from "../src/metronome.js";
 import { RecordingFlow } from "./recording.js";
 import { History } from "./history.js";
@@ -121,6 +120,9 @@ const app = {
   // Edge may write to), ready (what Share project needs, read from file)}.
   current: null,
   adding: false,
+  // The automated tests made before 3.2: an audio file opens as it is, not
+  // as a project (importAudio()).
+  audioAsIs: !!self.EUTERIA_AUDIO_AS_IS,
   exports: [], // {id, owner, file, url, name, seconds, tempo, key, cents, selected}: in memory only, until the page closes
   renameDeclined: new Set(), // "old name|new name": the save dialog of a rename cancelled (saveSong())
   exportShown: null, // the export the status under Export MP3 is about
@@ -151,12 +153,12 @@ const app = {
   baseFiles: new Map(),
   baseKept: new Set(), // those of them in the song when it was last saved (a copy too)
   clipboard: null, // what Copy took, for Paste in this song or another: copyClips()
-  // The fingerprint of the open song's audio (3.1, src/shared.js), worked out
-  // once: {song, value ({print, start}, or null: no audio)}; and whether an
-  // analysis is being made or imported.
-  print: null,
-  printing: false,
+  // An analysis being shared or imported (3.1); what the last import pasted,
+  // for its arrows (3.2): {song, base ({chords, sections} as pasted), bars,
+  // beats (moved so far), grid (as the import or its arrows left it), depth
+  // (the steps of undo then), title}.
   sharingAnalysis: false,
+  paste: null,
   // Which came last, bars selected or a stretch of the bar numbers: Loop
   // loops it (2.20; toggleLoop()).
   picks: 0,
@@ -845,7 +847,7 @@ async function openSong(file, origin) {
     app.analysisInFile = !kept && !!inFile;
     app.current = { key, source: origin.source, entryId: origin.entryId || null, name: file.name, file, handle: origin.handle || null, created: !!origin.created };
     app.current.owner = songOwner();
-    if (!origin.separated && !origin.again) countEvent(song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
+    if (!origin.separated && !origin.again) countEvent(origin.imported ? "audio-imported" : song.kind === "audio" ? "song-opened-audio" : "song-opened-project");
     showView("player");
     renderPlayer(saved && saved.view);
     renderCredits(true);
@@ -1510,10 +1512,13 @@ async function closeSong() {
 
 // ----- library (phone) ------------------------------------------------------------------
 
+// An audio file (3.2) goes in as a project, its audio in it as the Original
+// Track, named after the file; added again, the project it became opens.
 async function addSong(file) {
   if (!file || player.busy || app.adding) return;
   if (!library) {
-    await openSong(file, { source: "file" });
+    if (await isAudioFile(file)) await importAudio(file);
+    else await openSong(file, { source: "file" });
     return;
   }
   app.adding = true;
@@ -1523,7 +1528,9 @@ async function addSong(file) {
   try {
     notice(tr("Checking {name}…", { name: file.name }));
     const kind = await inspectFile(file);
-    entry = library.find(file.name, file.size);
+    const from = `${file.name}|${file.size}`;
+    const asProject = kind === "audio" && !app.audioAsIs;
+    entry = (asProject && library.entries.find((e) => e.from === from)) || library.find(file.name, file.size);
     if (!entry) {
       const estimate = await storageEstimate();
       if (estimate && estimate.quota && estimate.quota - estimate.usage < file.size * 1.05 + 5e6) {
@@ -1531,7 +1538,15 @@ async function addSong(file) {
           tr("There is not enough space for {name} ({size}). Delete songs you no longer need, or free some space on the device.", { name: file.name, size: fmtSize(file.size) })
         );
       }
-      entry = await library.add(file, kind, (done, total) => notice(tr("Adding {name} to the library… {pct}%", { name: file.name, pct: Math.floor((done / total) * 100) }), "", 0, done / total));
+      const progress = (done, total) => notice(tr("Adding {name} to the library… {pct}%", { name: file.name, pct: Math.floor((done / total) * 100) }), "", 0, done / total);
+      if (asProject) {
+        const title = plainName(file.name);
+        const { manifest, blob } = await audioProject(await audioCopy(file), title);
+        const project = new File([blob], `${safeName(title)}.euteria`, { type: "application/zip" });
+        entry = await library.add(project, "project", progress);
+        entry = library.update(entry.id, { from, title });
+        carrySettings(audioKey(file), manifest, project.size);
+      } else entry = await library.add(file, kind, progress);
       fresh = true;
       app.persisted = await requestPersistence();
     }
@@ -1556,6 +1571,19 @@ async function openEntry(entry, fresh = false) {
   let file;
   try {
     file = await library.file(entry);
+    if (entry.kind === "audio" && !app.audioAsIs) {
+      // An audio file added before 3.2: a project now, in its place, with
+      // what this browser kept of it.
+      notice(tr("Making a project of {name}…", { name: entry.title }));
+      const key = entry.settingsKey || audioKey(file);
+      const from = `${entry.name}|${entry.size}`;
+      const title = entry.title || plainName(entry.name);
+      const { manifest, blob } = await audioProject(await audioCopy(file), title);
+      await library.replace(entry, blob, `${safeName(title)}.euteria`, "project");
+      entry = library.update(entry.id, { from, title, settingsKey: null });
+      carrySettings(key, manifest, blob.size);
+      file = await library.file(entry);
+    }
   } catch (error) {
     notice((error && error.message) || String(error), "error");
     renderLibrary();
@@ -1709,7 +1737,6 @@ async function openHandle(handle) {
     importAnalysis(await handle.getFile().catch(() => null));
     return;
   }
-  if (!(await confirmLeave())) return;
   let file;
   try {
     file = await handle.getFile();
@@ -1717,6 +1744,11 @@ async function openHandle(handle) {
     notice(tr("{name} could not be read. {error}", { name: handle.name, error: (error && error.message) || error }), "error");
     return;
   }
+  if (await isAudioFile(file)) {
+    importAudio(file, { handle });
+    return;
+  }
+  if (!(await confirmLeave())) return;
   const song = await openSong(file, { source: "file", handle });
   if (song) {
     await addRecent(handle, { title: song.fileTitle, size: file.size });
@@ -1739,11 +1771,180 @@ async function openRecentItem(item) {
     } else notice(tr("{name} could not be opened. {error}", { name: item.name, error: (error && error.message) || error }), "error");
     return;
   }
+  if (await isAudioFile(file)) {
+    // An audio file opened before 3.2: a project now, which takes its place in the list.
+    importAudio(file, { handle: item.handle, left: true });
+    return;
+  }
   const song = await openSong(file, { source: "file", handle: item.handle });
   if (song) {
     await addRecent(item.handle, { title: song.fileTitle, size: file.size });
     renderRecent();
   }
+}
+
+// ----- an audio file imported: a project (3.2) -----------------------------------------
+//
+// An audio file never opens as it is: Import audio file (a file dropped, one
+// of the songs opened before, the installed app's Open with) makes a project
+// of it at once, its audio copied in as the Original Track, so that renaming,
+// moving or deleting the audio file afterwards changes nothing. On a computer
+// whose browser writes files where the user chooses (Chrome, Edge), a window
+// says so and its Save… opens the save dialog in the audio file's folder, with
+// its name: the project is written there and opens, a project like any other;
+// Cancel imports nothing. A browser that cannot (Safari, Firefox) opens it
+// unsaved (Save downloads it); the phone puts it in the library (addSong()).
+// What this browser kept of the audio file opened as it was (before 3.2: its
+// bars, chords, settings) goes to the project, as changes still to save.
+
+const plainName = (name) => String(name || "").replace(/\.[^.]+$/, "") || String(name || "");
+// The key of what this browser kept of an audio file opened as it was.
+const audioKey = (file) => `a:${file.name}:${file.size}`;
+
+// An audio file (not a project, an analysis or anything else).
+async function isAudioFile(file) {
+  if (!file || isAnalysisFile(file)) return false;
+  try {
+    return (await inspectFile(file)) === "audio";
+  } catch (_) {
+    return false;
+  }
+}
+
+// The audio of `file` read whole into memory: the project takes a copy.
+async function audioCopy(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return new File([bytes], file.name, { type: file.type, lastModified: file.lastModified });
+}
+
+// A new project around the audio `file`, its Original Track: {manifest, blob}.
+async function audioProject(file, title) {
+  const member = audioMember(file);
+  const state = { rate: 1, semitones: 0, cents: 0, loop: null, gridVisible: true, tracks: [] };
+  const manifest = newProjectManifest({ id: newProjectId(), title, fileName: file.name, member, grid: emptyGrid(), state });
+  const blob = await buildProject([
+    { name: "manifest.json", data: manifestBytes(manifest) },
+    { name: member, data: file },
+  ]);
+  return { manifest, blob };
+}
+
+// What this browser kept of an audio file opened as it was (under `key`)
+// goes to its project (`size` bytes): its changes still to save there, under
+// the project's name.
+function carrySettings(key, manifest, size) {
+  const kept = loadSettings(key);
+  if (!kept) return;
+  saveSettings(settingsKey({ manifest }, { size }), { ...kept, title: null });
+  forgetSettings(key);
+}
+
+async function writeFile(handle, data) {
+  const w = await handle.createWritable();
+  try {
+    await w.write(data);
+    await w.close();
+  } catch (error) {
+    await w.abort().catch(() => {});
+    throw error;
+  }
+}
+
+// handle: the audio file's (the save dialog opens in its folder; the list
+// of the songs opened loses it). left: the song open is already left.
+async function importAudio(file, { handle = null, left = false } = {}) {
+  if (!file || player.busy || app.saving || app.adding) return;
+  if (app.audioAsIs) {
+    if (!left && !(await confirmLeave())) return;
+    const song = await openSong(file, { source: "file", handle });
+    if (song && handle) {
+      await addRecent(handle, { title: song.fileTitle, size: file.size });
+      renderRecent();
+    }
+    return;
+  }
+  if (phone && library) {
+    addSong(file);
+    return;
+  }
+  if (!left && !(await confirmLeave())) return;
+  const name = plainName(file.name);
+  const writes = "showSaveFilePicker" in window;
+  if (writes) {
+    const ok = await askYes({
+      title: tr("New project from {name}", { name: file.name }),
+      hint: tr("EUTERIA keeps the song in a project (.euteria), with the audio inside, saved where you choose. The audio file stays as it is."),
+      ok: tr("Save…"),
+    });
+    if (!ok) return;
+  }
+  // Read whole before the save dialog, which empties the file chosen there
+  // (it may be this one).
+  let audio;
+  try {
+    audio = await audioCopy(file);
+  } catch (error) {
+    notice(tr("{name} could not be read. {error}", { name: file.name, error: (error && error.message) || error }), "error");
+    return;
+  }
+  if (!writes) {
+    // This browser cannot write files where the user chooses: the project
+    // opens unsaved, and Save downloads it.
+    const { manifest, blob } = await audioProject(audio, name);
+    const project = new File([blob], `${safeName(name)}.euteria`, { type: "application/zip" });
+    carrySettings(audioKey(file), manifest, project.size);
+    await openSong(project, { source: "file", created: true, imported: true });
+    return;
+  }
+  let target;
+  try {
+    target = await window.showSaveFilePicker({
+      id: "euteria-songs",
+      ...(handle ? { startIn: handle } : {}),
+      suggestedName: `${safeName(name)}.euteria`,
+      types: [{ description: tr("EUTERIA project"), accept: { "application/x-euteria": [".euteria"] } }],
+    });
+  } catch (error) {
+    if (!error || error.name !== "AbortError") notice(tr("The project could not be saved. {error}", { error: (error && error.message) || error }), "error");
+    return;
+  }
+  if (handle) {
+    let same = false;
+    try {
+      same = await target.isSameEntry(handle);
+    } catch (_) {}
+    if (same) {
+      // The audio file itself: back as it was.
+      try {
+        await writeFile(target, audio);
+      } catch (_) {}
+      notice(tr("That is the audio file itself: choose another name for the project."), "error", 0);
+      return;
+    }
+  }
+  notice(tr("Saving {name}…", { name: target.name }));
+  let saved;
+  let manifest;
+  try {
+    const made = await audioProject(audio, plainName(target.name));
+    manifest = made.manifest;
+    await writeFile(target, made.blob);
+    saved = await target.getFile();
+    await checkSaved(saved, manifest.project_id);
+  } catch (error) {
+    notice(tr("The project could not be saved. {error}", { error: (error && error.message) || error }), "error", 0);
+    return;
+  }
+  carrySettings(audioKey(file), manifest, saved.size);
+  const song = await openSong(saved, { source: "file", handle: target, imported: true });
+  if (!song) return;
+  // The audio file leaves the list of the songs opened: the project takes its place.
+  if (handle) {
+    const id = await recentId(handle).catch(() => null);
+    if (id) await removeRecent(id);
+  }
+  await addRecent(target, { title: song.fileTitle, size: saved.size });
+  renderRecent();
 }
 
 function recentMeta(item) {
@@ -1821,6 +2022,10 @@ async function openDropped(file, handlePromise) {
   }
   let handle = await handlePromise;
   if (handle && handle.kind !== "file") handle = null;
+  if (await isAudioFile(file)) {
+    importAudio(file, { handle });
+    return;
+  }
   if (!(await confirmLeave())) return;
   const song = await openSong(file, { source: "file", handle });
   if (song && handle) {
@@ -2867,68 +3072,36 @@ async function exportChart() {
 // ----- the analysis shared on its own (3.1, src/shared.js) ------------------------------
 //
 // Share analysis (File export and sharing) makes a small file of the bars,
-// the sections, the chords and the details of the song, with the fingerprint
-// of its audio, and hands it on (the share sheet of the phone, or a
-// download). Analysis from a file (Song analysis) puts one into the song open,
-// lined up with its audio; the Open of a file does too. One step to undo.
-
-// The fingerprint of the song open, worked out once a song (its audio as the
-// tempo detection reads it): {print, start}, or null without audio (or its
-// file unreadable for now, as while it is saved: `again` tries once more).
-async function songPrint({ again = false } = {}) {
-  const song = player.song;
-  if (!song) return null;
-  if (app.print && app.print.song === song && (app.print.value || !again)) return app.print.value;
-  let value = null;
-  try {
-    value = await soundPrint(await songAudio(song, app.current.file));
-  } catch (_) {
-    value = null;
-  }
-  if (player.song === song) app.print = { song, value };
-  return value;
-}
+// the sections, the chords and the details of the song, and hands it on (the
+// share sheet of the phone, or a download). Analysis from a file (Song
+// analysis) puts one into the song open (3.2: onto its own bars); the Open of
+// a file does too. One step to undo; the arrows that come up then move what
+// it pasted, a beat or a bar at a time, in the same step.
 
 // Its title, as the details give it.
 const shownTitle = () => app.credits.title || (player.song && player.song.title) || "EUTERIA";
 
-// The file of the analysis of the song open, its fingerprint worked out.
-function analysisFile() {
+// The analysis of the song open, as the file (and the community) have it.
+function analysisData() {
   const title = shownTitle();
-  const data = analysisJson({
-    details: { ...app.credits, title },
-    duration: player.song.duration,
-    grid: app.grid,
-    print: app.print && app.print.song === player.song ? app.print.value : null,
-    app: `EUTERIA Web ${VERSION}`.trim(),
-  });
-  return new File([JSON.stringify(data)], `${safeName(title)}${ANALYSIS_EXT}`, { type: "application/json" });
+  return analysisJson({ details: { ...app.credits, title }, duration: player.song.duration, grid: app.grid, app: `EUTERIA Web ${VERSION}`.trim() });
 }
 
-// The share sheet needs the tap: with the fingerprint ready (worked out as
-// File export and sharing opens), the file goes at once; otherwise once it is
-// ready, at a tap on Share in the message.
-function shareAnalysis() {
-  const song = player.song;
-  if (!song || !app.grid.bars.length || app.sharingAnalysis) return;
+function analysisFile() {
+  return new File([JSON.stringify(analysisData())], `${safeName(shownTitle())}${ANALYSIS_EXT}`, { type: "application/json" });
+}
+
+// The details being typed count.
+function commitDetails() {
   editor.commitInput();
   const typing = DETAIL_FIELDS.find((k) => document.activeElement === $(`credit-${k}`));
   if (typing) setCredit(typing, $(`credit-${typing}`).value);
-  if (app.print && app.print.song === song && app.print.value) {
-    sendAnalysis(analysisFile());
-    return;
-  }
-  app.sharingAnalysis = true;
-  scheduleUi();
-  notice(tr("Preparing the analysis of {title}…", { title: shownTitle() }), "", 0);
-  songPrint({ again: true }).then(() => {
-    app.sharingAnalysis = false;
-    scheduleUi();
-    if (player.song !== song) return;
-    const file = analysisFile();
-    if (shareMode() === "share") offerAnalysis(file);
-    else sendAnalysis(file);
-  });
+}
+
+function shareAnalysis() {
+  if (!player.song || !app.grid.bars.length || app.sharingAnalysis) return;
+  commitDetails();
+  sendAnalysis(analysisFile());
 }
 
 function offerAnalysis(file) {
@@ -2961,20 +3134,7 @@ function pickAnalysis() {
   $("analysis-input").click();
 }
 
-// An analysis read and put into the song open: lined up with its audio (the
-// two fingerprints), or, when it does not line up, as it is if wanted. The
-// details of the song it does not have come with it.
 async function importAnalysis(file) {
-  const song = player.song;
-  if (!song) {
-    notice(tr("Open the song first (its audio), then import the analysis into it."), "error", 8000);
-    return;
-  }
-  if (app.sharingAnalysis || player.busy) return;
-  if (editor.locked) {
-    notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
-    return;
-  }
   let shared;
   try {
     shared = readShared(await file.text());
@@ -2982,53 +3142,78 @@ async function importAnalysis(file) {
     notice(error.message, "error", 8000);
     return;
   }
-  const title = shared.details.title || file.name.replace(/\.[^.]*$/, "");
-  app.sharingAnalysis = true;
-  scheduleUi();
-  try {
-    let delta = 0;
-    let how = shared.print ? "no-audio" : "no-print";
-    let part = false;
-    if (shared.print) {
-      notice(tr("Lining up the analysis of {title} with this song…", { title }), "", 0);
-      const mine = await songPrint({ again: true });
-      if (player.song !== song) return;
-      if (mine) {
-        const fit = lineUp(shared.print.print, mine.print, { near: mine.start - shared.print.start });
-        if (fit.score >= MATCH) {
-          delta = fit.lag / PRINT_FPS;
-          how = Math.abs(delta) < 0.005 ? "same" : "moved";
-          part = Math.abs(fit.parts[0] - fit.parts[1]) > 0.15;
-        } else {
-          notice("");
-          const yes = await askYes({
-            title: tr("Another recording?"),
-            hint: tr("The analysis of {title} does not match the audio of this song (likeness {p}%): it was probably made on another recording (a live version, another edit). Import it all the same, as it is?", { title, p: Math.round(fit.score * 100) }),
-            ok: tr("Import"),
-          });
-          if (!yes || player.song !== song) return;
-          how = "as-is";
-        }
-      }
-    }
-    const { grid, built } = sharedGrid(shared, delta, song.duration, app.grid);
-    editor.imported(grid, built);
-    for (const k of DETAIL_FIELDS) if (shared.details[k] && !app.credits[k]) setCredit(k, shared.details[k]);
-    const shift = new Intl.NumberFormat(lang(), { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "always" }).format(delta);
-    let said = {
-      moved: tr("Analysis of {title} imported: its bars moved by {shift} s to line up with this song.", { title, shift }),
-      same: tr("Analysis of {title} imported: it lines up with this song as it is.", { title }),
-      "as-is": tr("Analysis of {title} imported as it is: check its bars against the song.", { title }),
-      "no-audio": tr("Analysis of {title} imported as it is: this song has no audio to line it up with.", { title }),
-      "no-print": tr("Analysis of {title} imported as it is: it has no fingerprint to line it up with.", { title }),
-    }[how];
-    if (part) said = `${said} ${tr("Part of this song does not match the analysis (another edit?): check its bars.")}`;
-    notice(`${said} ${tr("Undo takes it away.")}`, part || how === "as-is" ? "" : "ok", 12000);
-    countEvent("analysis-imported");
-  } finally {
-    app.sharingAnalysis = false;
-    scheduleUi();
+  pasteAnalysis(shared, shared.details.title || file.name.replace(/\.[^.]*$/, ""));
+}
+
+// An analysis (src/shared.js readAnalysis()) put into the song open: its
+// chords and sections onto the song's bars (or, without any, with the
+// analysis' bars), what the song's details lack from it. The arrows of the
+// import then move them (app.paste). Returns whether it went in.
+function pasteAnalysis(shared, title) {
+  const song = player.song;
+  if (!song) {
+    notice(tr("Open the song first (its audio), then import the analysis into it."), "error", 8000);
+    return false;
   }
+  if (app.sharingAnalysis || player.busy) return false;
+  if (editor.locked) {
+    notice(tr("Bars and Chords opens when the tempo detection ends."), "", 4000);
+    return false;
+  }
+  const had = app.grid.bars.length > 0;
+  const made = pasteShared(shared, app.grid, song.duration);
+  if (made.empty) {
+    notice(tr("The analysis of {title} has no chords nor sections to import.", { title }), "error", 8000);
+    return false;
+  }
+  editor.imported(made.grid, made.built);
+  for (const k of DETAIL_FIELDS) if (shared.details[k] && !app.credits[k]) setCredit(k, shared.details[k]);
+  steps.flush(); // the import, a step of its own: the arrows go on in it
+  app.paste = { song, base: made.base, bars: 0, beats: 0, grid: app.grid, depth: steps.undos.length, title };
+  const parts = [had ? tr("Chords and sections of {title} pasted onto the bars of this song.", { title }) : tr("Analysis of {title} imported with its bars: check that they fall on your recording.", { title })];
+  if (made.tempo === "double") parts.push(tr("Your bars are at twice its tempo: halve them (÷2, Tempo and key) and import it again."));
+  else if (made.tempo === "half") parts.push(tr("Your bars are at half its tempo: double them (×2, Tempo and key) and import it again."));
+  else if (made.tempo === "other") parts.push(tr("Your bars are at another tempo than its own: check them."));
+  if (made.meter) parts.push(tr("It is in {meter}, this song in {mine}.", { meter: made.meter, mine: app.grid.meter }));
+  parts.push(tr("If they do not fall in place, move them with the arrows (Import). Undo takes the import away."));
+  notice(parts.join(" "), made.tempo || made.meter ? "" : "ok", 15000);
+  countEvent("analysis-imported");
+  scheduleUi();
+  return true;
+}
+
+// The arrows of the import: what it pasted, still as it left it (nothing
+// else changed the chords or the sections since), moved by `bars` bars (the
+// chords and the sections) or `beats` beats (the chords), from where it was
+// pasted. In the import's own step, while that is the last one.
+const pasteActive = () => !!(app.paste && app.paste.song === player.song && app.grid === app.paste.grid && !editor.locked);
+
+function shiftImport(bars, beats) {
+  if (!pasteActive()) return;
+  const p = app.paste;
+  steps.flush();
+  p.bars += bars;
+  p.beats += beats;
+  const { chords, sections } = shiftPaste(p.base, p, app.grid.bars.length, app.grid.meter);
+  const said = shiftSaid(p);
+  const apply = () => editor.shifted(chords, sections, said);
+  if (steps.undos.length === p.depth) steps.extend(apply);
+  else apply();
+  p.grid = app.grid;
+  scheduleUi();
+}
+
+// Where the arrows have taken the chords the import pasted.
+function shiftSaid(p) {
+  const n = slotCount(app.grid.meter);
+  const total = p.bars * n + p.beats;
+  if (!total) return tr("The imported chords are back where the import put them.");
+  const bars = Math.floor(Math.abs(total) / n);
+  const beats = Math.abs(total) % n;
+  const b = bars ? trn(bars, "{n} bar", "{n} bars") : "";
+  const t = beats ? trn(beats, "{n} beat", "{n} beats") : "";
+  const what = b && t ? tr("{bars} and {beats}", { bars: b, beats: t }) : b || t;
+  return total > 0 ? tr("Imported chords moved {what} later.", { what }) : tr("Imported chords moved {what} earlier.", { what });
 }
 
 // A question with a yes and a no (#ask-dialog): resolves with the yes.
@@ -4270,8 +4455,7 @@ function updateUi() {
   if (shareProj.textContent !== shareText) shareProj.textContent = shareText;
   shareProj.disabled = !song || busy || app.saving || app.sharing || takesBusy;
   $("save-as").disabled = !song || busy || app.saving || app.sharing || takesBusy;
-  // Share analysis (3.1): the share sheet of the phone, or a download; its
-  // fingerprint worked out as the card opens.
+  // Share analysis (3.1): the share sheet of the phone, or a download.
   const shareA = $("share-analysis");
   const shareAText = app.sharingAnalysis ? tr("Preparing…") : shareWay === "share" ? tr("Share analysis…") : tr("Download analysis");
   if (shareA.textContent !== shareAText) shareA.textContent = shareAText;
@@ -4279,10 +4463,10 @@ function updateUi() {
   const shareATip = song && !app.grid.bars.length ? tr("This song has no bars yet: the analysis is made of them.") : tr("The bars, sections and chords of the song and its details, without the audio: a small file for whoever has the same recording, who imports it into theirs (Song analysis, Import)");
   if (shareA.title !== shareATip) shareA.title = shareATip;
   $("import-analysis").disabled = !song || busy || app.sharingAnalysis;
-  if (song && app.grid.bars.length && ribbon && ribbon.current === "export" && !(app.print && app.print.song === song) && !app.printing && !app.saving && !busy) {
-    app.printing = true;
-    songPrint().finally(() => (app.printing = false));
-  }
+  // The arrows of the import (3.2): while what it pasted is as it left it.
+  const shifting = pasteActive();
+  $("paste-shift").hidden = !shifting;
+  for (const id of ["shift-bar-back", "shift-beat-back", "shift-beat-on", "shift-bar-on"]) $(id).disabled = !shifting || busy;
   const projectHint =
     shareWay === "share"
       ? inLibrary
@@ -4394,6 +4578,11 @@ function wire() {
   $("share-song").addEventListener("click", shareProject);
   $("share-analysis").addEventListener("click", shareAnalysis);
   $("import-analysis").addEventListener("click", pickAnalysis);
+  // The arrows of the import (3.2): a bar (chords and sections) or a beat (the chords) earlier or later.
+  $("shift-bar-back").addEventListener("click", () => shiftImport(-1, 0));
+  $("shift-beat-back").addEventListener("click", () => shiftImport(0, -1));
+  $("shift-beat-on").addEventListener("click", () => shiftImport(0, 1));
+  $("shift-bar-on").addEventListener("click", () => shiftImport(1, 0));
   $("analysis-input").addEventListener("change", (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
@@ -4431,6 +4620,7 @@ function wire() {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (file && isAnalysisFile(file)) importAnalysis(file); // into the song open (3.1)
+    else if (file && (await isAudioFile(file))) importAudio(file); // a project of it (3.2)
     else if (file && (await confirmLeave())) openSong(file, { source: "file" });
   });
 

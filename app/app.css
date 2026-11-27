@@ -929,6 +929,15 @@ button.eye .icon { width: 18px; height: 18px; }
 .analysis-find:not(:has(> :not([hidden]))) { display: none; }
 [data-layout=computer] .analysis-find .find-btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
 [data-layout=phone] .analysis-find .find-btn, [data-layout=phone] #import-analysis { min-height: 44px; }
+/* 3.2: the arrows of the import. On a computer two by two beside Analysis from a file, as high as
+   it (a beat on top, a bar under it); on the phone four in a row, « ‹ › ». */
+.paste-shift { display: grid; grid-template-columns: repeat(4, 48px); grid-auto-rows: 44px; gap: 6px; }
+.paste-shift button { min-height: 0; height: 100%; padding: 0; font-size: 20px; line-height: 1; }
+[data-layout=computer] .paste-shift { grid-template-columns: repeat(2, 35px); grid-auto-rows: 35px; }
+[data-layout=computer] #shift-beat-back { order: 1; }
+[data-layout=computer] #shift-beat-on { order: 2; }
+[data-layout=computer] #shift-bar-back { order: 3; }
+[data-layout=computer] #shift-bar-on { order: 4; }
 .tempo-bpm { margin: 0; color: var(--dim); font-size: 13px; white-space: nowrap; }
 .analysis-card .edit-panel { background: none; border: 0; padding: 0; margin: 0; }
 .analysis-card .grid-edit { display: flex; flex-direction: column; gap: 8px; }

@@ -13,7 +13,7 @@
  */
 "use strict";
 
-const CACHE = "euteria-app-v60";
+const CACHE = "euteria-app-v61";
 const NETWORK_WAIT_MS = 4000;
 const SHELL = [
   "./",

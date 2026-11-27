@@ -11,6 +11,9 @@ const SKIP = "skipgc"; // GoatCounter's switch: "t", this device is not counted
 const TITLES = {
   "song-opened-audio": "Audio file opened",
   "song-opened-project": "Project opened",
+  "audio-imported": "Audio file imported",
+  "analysis-shared": "Analysis shared",
+  "analysis-imported": "Analysis imported",
   "separation-done": "Separation done",
   "separation-stopped": "Separation stopped",
   "separation-failed": "Separation failed",

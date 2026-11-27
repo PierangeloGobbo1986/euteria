@@ -43,9 +43,9 @@ EUTERIA, in the language in use, rewritten in 2.19.1: how EUTERIA is laid out, t
 open, the keys of the player do nothing and the page under it stays still.
 
 - **Phone layout** (phones and tablets): the songs live in a **library inside the app**.
-  *Open audio file* and *Open EUTERIA project* copy an audio file or a `.euteria`
+  *Import audio file* and *Open EUTERIA project* copy an audio file or a `.euteria`
   project from the Files app, a download or a chat into the app's private storage and
-  open it. The library lists every song with its length, number of tracks and size,
+  open it; an audio file goes in as a project (3.2), named after it. The library lists every song with its length, number of tracks and size,
   shows the space they take and the space still available, and deletes songs one at a
   time (✕, then *Delete*) or all together (*Delete all*, tapped twice). The same file is
   never copied twice, and a file that is neither a project nor readable audio is refused
@@ -63,7 +63,7 @@ open, the keys of the player do nothing and the page under it stays still.
 - **Computer layout**: songs are opened from any folder, so the folder where you keep the
   songs you are studying stays the only copy. The Library has a box (2.14) that says a file
   may be dropped on it (or anywhere on the window), with the three ways to open one in it:
-  *Open audio file* (the types it opens under its name), *Open EUTERIA project* and *New
+  *Import audio file* (the types it opens under its name), *Open EUTERIA project* and *New
   empty project*. In Chrome and Edge the Library lists the songs
   opened before, to open them again with one click (the browser asks once for
   permission). The transport stays in view as the page scrolls, the song's name at its
@@ -195,8 +195,28 @@ and Chrome and Edge on some systems). The list under *Export MP3* shows the MP3 
 the song open: they stay in the app only until it closes, are not saved in the project
 and take no space on the device, and they go when their song is deleted from the
 library. Each has a red ✕ that deletes it, and *Delete all* above the list deletes them
-all (after a second tap). An audio file opens as a single track: tempo, key and loop
-work on the whole song, and *Export MP3* gives it at the tempo and in the key chosen.
+all (after a second tap). A song made from an audio file has a single track: tempo, key
+and loop work on the whole song, and *Export MP3* gives it at the tempo and in the key
+chosen.
+
+**An audio file imported is a project at once** (3.2.0). An audio file never opens as it
+is: *Import audio file* (and a file dropped, one of the songs opened before, the installed
+app's *Open with*) makes a project of it straight away, its audio copied in as the
+Original Track, so that renaming, moving or deleting the audio file afterwards changes
+nothing (before 3.2 the song kept reading the file, and a file renamed while it was open
+stopped the separation). On a computer whose browser saves where the user chooses (Chrome,
+Edge), a window says so (*New project from …*) and its *Save…* opens the save dialog, in
+the audio file's folder when the browser knows it, with the file's name: the project is
+written there and opens, a project like any other (*Save* writes it in place, *Separate
+instruments* adds the stems to it); *Cancel*, or the save dialog closed, imports nothing.
+The audio is read whole before the save dialog opens, as that dialog empties the file
+chosen: the audio file itself chosen gets its audio back, and the message says to choose
+another name. A browser that cannot save where the user chooses (Safari, Firefox) opens
+the project unsaved, and *Save* downloads it. On the phone the project goes straight into
+the library, named after the file; the same file added again opens the project it became,
+and an audio file added before 3.2 becomes a project in its place the next time it opens.
+What the browser kept of an audio file opened as it was (its bars, chords, sections,
+notes, tempo, key, loop: before 3.2) comes into its project, as changes still to save.
 
 **The details of the song** (3.0.0) open the same tab, in the group *Song*: *Title* (the
 song's name until another is typed; emptied, the song's name again), *Subtitle* and
@@ -216,33 +236,35 @@ between them skipped. A project reads the tags of its Original Track's file. Wha
 tags give is the song's own, not a change to save; it goes into the project at the next
 *Save*.
 
-**The analysis shared on its own** (3.1.0). *Share analysis…*, in the group *Project* of
-the same tab, makes a small file (`.euteria-analysis`, JSON, some tens of kilobytes) with
-the bars, the sections and the chords of the song and its details, without any audio and
-without the notes (they stay in EUTERIA): on the phone the share sheet takes it (Safari;
-elsewhere, and on a computer, *Download analysis* saves it), to send to whoever has the
-same recording. With it goes a fingerprint of the recording (`src/shared.js`): how much
-its sound rises, 50 times a second (from the log-mel spectrogram the tempo detection
-reads), in 4 bits a frame, and where its sound starts. It is worked out as the tab opens
-(a second or two), so that the share sheet still opens at the tap; otherwise a message
-offers *Share* once it is ready. *Analysis from a file…*, in the group *Import* of *Song
-analysis* (on the phone too), reads one into the song open, in place of its bars, sections
-and chords (one step to undo); a file opened with *Open*, or dropped, does the same. The
-listener's copy gives its own fingerprint, and the two are lined up: the correlation of
-the two curves (smoothed over five frames, so that copies a fraction of a frame apart
-still match) over lags of up to 30 seconds either way, the best of its peaks, between
-frames too. A song made of the same bars over and over lines up almost as well a bar or a
-beat away, so among the peaks one a second further from where the two sounds start must
-be 0.02 more alike to win. The grid moves by the lag found: a copy that starts some
-tenths of a second earlier or later (another rip, another encoder, a fade cut) gets the
-bars where its music is, numbered as in the analysis, the chords and the sections on
-their bars, the notes of the song (if it had a grid) at the times they were. A grid at a
-steady tempo (every grid EUTERIA Web makes) is built again from its first bar in the copy,
-as the tempo detection builds one. Below a likeness of 0.5 the analysis was made on
-another recording (a live version, another edit): a question says so, and it may come in
-as it is. When the two halves of the song do not match alike, part of it differs (an edit
-that cuts a passage): the message says to check the bars. The details of the song that it
-does not have yet come with the analysis.
+**The analysis shared on its own** (3.1.0; imported onto the song's own bars since 3.2.0).
+*Share analysis…*, in the group *Project* of the same tab, makes a small file
+(`.euteria-analysis`, JSON, some kilobytes) with the bars, the sections and the chords of
+the song and its details, without any audio and without the notes (they stay in
+EUTERIA): on the phone the share sheet takes it (Safari; elsewhere, and on a computer,
+*Download analysis* saves it), to send to whoever has the same recording. *Analysis from a
+file…*, in the group *Import* of *Song analysis* (on the phone too), reads one into the song
+open (`src/shared.js`); a file opened with *Open*, or dropped, does the same. Its chords
+and sections are pasted onto the song's own bars: the tempo, the meter, the bars and the
+notes of the song stay, as its own tempo detection (or the hand) made them on its own copy
+of the recording, so that silence before the music, another master or another rip change
+nothing. They go in the order the analysis has them, one bar after the other, from the bar
+of the song nearest in time to the first bar the analysis marks (with a chord, or where a
+section starts). A song without bars takes the analysis' bars (built again from its tempo
+and first beat). A song whose bars are at twice, half or another tempo than the
+analysis', or in another meter, is told so (with ×2 and ÷2 in *Tempo and key* the bars are
+put right, then the analysis imported again). Then four arrows come up beside *Analysis
+from a file…* (two by two on a computer, as high as the button; four in a row on the phone):
+‹ and › move the chords pasted a beat earlier or later (a slot of the bar: a beat in 4/4
+and 3/4, half a bar in 6/8), « and » the chords and the sections a bar; always from where
+the import put them, so that going back and forth loses nothing at the edges. They stay
+while what the import pasted is as it left it: another change to the chords or the
+sections, an undo, another song, and they go. The import and the moves of its arrows are
+one step: *Undo* takes them away together, *Redo* brings them back as moved
+(`app/history.js` `extend()`). The details of the song that it does not have yet come with
+the analysis. Until 3.2 a fingerprint of the recording went with the file, and the bars of
+the analysis were moved onto the listener's copy by lining up the two fingerprints: the
+song's own bars do that better, whatever the copy, and a file of 3.1 still imports (its
+fingerprint left unread).
 
 *Export for MuseScore* (2.8), in the same tab, writes the bars and chords as a chord chart
 in MusicXML, in the key of now, with a new line after *Bars per line* and at each
@@ -922,10 +944,9 @@ travel as files (for example over WhatsApp).
 `version` (1), `app`, `created`, `details` (those given of the details of the song, the
 title always), `duration` (seconds), `music` (as `manifest.music` has them: `bpm`,
 `time_signature`, `first_beat`, `beats`, `bars`, `bar_number_offset`, `chords`,
-`sections`; never `notes`) and `fingerprint`: `{kind: "onsets", fps: 50, frames, data
-(the frames two to a byte, 4 bits each, base64), start (the frame the sound starts at)}`,
-or `null` for a song without audio. A file of a newer version is refused, with the advice
-to update the app.
+`sections`; never `notes`). A file of 3.1 also has a `fingerprint` of the recording,
+left unread since 3.2. A file of a newer version is refused, with the advice to update
+the app.
 - **The fine tuning** (2.18): `practice.transpose_cents`, written by EUTERIA Web when the
   song is moved by some cents (−50 to 50, on top of the key of `transpose_semitones`);
   without it, none. The song's own tuning, measured, is not saved: it is measured again.
@@ -1372,7 +1393,7 @@ file and kept (`app.baseFiles`), and they go back in as they were if it comes ba
   library (`library.js`, `library-worker.js`), recent files (`recent.js`), per-song
   settings (`settings.js`), the grid and chords of a project, and their editing
   (`grid.js`), the clips of the tracks (`clips.js`), chord names read and transposed (`chordnames.js`), the chord chart in
-  MusicXML (`musicxml.js`), what an audio file says of itself in its tags (`tags.js`), the analysis shared on its own and its fingerprint (`shared.js`), the tuning of a song measured (`tuning.js`), the metronome's
+  MusicXML (`musicxml.js`), what an audio file says of itself in its tags (`tags.js`), the analysis shared on its own, pasted onto the song's bars and moved by the arrows (`shared.js`), the tuning of a song measured (`tuning.js`), the metronome's
   settings and clicks (`metronome.js`), waveform envelopes (`peaks.js`), the recording of takes (`recorder.js`)
   and their level (`level.js`),
   the separation (`separation.js`, `separate-worker.js`, `stft.js`, `resample.js`,
@@ -1424,10 +1445,10 @@ app writes (the stems in a project, the MP3 exports) stay as EUTERIA (Python) gi
 - **Phase 3** (version 3): a repository shared by the community, of the analyses of songs
   (bars, sections, chords; never audio), on Firebase. Step 1: the details of the song and
   of its recording, read from the tags of its file (3.0). Step 2: the analysis exported
-  and imported on its own, lined up with the listener's copy of the recording (3.1). Step 3:
-  the community: searching it (a dot when it knows the song open), downloading,
-  publishing (open to everyone, with a sign-in), as on the record or as an arrangement.
-  Then band features.
+  and imported on its own (3.1), pasted onto the song's own bars and moved by its arrows,
+  and an audio file imported as a project at once (3.2). Step 3: the community: searching
+  it (only when asked), downloading, publishing (open to everyone, with a sign-in), as on
+  the record or as an arrangement. Then band features.
 
 ## Licence
 

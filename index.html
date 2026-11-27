@@ -103,7 +103,7 @@
   <section id="library-view" class="view" hidden>
     <h1 class="home-title">Library</h1>
     <div class="open-buttons">
-      <label id="add-label" class="button primary" for="add-input">Open audio file</label>
+      <label id="add-label" class="button primary" for="add-input">Import audio file</label>
       <label id="add-project-label" class="button primary" for="add-project-input">Open EUTERIA project</label>
       <button id="new-project-phone" class="new-project" type="button">New empty project</button>
       <input id="add-input" type="file" hidden accept="audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.caf">
@@ -112,7 +112,7 @@
     <ul id="lib-list" class="lib-list"></ul>
     <div id="lib-empty" class="empty" hidden>
       <p>No songs yet.</p>
-      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Open audio file</b> adds an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords. <b>New empty project</b> makes a project with no audio, to record into.</p>
+      <p data-i18n-html><b>Open EUTERIA project</b> adds a <b>.euteria</b> project, from the Files app, a download or a chat. <b>Import audio file</b> makes a project of an audio file (MP3, M4A, WAV…), for tempo, key, loop, bars and chords. <b>New empty project</b> makes a project with no audio, to record into.</p>
     </div>
     <div id="lib-foot" class="lib-foot" hidden>
       <span id="lib-usage"></span>
@@ -130,7 +130,7 @@
       <span class="drop-plus" aria-hidden="true"></span>
       <p class="drop-text">Drop an audio file or a .euteria project here</p>
       <div class="open-buttons">
-        <button id="open-audio" class="primary big" type="button"><span>Open audio file</span><span class="btn-sub" translate="no">*.mp3, *.m4a, *.aac, *.wav, *.aiff, *.flac, *.ogg…</span></button>
+        <button id="open-audio" class="primary big" type="button"><span>Import audio file</span><span class="btn-sub" translate="no">*.mp3, *.m4a, *.aac, *.wav, *.aiff, *.flac, *.ogg…</span></button>
         <button id="open-project" class="primary big" type="button">Open EUTERIA project</button>
         <button id="new-project" class="big new-project" type="button">New empty project</button>
       </div>
@@ -248,8 +248,15 @@
               <h3 class="rgroup-title">Import</h3>
               <div class="analysis-find">
                 <button id="import-analysis" type="button" class="small rbig">Analysis from a file…</button>
+                <!-- 3.2: what the import pasted, moved a bar (chords and sections) or a beat (chords) at a time -->
+                <div id="paste-shift" class="paste-shift" role="group" aria-label="Move what was imported" hidden>
+                  <button id="shift-bar-back" type="button" class="small" title="One bar earlier: the chords and the sections imported">«</button>
+                  <button id="shift-beat-back" type="button" class="small" title="One beat earlier: the chords imported">‹</button>
+                  <button id="shift-beat-on" type="button" class="small" title="One beat later: the chords imported">›</button>
+                  <button id="shift-bar-on" type="button" class="small" title="One bar later: the chords and the sections imported">»</button>
+                </div>
               </div>
-              <p class="hint rtip">An analysis someone shared with Share analysis (File export and sharing): its bars, sections and chords come into this song in place of its own, lined up with your copy of the recording. Undo takes it away.</p>
+              <p class="hint rtip">An analysis someone shared with Share analysis (File export and sharing): its chords and sections are pasted onto the bars of this song (a song without bars takes its bars too). If they do not fall in place, the arrows that come up move them by a beat or a bar. Undo takes it away.</p>
             </div>
           </div>
           <div class="rpanel-foot">
@@ -684,7 +691,7 @@
       <h3>Benvenuti in EUTERIA!</h3>
       <p>EUTERIA separa una canzone nei suoi strumenti (stem) e serve soprattutto per lo studio dei brani e per le trascrizioni. Puoi togliere uno strumento e suonare al suo posto sopra il brano e registrarti mentre lo fai; puoi ascoltare solo quello strumento per trascrivere un assolo o un riff sfruttando la funzione di loop e rallentamento del tempo. Il metronomo avanzato aiuta a studiare il brano passo dopo passo. Puoi indicare la struttura e gli accordi ed esportarli per MuseScore. Una volta aperti e caricati i brani, EUTERIA funziona anche senza connessione. Non ci sono server né account: i brani restano sui tuoi dispositivi.</p>
       <h3>Come è fatta EUTERIA</h3>
-      <p>Dalla Libreria (schermata principale) apri un file audio (MP3, M4A, WAV…) o un progetto *.euteria; sul computer puoi anche trascinarli nel riquadro. Nuovo progetto vuoto crea un progetto senza audio in cui registrare, con metronomo e battute già pronti.</p>
+      <p>Dalla Libreria (schermata principale) apri un progetto *.euteria o importi un file audio (MP3, M4A, WAV…); sul computer puoi anche trascinarli nel riquadro. Un file audio importato diventa subito un progetto, con l’audio dentro: sul computer EUTERIA chiede dove salvarlo, partendo dal nome del file, sullo smartphone lo mette nella libreria. Il file audio originale non viene mai toccato. Nuovo progetto vuoto crea un progetto senza audio in cui registrare, con metronomo e battute già pronti.</p>
       <p>In alto c’è la barra di riproduzione, con il nome del brano (un clic lo cambia) e, a destra, Annulla e Ripeti operazione.</p>
       <p>Sopra il nome del progetto ci sono le schede: ognuna apre un pannello con i suoi strumenti, vedi sotto per i dettagli.</p>
       <p>Sotto c’è la timeline: note, sezioni, accordi, numeri delle battute e una riga per ogni traccia. Sul computer, scorrendo giù lungo le tracce, le righe in alto restano visibili sotto la barra di riproduzione.</p>
@@ -697,11 +704,11 @@
       <ol>
         <li><b>Analisi del brano.</b>
           <ul>
-            <li><b>Separazione stem.</b> Per separare serve un computer con Chrome o Edge; Safari e Firefox non separano, ma vanno bene per tutto il resto. Su smartphone non funziona. Premi Separa strumenti. Se il brano è un file audio, il programma chiede subito dove salvare il progetto; se è già un progetto salvato, gli stem si aggiungono a quel file. Solo la prima volta scarica il modello di separazione (340-670 MB, secondo la scheda grafica). Servono da 5-10 minuti a 30-45 minuti, secondo la potenza del computer, e intanto puoi già ascoltare il brano. Alla fine il lavoro si salva in un file *.euteria (circa 60 MB), che si riapre senza separare di nuovo e si può mandare ad altri, anche via WhatsApp. Voce, batteria e basso vengono molto bene, chitarra e piano discretamente. Il risultato non è perfetto e l’audio ne risente un po’, ma l’algoritmo usato è tra i migliori oggi disponibili. Se uno stem è vuoto non viene salvato.</li>
+            <li><b>Separazione stem.</b> Per separare serve un computer con Chrome o Edge; Safari e Firefox non separano, ma vanno bene per tutto il resto. Su smartphone non funziona. Premi Separa strumenti: gli stem si aggiungono al file del progetto. Solo la prima volta scarica il modello di separazione (340-670 MB, secondo la scheda grafica). Servono da 5-10 minuti a 30-45 minuti, secondo la potenza del computer, e intanto puoi già ascoltare il brano. Alla fine il lavoro si salva in un file *.euteria (circa 60 MB), che si riapre senza separare di nuovo e si può mandare ad altri, anche via WhatsApp. Voce, batteria e basso vengono molto bene, chitarra e piano discretamente. Il risultato non è perfetto e l’audio ne risente un po’, ma l’algoritmo usato è tra i migliori oggi disponibili. Se uno stem è vuoto non viene salvato.</li>
             <li><b>Mixer.</b> Ogni traccia, che sia uno stem, l’originale o una take, ha il suo volume fino al 200% e si può accendere o spegnere. Tutti gli stem e Solo originale lo fanno in un colpo. Puoi cambiare l’ordine delle tracce e dare a ognuna un nome tuo.</li>
             <li><b>Tempo e griglia.</b> Rileva il tempo del brano e lo divide in battute. Accanto puoi correggere i BPM, il metro e il primo beat se per caso la rilevazione automatica è sfalsata. Per il primo beat, porta la barra di play sul primo battere di una battuta e premi Imposta primo beat. ×2 e ÷2 servono se il programma ha trovato la metà o il doppio del tempo. Questa funzione funziona solo sul computer.</li>
             <li><b>Accordi.</b> Rileva accordi scrive gli accordi che sente, battuta per battuta. Sono suggerimenti da controllare a orecchio, ma offrono un buon punto di partenza. Questa funzione funziona solo sul computer.</li>
-            <li><b>Importa.</b> Analisi da un file porta in questo brano battute, sezioni e accordi che qualcuno ha condiviso con Condividi analisi. EUTERIA confronta il ritmo delle due copie della registrazione e sposta le battute dove cade la musica nella tua, anche se il tuo file comincia qualche decimo di secondo prima o dopo. Se l’analisi è di un’altra registrazione (una versione live, un altro montaggio), te lo dice e puoi importarla comunque. Funziona anche sullo smartphone, e Annulla la toglie.</li>
+            <li><b>Importa.</b> Analisi da un file porta in questo brano gli accordi e le sezioni che qualcuno ha condiviso con Condividi analisi. Vengono incollati sulle battute del tuo brano, quindi prima trova il tempo (Rileva tempo) o imposta le battute a mano; un brano senza battute prende quelle dell’analisi. Se gli accordi non cadono al posto giusto (il tuo file comincia un po’ prima o dopo, o le battute sono numerate in un altro modo), le frecce che compaiono accanto al pulsante li spostano: ‹ e › di un movimento (solo gli accordi), « e » di una battuta (accordi e sezioni). Se le tue battute sono al doppio o alla metà del tempo dell’analisi, EUTERIA te lo dice, così le correggi prima con ×2 o ÷2. Funziona anche sullo smartphone, e Annulla toglie l’importazione insieme agli spostamenti.</li>
           </ul>
         </li>
         <li><b>Tempo e tonalità.</b>
@@ -728,7 +735,7 @@
       <h3>Welcome to EUTERIA!</h3>
       <p>EUTERIA splits a song into its instruments (stems) and is meant above all for studying songs and transcribing them. You can take out an instrument and play its part yourself over the song, recording yourself as you do it; you can listen to that instrument alone to transcribe a solo or a riff, using the loop and the slow-down of the tempo. The advanced metronome helps you study the song step by step. You can mark the structure and the chords and export them for MuseScore. Once it is open and the songs are loaded, EUTERIA also works without a connection. There are no servers and no accounts: the songs stay on your devices.</p>
       <h3>How EUTERIA is laid out</h3>
-      <p>From the Library (the main screen) you open an audio file (MP3, M4A, WAV…) or a *.euteria project; on the computer you can also drag them onto the panel. New empty project creates a project without audio, ready for recording, with the metronome and the bars already in place.</p>
+      <p>From the Library (the main screen) you open a *.euteria project or import an audio file (MP3, M4A, WAV…); on the computer you can also drag them onto the panel. An imported audio file becomes a project straight away, with the audio inside: on the computer EUTERIA asks where to save it, starting from the name of the file; on the smartphone it goes into the library. The original audio file is never touched. New empty project creates a project without audio, ready for recording, with the metronome and the bars already in place.</p>
       <p>At the top is the playback bar, with the name of the song (one click changes it) and, on the right, Undo and Redo.</p>
       <p>Above the project name are the tabs: each opens a panel with its own tools, see below for the details.</p>
       <p>Below is the timeline: notes, sections, chords, bar numbers and one row for each track. On the computer, as you scroll down the tracks, the rows at the top stay in view under the playback bar.</p>
@@ -741,11 +748,11 @@
       <ol>
         <li><b>Analysis of the song.</b>
           <ul>
-            <li><b>Stem separation.</b> Separating needs a computer with Chrome or Edge; Safari and Firefox do not separate, but they are fine for everything else. It does not work on a smartphone. Press Separate instruments. If the song is an audio file, the app first asks where to save the project; if it is already a saved project, the stems are added to that file. The first time only, it downloads the separation model (340-670 MB, depending on the graphics card). It takes from 5-10 minutes to 30-45 minutes, depending on the power of the computer, and meanwhile you can already listen to the song. At the end the work is saved in a *.euteria file (about 60 MB), which can be reopened without a new separation and sent to others, even via WhatsApp. Vocals, drums and bass come out very well, guitar and piano reasonably well. The result is not perfect and the audio suffers a little, but the algorithm it uses is among the best available today. An empty stem is not saved.</li>
+            <li><b>Stem separation.</b> Separating needs a computer with Chrome or Edge; Safari and Firefox do not separate, but they are fine for everything else. It does not work on a smartphone. Press Separate instruments: the stems are added to the project's file. The first time only, it downloads the separation model (340-670 MB, depending on the graphics card). It takes from 5-10 minutes to 30-45 minutes, depending on the power of the computer, and meanwhile you can already listen to the song. At the end the work is saved in a *.euteria file (about 60 MB), which can be reopened without a new separation and sent to others, even via WhatsApp. Vocals, drums and bass come out very well, guitar and piano reasonably well. The result is not perfect and the audio suffers a little, but the algorithm it uses is among the best available today. An empty stem is not saved.</li>
             <li><b>Mixer.</b> Every track, whether a stem, the original or a take, has its own volume up to 200% and can be turned on or off. All stems and Original only do it in one go. You can change the order of the tracks and give each one a name of your own.</li>
             <li><b>Tempo and grid.</b> Detects the tempo of the song and divides it into bars. Beside it you can correct the BPM, the meter and the first beat if the automatic detection happens to be off. For the first beat, put the playhead on the first beat of a bar and press Set first beat. ×2 and ÷2 are for when the app has found half or double the tempo. This feature works only on the computer.</li>
             <li><b>Chords.</b> Detect chords writes the chords it hears, bar by bar. They are suggestions to check by ear, but they offer a good starting point. This feature works only on the computer.</li>
-            <li><b>Import.</b> Analysis from a file brings into this song the bars, sections and chords that someone shared with Share analysis. EUTERIA compares the rhythm of the two copies of the recording and moves the bars to where the music falls in yours, even if your file starts a few tenths of a second earlier or later. If the analysis is of another recording (a live version, another edit), it tells you, and you can import it anyway. It works on the smartphone too, and Undo takes it away.</li>
+            <li><b>Import.</b> Analysis from a file brings into this song the chords and sections that someone shared with Share analysis. They are pasted onto the bars of your song, so first find its tempo (Detect tempo) or set the bars by hand; a song without bars takes those of the analysis. If the chords do not fall in place (your file starts a little earlier or later, or the bars are numbered differently), the arrows that appear beside the button move them: ‹ and › by one beat (the chords only), « and » by one bar (chords and sections). If your bars are at double or half the tempo of the analysis, EUTERIA tells you, so you can fix them first with ×2 or ÷2. It works on the smartphone too, and Undo takes away the import together with the moves.</li>
           </ul>
         </li>
         <li><b>Tempo and key.</b>
