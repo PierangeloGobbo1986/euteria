@@ -36,6 +36,27 @@
   })();
 </script>
 <script type="module" src="app/app.js"></script>
+<!-- The visit counter's switch (3.3.1, app/counter.js): #goatcounter-off leaves this device out
+     of the count, #goatcounter-on counts it again, #toggle-goatcounter (GoatCounter's own) does
+     one or the other. Set here, before GoatCounter reads the address, so that it shows no alert of
+     its own (an alert stops the tab, and a tab stopped held the others up); then the address is
+     cleaned, so that loading it again changes nothing. The app says what was done. -->
+<script>
+  (function () {
+    try {
+      var h = location.hash, off = h === "#goatcounter-off", on = h === "#goatcounter-on";
+      if (h === "#toggle-goatcounter") {
+        if (localStorage.getItem("skipgc") === "t") on = true;
+        else off = true;
+      }
+      if (!off && !on) return;
+      if (off) localStorage.setItem("skipgc", "t");
+      else localStorage.removeItem("skipgc");
+      sessionStorage.setItem("euteria.counting-switched", off ? "off" : "on");
+      history.replaceState(null, "", location.pathname + location.search);
+    } catch (e) {}
+  })();
+</script>
 <!-- Visit counter (GoatCounter): page loads only, no cookies, no personal data. -->
 <script data-goatcounter="https://euteria.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>

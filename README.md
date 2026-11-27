@@ -1334,8 +1334,10 @@ quarter of a second of work for two minutes of music on a computer.
 `index.html` loads the counter of GoatCounter (`euteria.goatcounter.com`), which counts
 page loads without cookies and without personal data. The app also counts, as events
 with a name only, what is done with it (`app/counter.js`): `song-opened-audio` and
-`song-opened-project`, `separation-done`, `separation-stopped` and `separation-failed`,
-`mp3-exported`, `take-recorded`, `tracks-pasted`, `project-shared` and `project-downloaded`. They appear
+`song-opened-project`, `audio-imported`, `analysis-shared` and `analysis-imported`,
+`community-imported`, `community-published` and `community-updated`, `separation-done`,
+`separation-stopped` and `separation-failed`, `mp3-exported`, `take-recorded`, `tracks-pasted`,
+`project-shared` and `project-downloaded`. They appear
 in GoatCounter's list of pages under those names (the filter `is:event` shows them
 alone). GoatCounter counts visitors, not repetitions: someone who does the same thing
 again within a few hours counts once. Nothing about the songs, the projects
@@ -1345,10 +1347,15 @@ it cannot be reached (offline, or blocked by an extension). Visits from `localho
 not counted.
 
 To leave a device out of the count (your own use): in a browser, open the app's address
-with `#toggle-goatcounter` at the end; in the app installed on the Home Screen, which
-has no address bar, tap the version number beside EUTERIA five times. The same gesture
-counts the device again. The choice stays in that browser or app, until its website data
-is cleared.
+with `#goatcounter-off` at the end, and with `#goatcounter-on` to count it again
+(GoatCounter's own `#toggle-goatcounter` does one or the other); in the app installed on
+the Home Screen, which has no address bar, tap the version number beside EUTERIA five
+times, and the same gesture counts the device again. Since 3.3.1 `index.html` reads the
+address before GoatCounter does, so GoatCounter shows no alert of its own (an alert stops
+its tab, and a stopped tab held up the list of the songs opened in the others); the app
+says what was done and takes the ending away from the address, so loading the page again
+changes nothing. The choice stays in that browser or app, until its website data is
+cleared.
 
 ## How the app keeps songs and settings
 
@@ -1362,7 +1369,11 @@ browser to keep its storage (`navigator.storage.persist()`).
 
 Recent files of the computer layout (`src/recent.js`) are the handles that Chrome and
 Edge give for files opened with the system's file picker or dropped on the window, kept
-in IndexedDB. The practice settings of every song (`src/settings.js`) are kept in
+in IndexedDB. The list is shared by all the tabs of the site, and a tab stopped in the
+middle of an operation on it (under an alert, say) holds up the others; so an operation
+on it gives up after three seconds, and opening, importing and saving never wait for it
+(since 3.3.1: the list is brought up to date afterwards, in the background; before, Save
+could stay on *Saving…* after writing the file). The practice settings of every song (`src/settings.js`) are kept in
 `localStorage`, under the project's id and the file's size (or the name and size of an
 audio file); those of the 300 songs opened most recently are kept.
 

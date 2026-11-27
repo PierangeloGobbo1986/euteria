@@ -1752,10 +1752,7 @@ async function openHandle(handle) {
   }
   if (!(await confirmLeave())) return;
   const song = await openSong(file, { source: "file", handle });
-  if (song) {
-    await addRecent(handle, { title: song.fileTitle, size: file.size });
-    renderRecent();
-  }
+  if (song) keepRecent(handle, { title: song.fileTitle, size: file.size });
 }
 
 async function openRecentItem(item) {
@@ -1779,10 +1776,7 @@ async function openRecentItem(item) {
     return;
   }
   const song = await openSong(file, { source: "file", handle: item.handle });
-  if (song) {
-    await addRecent(item.handle, { title: song.fileTitle, size: file.size });
-    renderRecent();
-  }
+  if (song) keepRecent(item.handle, { title: song.fileTitle, size: file.size });
 }
 
 // ----- an audio file imported: a project (3.2) -----------------------------------------
@@ -1859,10 +1853,7 @@ async function importAudio(file, { handle = null, left = false } = {}) {
   if (app.audioAsIs) {
     if (!left && !(await confirmLeave())) return;
     const song = await openSong(file, { source: "file", handle });
-    if (song && handle) {
-      await addRecent(handle, { title: song.fileTitle, size: file.size });
-      renderRecent();
-    }
+    if (song && handle) keepRecent(handle, { title: song.fileTitle, size: file.size });
     return;
   }
   if (phone && library) {
@@ -1939,14 +1930,23 @@ async function importAudio(file, { handle = null, left = false } = {}) {
   }
   carrySettings(audioKey(file), manifest, saved.size);
   const song = await openSong(saved, { source: "file", handle: target, imported: true });
-  if (!song) return;
   // The audio file leaves the list of the songs opened: the project takes its place.
-  if (handle) {
-    const id = await recentId(handle).catch(() => null);
-    if (id) await removeRecent(id);
-  }
-  await addRecent(target, { title: song.fileTitle, size: saved.size });
-  renderRecent();
+  if (song) keepRecent(target, { title: song.fileTitle, size: saved.size, replaces: handle });
+}
+
+// The list of the songs opened brought up to date in the background: what the
+// user asked for never waits on it (an operation on it gives up after a few
+// seconds, src/recent.js). replaces: the handle of the file the entry takes
+// the place of (an audio file imported); id: the entry to put it in.
+function keepRecent(handle, { title, size, id = null, replaces = null }) {
+  (async () => {
+    if (replaces) {
+      const old = await recentId(replaces).catch(() => null);
+      if (old) await removeRecent(old);
+    }
+    await addRecent(handle, { title, size, id });
+    renderRecent();
+  })().catch(() => {});
 }
 
 function recentMeta(item) {
@@ -2030,10 +2030,7 @@ async function openDropped(file, handlePromise) {
   }
   if (!(await confirmLeave())) return;
   const song = await openSong(file, { source: "file", handle });
-  if (song && handle) {
-    await addRecent(handle, { title: song.fileTitle, size: file.size });
-    renderRecent();
-  }
+  if (song && handle) keepRecent(handle, { title: song.fileTitle, size: file.size });
 }
 
 function wireLaunchQueue() {
@@ -2132,10 +2129,7 @@ function buildControls() {
     takes: (file) => recording.forNewProject(file),
     openFile: async (file, handle) => {
       const song = await openSong(file, { source: "file", handle, separated: true });
-      if (song) {
-        await addRecent(handle, { title: song.fileTitle, size: file.size });
-        renderRecent();
-      }
+      if (song) keepRecent(handle, { title: song.fileTitle, size: file.size });
       return song;
     },
   });
@@ -3416,8 +3410,7 @@ async function renameFile(handle, wanted) {
     const file = await handle.getFile();
     app.current.file = file;
     app.current.name = file.name;
-    await addRecent(handle, { title: player.song.fileTitle, size: file.size, id });
-    renderRecent();
+    keepRecent(handle, { title: player.song.fileTitle, size: file.size, id });
   } catch (_) {}
   return { moved: true, id, from };
 }
@@ -3432,8 +3425,7 @@ async function savedInFile(manifest, rename) {
   const saved = await handle.getFile();
   await checkSaved(saved, manifest.project_id);
   savedInPlace(saved, manifest);
-  await addRecent(handle, { title: song.title, size: saved.size });
-  renderRecent();
+  keepRecent(handle, { title: song.title, size: saved.size });
   const name = saved.name;
   const wanted = `${safeName(song.title)}.euteria`;
   const kept = (text) => ({ text, kind: "", ms: 12000 });
@@ -3588,8 +3580,7 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
         cur.handle = target;
         cur.source = "file";
         savedInPlace(saved, manifest);
-        await addRecent(target, { title: song.title, size: saved.size });
-        renderRecent();
+        keepRecent(target, { title: song.title, size: saved.size });
         say(tr("Saved in {name}.", { name: saved.name }), "ok");
         return mode;
       }
@@ -3634,15 +3625,14 @@ async function saveSong({ quiet = false, made = null, renameTo = null } = {}) {
       let kept = null;
       let id = null;
       if (replaces) {
-        id = await recentId(replaces);
+        id = await recentId(replaces).catch(() => null);
         try {
           await replaces.remove();
         } catch (_) {
           kept = replaces.name;
         }
       }
-      await addRecent(target, { title: song.title, size: saved.size, id });
-      renderRecent();
+      keepRecent(target, { title: song.title, size: saved.size, id });
       if (!replaces) say(tr("Saved in {name}.", { name: saved.name }), "ok");
       else if (!kept) say(tr("Saved: the file is now {name}.", { name: saved.name }), "ok");
       else reportSave(tr("Saved in {name}. The old file, {old}, could not be deleted: delete it in its folder if you like.", { name: saved.name, old: kept }), "", 12000);
@@ -3957,8 +3947,7 @@ async function saveAsNew() {
       cur.source = "file";
       cur.created = false;
       savedInPlace(saved, made.manifest);
-      await addRecent(target, { title: name, size: saved.size });
-      renderRecent();
+      keepRecent(target, { title: name, size: saved.size });
     } else {
       downloadBlob(made.blob, fileName);
       reportSave(tr("Downloaded: {name}. Open it to go on with the new project.", { name: fileName }), "ok");
@@ -5158,6 +5147,14 @@ async function init() {
   $("app-version").textContent = VERSION ? `v${VERSION}` : "";
   $("app-version").addEventListener("click", versionTapped);
   showCounting();
+  // The visit counter switched by the address (index.html): said once.
+  try {
+    const switched = sessionStorage.getItem("euteria.counting-switched");
+    if (switched) {
+      sessionStorage.removeItem("euteria.counting-switched");
+      notice(switched === "off" ? tr("This device is no longer counted by the visit counter.") : tr("This device is counted again by the visit counter."), "ok", 6000);
+    }
+  } catch (_) {}
   showUpdate(null);
   buildControls();
   wire();

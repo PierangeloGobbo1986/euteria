@@ -2,9 +2,11 @@
 // loads, it counts what is done with EUTERIA as events that carry a name
 // only, nothing about the song or the person. A device can be left out of
 // the count, so that its owner's own use does not add to the numbers: five
-// taps on the version number switch it, as #toggle-goatcounter at the end of
-// the address does in a browser (GoatCounter's own switch, kept in this
-// browser's storage).
+// taps on the version number switch it; in a browser, #goatcounter-off at the
+// end of the address leaves it out, #goatcounter-on counts it again and
+// #toggle-goatcounter does one or the other (GoatCounter's switch, kept in
+// this browser's storage; set by index.html before GoatCounter reads it, with
+// no alert, and the address cleaned after).
 
 const SKIP = "skipgc"; // GoatCounter's switch: "t", this device is not counted
 

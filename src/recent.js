@@ -4,20 +4,40 @@
 // once for permission. Other browsers give no such handle: there the list
 // stays empty and songs are opened from their folder each time.
 
+// The list lives in the site's IndexedDB, shared by all its tabs: a tab
+// stopped in the middle of an operation on it (under an alert, frozen) holds
+// it, and the others wait. So an operation waits WAIT_MS at most, then gives
+// up (3.3.1: Save stayed on "Saving…" behind such a tab); and the page never
+// waits for the list to do what the user asked (app/app.js keepRecent()).
 const DB = "euteria";
 const STORE = "recent";
 const MAX = 10;
+const WAIT_MS = 3000;
 
 export const recentSupported = () => typeof window !== "undefined" && "showOpenFilePicker" in window && "indexedDB" in window;
 
+const late = () => new Error("The list of the songs opened did not answer.");
+
 function openDb() {
   return new Promise((resolve, reject) => {
+    let gone = false;
+    const timer = setTimeout(() => {
+      gone = true;
+      reject(late());
+    }, WAIT_MS);
     const request = indexedDB.open(DB, 1);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE, { keyPath: "id" });
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      clearTimeout(timer);
+      if (gone) request.result.close(); // too late: given up already
+      else resolve(request.result);
+    };
+    request.onerror = () => {
+      clearTimeout(timer);
+      reject(request.error);
+    };
   });
 }
 
@@ -26,12 +46,27 @@ async function withStore(mode, fn) {
   try {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, mode);
+      const timer = setTimeout(() => {
+        try {
+          tx.abort(); // out of the queue: it holds nothing up any more
+        } catch (_) {}
+        reject(late());
+      }, WAIT_MS);
       const store = tx.objectStore(STORE);
       let result;
       Promise.resolve(fn(store)).then((r) => (result = r), reject);
-      tx.oncomplete = () => resolve(result);
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
+      tx.oncomplete = () => {
+        clearTimeout(timer);
+        resolve(result);
+      };
+      tx.onerror = () => {
+        clearTimeout(timer);
+        reject(tx.error);
+      };
+      tx.onabort = () => {
+        clearTimeout(timer);
+        reject(tx.error || late());
+      };
     });
   } finally {
     db.close();
@@ -43,23 +78,28 @@ const request = (r) => new Promise((resolve, reject) => {
   r.onerror = () => reject(r.error);
 });
 
+async function readAll() {
+  const all = await withStore("readonly", (store) => request(store.getAll()));
+  return (all || []).sort((a, b) => b.opened - a.opened);
+}
+
 // Most recent first: [{id, name, title, size, opened, handle}].
 export async function listRecent() {
   if (!recentSupported()) return [];
   try {
-    const all = await withStore("readonly", (store) => request(store.getAll()));
-    return (all || []).sort((a, b) => b.opened - a.opened);
+    return await readAll();
   } catch (_) {
     return [];
   }
 }
 
 // id: the entry to put it in (a file renamed: its old handle no longer
-// matches it), else the entry of the same file, or a new one.
+// matches it), else the entry of the same file, or a new one. Nothing is
+// added if the list did not answer (it could not tell the file is in it).
 export async function addRecent(handle, { title, size, id = null }) {
   if (!recentSupported() || !handle) return;
   try {
-    const all = await listRecent();
+    const all = await readAll();
     for (const item of all) {
       if (id) break;
       try {
@@ -77,6 +117,7 @@ export async function addRecent(handle, { title, size, id = null }) {
 
 // The id of the entry of `handle`, or null.
 export async function recentId(handle) {
+  if (!handle) return null;
   for (const item of await listRecent()) {
     try {
       if (await item.handle.isSameEntry(handle)) return item.id;
