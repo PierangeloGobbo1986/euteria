@@ -577,7 +577,15 @@ permission asked for first may use that up), the project is saved in its file an
 message offers *Rename…* (2.6.3), whose own click opens the dialog and does the same;
 were the dialog refused again, the message says why. Where Chrome
 allows it, the file is simply renamed first, right after the click, then written
-(2.6.1). A file whose name is not the project's (renamed before 2.5.2, or by hand) takes
+(2.6.1). Both the rename and the dialog want the click to be recent (Chrome allows them
+only within about five seconds of it): since 3.3.2 *Save* gives the list of the songs
+opened 0.8 s to say whether a file of the new name may be written by EUTERIA, and which
+entry is this file's, then renames; if the list has not answered, it opens the save
+dialog at once (before, it waited on the list, and a list that did not answer let the
+click run out: nothing was renamed, and *Save* seemed not to work). *Saving…* shows from
+the click on, and a *Save* asked while one runs (a second click, Ctrl+S, *Save* in the
+question of *Library*) waits for it instead of starting another; *Library* during a
+*Save* waits for it too. A file whose name is not the project's (renamed before 2.5.2, or by hand) takes
 it at any *Save*, even with nothing else changed.
 **Save** (top right, Ctrl+S or ⌘S) writes the name, the grid, the chords and the
 practice settings (tempo, key, loop, volumes, tracks
@@ -1373,7 +1381,18 @@ in IndexedDB. The list is shared by all the tabs of the site, and a tab stopped 
 middle of an operation on it (under an alert, say) holds up the others; so an operation
 on it gives up after three seconds, and opening, importing and saving never wait for it
 (since 3.3.1: the list is brought up to date afterwards, in the background; before, Save
-could stay on *Saving…* after writing the file). The practice settings of every song (`src/settings.js`) are kept in
+could stay on *Saving…* after writing the file). In one Chrome the list of 3.3.1 stopped
+answering for good, even with the browser started again, so that no song was listed any
+more. Since 3.3.2 the list has a database of its own, `euteria-songs`: what the Library
+shows (name, title, size, when) in the store `list`, the handles apart in the store
+`files`, read one at a time, only to open a song again or to tell apart two files of the
+same name, and any question to a handle gives up after 1.5 s. A handle that cannot be
+kept, or read back, leaves its song listed all the same; opened from the Library, such a
+song is said to be opened from its folder, and taken off the list until it is. The list
+of 3.3.1 and before (database `euteria`, the handles inside its entries) is not read
+again: it is deleted at start-up, once, so the list starts afresh (the files themselves
+are untouched). Should the list not answer, the Library says so, and to close the other
+tabs and windows of EUTERIA. The practice settings of every song (`src/settings.js`) are kept in
 `localStorage`, under the project's id and the file's size (or the name and size of an
 audio file); those of the 300 songs opened most recently are kept.
 

@@ -299,6 +299,7 @@ button.confirm { background: #3a2121; border-color: var(--danger); color: #ffd9d
 .btn-sub { font-size: 11px; font-weight: 500; letter-spacing: .01em; opacity: .75; }
 .recent-title { margin: 26px 0 10px; }
 .recent-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+#recent-trouble { color: var(--gold); max-width: 70ch; }
 .recent-item { display: flex; align-items: stretch; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .recent-item .open-it { flex: 1; min-width: 0; justify-content: space-between; background: transparent; border: 0; border-radius: 0; text-align: left; }
 .recent-item .open-it .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

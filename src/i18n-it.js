@@ -798,4 +798,7 @@ export const IT = {
   "Tuning not measured: too few clear notes.": "Intonazione non misurata: troppo poche note chiare.",
   "Song: about {cents} cents (A {hz} Hz)": "Brano: circa {cents} cent (La {hz} Hz)",
   "Song: {cents} cents (A {hz} Hz)": "Brano: {cents} cent (La {hz} Hz)",
+  // The list of the songs opened, apart from the files (3.3.2)
+  "{name} could not be opened from the list: open it from its folder, and it is listed again.": "{name} non si è potuto aprire dalla lista: aprilo dalla sua cartella e torna nella lista.",
+  "The list of the songs opened is not answering: close the other tabs and windows of EUTERIA (the installed app too), then come back here.": "La lista dei brani aperti non risponde: chiudi le altre schede e finestre di EUTERIA (anche l'app installata), poi torna qui.",
 };
